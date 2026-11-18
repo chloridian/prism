@@ -2150,12 +2150,9 @@ impl PlatformWindow for MacWindow {
 
     fn draw(&self, scene: &gpui::Scene) {
         let mut this = self.0.lock();
-        #[cfg(feature = "wgpu")]
         if this.renderer.draw(scene) {
             this.force_render_pending = true;
         }
-        #[cfg(not(feature = "wgpu"))]
-        this.renderer.draw(scene);
     }
 
     fn sprite_atlas(&self) -> Arc<dyn PlatformAtlas> {
@@ -2163,25 +2160,19 @@ impl PlatformWindow for MacWindow {
     }
 
     fn gpu_specs(&self) -> Option<gpui::GpuSpecs> {
-        #[cfg(feature = "wgpu")]
-        return Some(self.0.lock().renderer.gpu_specs());
-        #[cfg(not(feature = "wgpu"))]
-        None
+        Some(self.0.lock().renderer.gpu_specs())
     }
 
-    #[cfg(feature = "wgpu")]
     fn gpu_context(&self) -> Option<Box<dyn std::any::Any>> {
         let (device, queue) = self.0.lock().renderer.gpu_context();
         Some(Box::new((device, queue)))
     }
 
-    #[cfg(feature = "wgpu")]
     fn gpu_device_lost(&self) -> Option<bool> {
         // Only loads an atomic flag, so it is safe mid-recovery.
         Some(self.0.lock().renderer.device_lost())
     }
 
-    #[cfg(feature = "wgpu")]
     fn gpu_context_info(&self) -> Option<Box<dyn std::any::Any>> {
         self.0
             .lock()
