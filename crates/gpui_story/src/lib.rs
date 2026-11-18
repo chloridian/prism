@@ -26,6 +26,8 @@ use std::{cell::Cell, rc::Rc};
 mod app_menus;
 mod embedded_themes;
 mod gallery;
+#[cfg(not(target_family = "wasm"))]
+pub mod http_client;
 mod stories;
 mod themes;
 mod title_bar;
@@ -240,6 +242,11 @@ pub fn init(cx: &mut App) {
             gpui_kit::base::LayoutDirection::Ltr
         }
         .set_global(cx);
+    }
+    #[cfg(not(target_family = "wasm"))]
+    match http_client::ReqwestClient::new("gpui-component/story") {
+        Ok(client) => cx.set_http_client(std::sync::Arc::new(client)),
+        Err(error) => tracing::warn!("remote images are unavailable: {error:#}"),
     }
     gpui_kit::init(cx);
     AppState::init(cx);
