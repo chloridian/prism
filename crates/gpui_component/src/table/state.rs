@@ -1,3 +1,4 @@
+use gpui::ColorExt as _;
 use gpui_base::TestSupportExt as _;
 use std::{ops::Range, rc::Rc, time::Duration};
 
@@ -910,7 +911,7 @@ where
     /// Whether a click on a row selects it, see `select_on_modifier_click`.
     fn selects_row_on_click(&self, e: &ClickEvent, cx: &App) -> bool {
         let modifiers = e.modifiers();
-        self.select_on_modifier_click || !(modifiers.secondary(cx) || modifiers.shift)
+        self.select_on_modifier_click || !(modifiers.secondary() || modifiers.shift)
     }
 
     fn on_col_head_click(&mut self, col_ix: usize, _: &mut Window, cx: &mut Context<Self>) {
@@ -3045,7 +3046,7 @@ mod tests {
         let state = view.read_with(cx, |view, _| view.0.clone());
         let header = state.read_with(cx, |state, _| state.col_groups[0].bounds);
         let wheel = |cx: &mut gpui::VisualTestContext, dy| {
-            cx.simulate_event(gpui::ScrollEvent {
+            cx.simulate_event(gpui::ScrollWheelEvent {
                 position: gpui::point(px(100.), px(100.)),
                 delta: gpui::ScrollDelta::Lines(gpui::point(0., dy)),
                 ..Default::default()
@@ -3055,7 +3056,7 @@ mod tests {
             (-10000., gpui::TouchPhase::Started),
             (0., gpui::TouchPhase::Ended),
         ] {
-            cx.simulate_event(gpui::ScrollEvent {
+            cx.simulate_event(gpui::ScrollWheelEvent {
                 position: gpui::point(px(100.), px(100.)),
                 delta: gpui::ScrollDelta::Pixels(gpui::point(px(0.), px(dy))),
                 touch_phase: phase,

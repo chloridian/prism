@@ -4,6 +4,7 @@ use gpui::{
     App, InteractiveElement as _, IntoElement, ParentElement as _, RenderOnce, StyleRefinement,
     Styled, Window, div, prelude::FluentBuilder as _,
 };
+use gpui_base::HslaExt as _;
 
 /// The element an [`InlineToken`](super::InlineToken) renders as by default. Editing
 /// and activation belong to the input.

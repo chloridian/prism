@@ -1,3 +1,4 @@
+use gpui::ColorExt as _;
 use gpui::{
     AnyElement, App, IntoElement, ParentElement, RenderOnce, StyleRefinement, Styled, Window, div,
     prelude::FluentBuilder as _, relative, rems,

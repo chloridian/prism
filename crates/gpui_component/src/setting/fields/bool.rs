@@ -10,7 +10,8 @@ use crate::{
     switch::Switch,
 };
 use gpui::{
-    AnyElement, App, IntoElement, ParentElement as _, SharedString, StyleRefinement, Window, div,
+    AnyElement, App, IntoElement, ParentElement as _, SharedString, StyleRefinement, Styled as _,
+    Window, div,
 };
 
 pub(crate) struct BoolField {

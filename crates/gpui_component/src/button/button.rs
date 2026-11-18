@@ -1,3 +1,4 @@
+use gpui::ColorExt as _;
 use gpui_base::LogicalStyledExt as _;
 use std::{rc::Rc, time::Duration};
 
@@ -38,7 +39,7 @@ impl From<Pixels> for ButtonRounded {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Debug)]
 pub struct ButtonCustomVariant {
     color: Hsla,
     foreground: Hsla,
@@ -149,7 +150,7 @@ impl ButtonCustomVariant {
 }
 
 /// The variant of the Button.
-#[derive(Clone, Copy, PartialEq, Eq, Default, Debug)]
+#[derive(Clone, Copy, PartialEq, Default, Debug)]
 pub enum ButtonVariant {
     #[default]
     Default,
@@ -1469,7 +1470,7 @@ mod tests {
                     .on_click(move |_, _, _| parent_clicks.set(parent_clicks.get() + 1))
                     .child(
                         Button::new("disabled-legacy")
-                            .disabled(true)
+                            .map(|this| gpui_base::Disableable::disabled(this, true))
                             .size_full()
                             .on_click(move |_, _, _| button_clicks.set(button_clicks.get() + 1)),
                     )
@@ -1824,7 +1825,7 @@ mod tests {
             .tooltip_show_delay(Duration::from_millis(100))
             .compact()
             .loading(false)
-            .disabled(false)
+            .map(|this| gpui_base::Disableable::disabled(this, false))
             .selected(false)
             .tab_index(1)
             .tab_stop(true)
@@ -1886,11 +1887,15 @@ mod tests {
     fn test_button_loading_is_not_interactive(_cx: &mut gpui::TestAppContext) {
         assert!(Button::new("test").interactive());
         assert!(!Button::new("test").loading(true).interactive());
-        assert!(!Button::new("test").disabled(true).interactive());
+        assert!(
+            !Button::new("test")
+                .map(|this| gpui_base::Disableable::disabled(this, true))
+                .interactive()
+        );
         assert!(
             !Button::new("test")
                 .loading(true)
-                .disabled(true)
+                .map(|this| gpui_base::Disableable::disabled(this, true))
                 .interactive()
         );
 

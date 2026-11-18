@@ -1,4 +1,4 @@
-use gpui::{AnyElement, ParentElement, RenderOnce, StyleRefinement};
+use gpui::{AnyElement, ParentElement, RenderOnce, StyleRefinement, Styled as _};
 use smallvec::SmallVec;
 
 use crate::{Selectable, StyledExt, list::ListItem};

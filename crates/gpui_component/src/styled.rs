@@ -4,6 +4,7 @@ use gpui::{
     App, BoxShadow, Corners, Edges, Hsla, InteractiveElement as _, ParentElement, Pixels,
     StyleRefinement, Styled, Window, div, hsla, prelude::FluentBuilder as _, px,
 };
+use gpui_base::HslaExt as _;
 pub use gpui_base::{FocusableExt, RoleOverride, StyledExt, box_shadow, h_flex, v_flex};
 
 use crate::ActiveTheme as _;
@@ -62,7 +63,7 @@ pub(crate) fn popover_shadow(ring: Hsla, strength: f32) -> Vec<BoxShadow> {
     vec![
         // The ring, sitting in the 1px band outside the surface. No blur, so it
         // takes the shader's crisp path rather than the gaussian one.
-        BoxShadow::new(px(0.), px(0.), ring.alpha(ring.a * strength))
+        BoxShadow::new(px(0.), px(0.), ring.alpha(ring.a() * strength))
             .blur_radius(px(0.))
             .spread_radius(px(1.)),
         BoxShadow::new(px(0.), px(4.), ink)

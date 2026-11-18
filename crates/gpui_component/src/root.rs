@@ -6,7 +6,6 @@ use crate::{
     notification::{Notification, NotificationList},
     sheet::Sheet,
     tooltip::tooltip_renderer,
-    touch_selection::WindowTouchSelectionOverlay,
     window_border,
 };
 use gpui::{
@@ -35,7 +34,6 @@ pub(crate) struct WindowState {
     /// dismissed until the pointer moves outside them.
     tooltip_pressed_trigger: Option<Bounds<Pixels>>,
     pub(crate) native_menu_overlay: Entity<FallbackMenuOverlay>,
-    touch_selection_overlay: Entity<WindowTouchSelectionOverlay>,
     sheet_size: Option<DefiniteLength>,
     pending_focus_restore: Option<WeakFocusHandle>,
     /// Source of stable dialog identities, including their rendered subtrees.
@@ -113,7 +111,6 @@ impl WindowState {
             tooltip_trigger_lifetime: std::rc::Weak::new(),
             tooltip_pressed_trigger: None,
             native_menu_overlay: cx.new(|_| FallbackMenuOverlay::new()),
-            touch_selection_overlay: cx.new(|cx| WindowTouchSelectionOverlay::new(window, cx)),
             sheet_size: None,
             pending_focus_restore: None,
             next_dialog_id: 0,
@@ -210,7 +207,7 @@ impl WindowState {
                             .child(root.read(cx).notification.clone()),
                     ),
             )
-            .with_priority(priority),
+            .priority(priority),
         )
     }
 
@@ -770,7 +767,6 @@ impl Render for WindowState {
             .absolute()
             .inset_0()
             .child(WindowStateLayers { root: cx.entity() })
-            .child(self.touch_selection_overlay.clone())
             .child(self.tooltip_overlay.clone())
             .children(self.tooltip_press_listener(cx))
             .child(self.native_menu_overlay.clone())

@@ -146,7 +146,7 @@ impl RenderOnce for Form {
                         .flex_row_dir(cx)
                         .col_span_full()
                         .min_w_0()
-                        .justify_flex_end()
+                        .map(|this| gpui_base::LogicalStyledExt::justify_flex_end(this))
                         .child(footer),
                 )
             })

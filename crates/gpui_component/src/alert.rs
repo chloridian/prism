@@ -1,3 +1,4 @@
+use gpui::ColorExt as _;
 use gpui_base::LogicalStyledExt as _;
 use std::rc::Rc;
 

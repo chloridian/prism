@@ -221,9 +221,13 @@ impl RenderOnce for Marker {
             .line_height(relative(1.5))
             .text_color(tokens.colors.muted_foreground)
             .map(|this| match alignment {
-                MarkerAlignment::Start => this.justify_flex_start().text_start(cx),
+                MarkerAlignment::Start => this
+                    .map(|this| gpui_base::LogicalStyledExt::justify_flex_start(this))
+                    .map(|this| gpui_base::LogicalStyledExt::text_start(this, cx)),
                 MarkerAlignment::Center => this.justify_center().text_center(),
-                MarkerAlignment::End => this.justify_flex_end().text_end(cx),
+                MarkerAlignment::End => this
+                    .map(|this| gpui_base::LogicalStyledExt::justify_flex_end(this))
+                    .map(|this| gpui_base::LogicalStyledExt::text_end(this, cx)),
             })
             .when(variant == MarkerVariant::Border, |this| {
                 this.border_b_1().border_color(tokens.colors.border).pb_2()
@@ -405,9 +409,13 @@ impl RenderOnce for MarkerContent {
             // lines take the rest; elsewhere it may shrink and wrap.
             .when(self.separator, |this| this.flex_none())
             .map(|this| match self.alignment {
-                MarkerAlignment::Start => this.text_start(cx),
+                MarkerAlignment::Start => {
+                    this.map(|this| gpui_base::LogicalStyledExt::text_start(this, cx))
+                }
                 MarkerAlignment::Center => this.text_center(),
-                MarkerAlignment::End => this.text_end(cx),
+                MarkerAlignment::End => {
+                    this.map(|this| gpui_base::LogicalStyledExt::text_end(this, cx))
+                }
             })
             .refine_style(&self.style)
             .children(children);

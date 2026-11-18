@@ -1,3 +1,4 @@
+use gpui::ColorExt as _;
 use gpui::{
     AnyElement, App, ClickEvent, Context, DismissEvent, Edges, ElementId, Entity, EventEmitter,
     FocusHandle, Focusable, Hsla, InteractiveElement, IntoElement, Length, ParentElement, Render,
@@ -627,7 +628,9 @@ where
                                 .when(show_clean, |this| {
                                     this.child(clear_button(cx).map(|this| {
                                         if self.state.disabled {
-                                            this.disabled(true)
+                                            this.map(|this| {
+                                                gpui_base::Disableable::disabled(this, true)
+                                            })
                                         } else {
                                             this.on_click(cx.listener(Self::clean))
                                         }
@@ -682,7 +685,7 @@ where
                                 })),
                             cx,
                         ))
-                        .with_priority(gpui_base::POPUP_PRIORITY),
+                        .priority(gpui_base::POPUP_PRIORITY),
                     )
                 }),
         )
@@ -1237,5 +1240,4 @@ mod tests {
             cx.update(|_, cx| assert_eq!(state.read(cx).state.open, unavailable));
         }
     }
-
 }

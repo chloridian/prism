@@ -1,10 +1,10 @@
 use std::{cell::RefCell, rc::Rc};
 
 use gpui::{
-    Anchor, AnyElement, App, Background, Bounds, ClickEvent, Edges, ElementId, Entity, EntityId,
-    InteractiveElement, IntoElement, ParentElement, Pixels, RenderOnce, ScrollHandle, SharedString,
-    StatefulInteractiveElement as _, StyleRefinement, Styled, Window, div, point,
-    prelude::FluentBuilder as _, px,
+    Anchor, AnyElement, App, AppContext as _, Background, Bounds, ClickEvent, Edges, ElementId,
+    Entity, EntityId, InteractiveElement, IntoElement, ParentElement, Pixels, RenderOnce,
+    ScrollHandle, SharedString, StatefulInteractiveElement as _, StyleRefinement, Styled, Window,
+    div, point, prelude::FluentBuilder as _, px,
 };
 use gpui_base::{LayoutDirection, LogicalStyledExt as _, spring};
 use rust_i18n::t;
@@ -692,8 +692,10 @@ impl RenderOnce for TabBar {
                     // `on_prepaint` adds a canvas child. Keep that helper on
                     // the non-scrolling wrapper so it cannot shift tab indices.
                     .when_some(bounds_rc.clone(), |this, rc| {
-                        this.on_prepaint(move |bounds, _, _| {
-                            rc.borrow_mut().container = bounds;
+                        this.map(|this| {
+                            gpui_base::ElementExt::on_prepaint(this, move |bounds, _, _| {
+                                rc.borrow_mut().container = bounds;
+                            })
                         })
                     })
                     .child(
@@ -1751,7 +1753,7 @@ mod tests {
         delta: gpui::ScrollDelta,
         touch_phase: gpui::TouchPhase,
     ) {
-        cx.simulate_event(gpui::ScrollEvent {
+        cx.simulate_event(gpui::ScrollWheelEvent {
             position,
             delta,
             touch_phase,

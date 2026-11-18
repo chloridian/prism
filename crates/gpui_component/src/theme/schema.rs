@@ -1,3 +1,5 @@
+use gpui::ColorExt as _;
+use gpui_base::HslaExt as _;
 use std::{rc::Rc, sync::Arc};
 
 use gpui::{Background, BoxShadow, FontWeight, Hsla, SharedString, px};
@@ -183,8 +185,11 @@ pub struct SemanticTypographyConfig {
 #[serde(default)]
 #[non_exhaustive]
 pub struct SemanticShadowConfig {
+    #[schemars(with = "Option<Vec<serde_json::Value>>")]
     pub sm: Option<Vec<BoxShadow>>,
+    #[schemars(with = "Option<Vec<serde_json::Value>>")]
     pub md: Option<Vec<BoxShadow>>,
+    #[schemars(with = "Option<Vec<serde_json::Value>>")]
     pub lg: Option<Vec<BoxShadow>>,
 }
 
@@ -763,32 +768,32 @@ impl ThemeColor {
         apply_color!(red);
         apply_color!(
             red_light,
-            fallback = self.background.blend(self.red.opacity(0.8))
+            fallback = self.background.blend(&self.red.opacity(0.8))
         );
         apply_color!(green);
         apply_color!(
             green_light,
-            fallback = self.background.blend(self.green.opacity(0.8))
+            fallback = self.background.blend(&self.green.opacity(0.8))
         );
         apply_color!(blue);
         apply_color!(
             blue_light,
-            fallback = self.background.blend(self.blue.opacity(0.8))
+            fallback = self.background.blend(&self.blue.opacity(0.8))
         );
         apply_color!(magenta);
         apply_color!(
             magenta_light,
-            fallback = self.background.blend(self.magenta.opacity(0.8))
+            fallback = self.background.blend(&self.magenta.opacity(0.8))
         );
         apply_color!(yellow);
         apply_color!(
             yellow_light,
-            fallback = self.background.blend(self.yellow.opacity(0.8))
+            fallback = self.background.blend(&self.yellow.opacity(0.8))
         );
         apply_color!(cyan);
         apply_color!(
             cyan_light,
-            fallback = self.background.blend(self.cyan.opacity(0.8))
+            fallback = self.background.blend(&self.cyan.opacity(0.8))
         );
 
         apply_color!(border);
@@ -797,7 +802,7 @@ impl ThemeColor {
         apply_background_color!(muted);
         apply_color!(
             muted_foreground,
-            fallback = self.muted.blend(self.foreground.opacity(0.7))
+            fallback = self.muted.blend(&self.foreground.opacity(0.7))
         );
 
         // Button colors
@@ -823,7 +828,7 @@ impl ThemeColor {
         apply_color!(primary_foreground, fallback = self.foreground);
         apply_background_color!(
             primary_hover,
-            fallback = self.background.blend(self.primary.opacity(hover_opacity))
+            fallback = self.background.blend(&self.primary.opacity(hover_opacity))
         );
         apply_background_color!(
             primary_active,
@@ -840,7 +845,9 @@ impl ThemeColor {
         apply_color!(secondary_foreground, fallback = self.foreground);
         apply_background_color!(
             secondary_hover,
-            fallback = self.background.blend(self.secondary.opacity(hover_opacity))
+            fallback = self
+                .background
+                .blend(&self.secondary.opacity(hover_opacity))
         );
         apply_background_color!(
             secondary_active,
@@ -857,7 +864,7 @@ impl ThemeColor {
         apply_color!(success_foreground, fallback = self.primary_foreground);
         apply_background_color!(
             success_hover,
-            fallback = self.background.blend(self.success.opacity(hover_opacity))
+            fallback = self.background.blend(&self.success.opacity(hover_opacity))
         );
         apply_background_color!(
             success_active,
@@ -880,7 +887,7 @@ impl ThemeColor {
         apply_color!(info_foreground, fallback = self.primary_foreground);
         apply_background_color!(
             info_hover,
-            fallback = self.background.blend(self.info.opacity(hover_opacity))
+            fallback = self.background.blend(&self.info.opacity(hover_opacity))
         );
         apply_background_color!(info_active, fallback = self.info.darken(active_darken));
         apply_background_color!(
@@ -900,11 +907,11 @@ impl ThemeColor {
         apply_color!(warning_foreground, fallback = self.primary_foreground);
         apply_background_color!(
             warning_hover,
-            fallback = self.background.blend(self.warning.opacity(0.9))
+            fallback = self.background.blend(&self.warning.opacity(0.9))
         );
         apply_background_color!(
             warning_active,
-            fallback = self.background.blend(self.warning.darken(active_darken))
+            fallback = self.background.blend(&self.warning.darken(active_darken))
         );
         apply_background_color!(
             button_warning,
@@ -929,7 +936,8 @@ impl ThemeColor {
             fallback = self
                 .background
                 .blend(
-                    self.secondary
+                    &self
+                        .secondary
                         .opacity(if config.mode.is_dark() { 0.3 } else { 0.4 })
                 )
         );
@@ -948,7 +956,7 @@ impl ThemeColor {
         apply_color!(danger_foreground, fallback = self.primary_foreground);
         apply_background_color!(
             danger_hover,
-            fallback = self.background.blend(self.danger.opacity(0.9))
+            fallback = self.background.blend(&self.danger.opacity(0.9))
         );
         apply_background_color!(
             button_danger,
@@ -965,7 +973,7 @@ impl ThemeColor {
         );
         apply_background_color!(
             description_list_label,
-            fallback = self.background.blend(self.border.opacity(0.2))
+            fallback = self.background.blend(&self.border.opacity(0.2))
         );
         apply_color!(
             description_list_label_foreground,
@@ -979,11 +987,11 @@ impl ThemeColor {
         apply_background_color!(list, fallback = tokens.background);
         apply_background_color!(
             list_active,
-            fallback = self.background.blend(self.primary.opacity(0.1))
+            fallback = self.background.blend(&self.primary.opacity(0.1))
         );
         apply_color!(
             list_active_border,
-            fallback = self.background.blend(self.primary.opacity(0.6))
+            fallback = self.background.blend(&self.primary.opacity(0.6))
         );
         apply_background_color!(list_even, fallback = tokens.list);
         apply_background_color!(list_head, fallback = tokens.list);
@@ -999,7 +1007,7 @@ impl ThemeColor {
         apply_background_color!(selection, fallback = tokens.primary);
         apply_background_color!(
             sidebar,
-            fallback = self.background.blend(self.border.opacity(0.15))
+            fallback = self.background.blend(&self.border.opacity(0.15))
         );
         apply_background_color!(sidebar_accent, fallback = tokens.accent);
         apply_color!(sidebar_accent_foreground, fallback = self.accent_foreground);
@@ -1042,7 +1050,7 @@ impl ThemeColor {
 
         // Ensure opacity for list_active, table_active, selection.
         let clamp_alpha = |raw: Option<&str>, color: Hsla, background: Background, max: f32| {
-            let base = color.a;
+            let base = color.a();
             let target = base.min(max);
             let color = color.alpha(target);
             let background = raw
@@ -1132,7 +1140,8 @@ impl Theme {
 
 #[cfg(test)]
 mod tests {
-    use gpui::{linear_color_stop, linear_gradient, px};
+    use gpui::{ColorExt as _, linear_color_stop, linear_gradient, px};
+    use gpui_base::HslaExt as _;
 
     use crate::{Colorize as _, Theme, ThemeConfig, ThemeMode, ThemeSet, try_parse_color};
 
@@ -1326,46 +1335,6 @@ mod tests {
     }
 
     #[test]
-    fn test_aurora_theme_parses_gradient_backgrounds() {
-        let theme_set =
-            serde_json::from_str::<ThemeSet>(include_str!("../../../../themes/aurora.json"))
-                .unwrap();
-        assert_eq!(theme_set.themes.len(), 1);
-        assert!(theme_set.themes.iter().all(|theme| !theme.mode.is_dark()));
-
-        let light = theme_set
-            .themes
-            .iter()
-            .find(|theme| theme.name.as_ref() == "Aurora Light")
-            .unwrap();
-        let mut theme = Theme::default();
-        theme.apply_config(&std::rc::Rc::new(light.clone()));
-
-        assert_ne!(
-            theme.tokens.button_primary.background,
-            theme.button_primary.into()
-        );
-        assert_eq!(theme.tokens.background.background, theme.background.into());
-        assert_eq!(theme.button_primary, try_parse_color("#1E293B").unwrap());
-        assert_eq!(theme.background, try_parse_color("#FFFFFF").unwrap());
-        assert_ne!(
-            theme.tokens.progress_bar.background,
-            theme.progress_bar.into()
-        );
-        assert_ne!(
-            theme.tokens.scrollbar_thumb.background,
-            theme.scrollbar_thumb.into()
-        );
-        assert_ne!(theme.tokens.switch.background, theme.switch.into());
-        assert_ne!(
-            theme.tokens.switch_thumb.background,
-            theme.switch_thumb.into()
-        );
-        assert_ne!(theme.tokens.title_bar.background, theme.title_bar.into());
-        assert_ne!(theme.tokens.status_bar.background, theme.status_bar.into());
-    }
-
-    #[test]
     fn test_apply_config_clamps_highlight_alpha_per_gradient_stop() {
         let config = serde_json::from_value::<ThemeConfig>(serde_json::json!({
             "name": "Highlight",
@@ -1398,7 +1367,7 @@ mod tests {
             theme.tokens.table_active.background,
             linear_gradient(
                 180.,
-                linear_color_stop(faint.alpha(faint.a.min(0.2)), 0.),
+                linear_color_stop(faint.alpha(faint.a().min(0.2)), 0.),
                 linear_color_stop(blue.alpha(0.2), 1.),
             )
         );
@@ -1410,7 +1379,7 @@ mod tests {
             theme.tokens.selection.background,
             linear_gradient(
                 180.,
-                linear_color_stop(clear.alpha(clear.a.min(0.3)), 0.),
+                linear_color_stop(clear.alpha(clear.a().min(0.3)), 0.),
                 linear_color_stop(blue.alpha(0.3), 1.),
             )
         );

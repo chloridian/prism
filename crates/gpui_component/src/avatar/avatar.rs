@@ -210,6 +210,7 @@ fn extract_text_initials(text: &str) -> String {
 mod tests {
     use super::*;
     use gpui::Rgba;
+    use gpui_base::{HslaExt as _, RgbaExt as _};
 
     /// WCAG 2.1 relative luminance.
     fn luminance(color: Hsla) -> f32 {
@@ -221,8 +222,8 @@ mod tests {
             }
         };
 
-        let rgb: Rgba = color.into();
-        0.2126 * channel(rgb.r) + 0.7152 * channel(rgb.g) + 0.0722 * channel(rgb.b)
+        let rgb = color.to_rgb();
+        0.2126 * channel(rgb.r()) + 0.7152 * channel(rgb.g()) + 0.0722 * channel(rgb.b())
     }
 
     fn contrast_ratio(a: Hsla, b: Hsla) -> f32 {
@@ -261,7 +262,7 @@ mod tests {
         for is_dark in [false, true] {
             for (hue, color) in ring(is_dark) {
                 assert!(
-                    color.border.s < 1.,
+                    color.border.s() < 1.,
                     "border at hue {hue} (dark: {is_dark}) is clamped to the sRGB gamut edge"
                 );
             }

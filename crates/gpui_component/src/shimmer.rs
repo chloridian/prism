@@ -1,9 +1,11 @@
+use gpui::ColorExt as _;
 use gpui::{
     Animation, AnimationExt as _, App, Bounds, ContentMask, Element, ElementId, GlobalElementId,
-    Hsla, InspectorElementId, IntoElement, LayoutId, LineLayout, ParentElement as _, Pixels, Point,
-    RenderOnce, SharedString, StyleRefinement, Styled, StyledText, TextAlign, Window, WrapBoundary,
-    div, point, px, size,
+    Hsla, InspectorElementId, IntoElement, LayoutId, ParentElement as _, Pixels, RenderOnce,
+    SharedString, StyleRefinement, Styled, StyledText, TextAlign, VisualLine, Window, div, point,
+    px, size,
 };
+use gpui_base::HslaExt as _;
 use web_time::Duration;
 
 use crate::{ActiveTheme as _, Colorize as _, StyledExt as _};
@@ -258,8 +260,10 @@ struct ShimmerGlyphs {
 impl ShimmerGlyphs {
     fn paint_highlight(&self, bounds: Bounds<Pixels>, window: &mut Window, cx: &mut App) {
         let masks = std::array::from_fn::<_, SHIMMER_LAYER_COUNT, _>(|layer| {
-            shimmer_band_bounds(bounds, self.phase, self.spread, layer)
-                .map(|bounds| ContentMask { bounds })
+            shimmer_band_bounds(bounds, self.phase, self.spread, layer).map(|bounds| ContentMask {
+                bounds,
+                fade_out: Default::default(),
+            })
         });
 
         if masks.iter().all(Option::is_none) {
@@ -276,82 +280,56 @@ impl ShimmerGlyphs {
         let layout = self.text.layout();
         let line_height = layout.line_height();
         let text_align = window.text_style().text_align;
-        let mut line_origin = bounds.origin;
+        let mut row_y = bounds.origin.y;
 
         window.paint_layer(bounds, |window| {
-            for wrapped_line in layout.line_layouts() {
-                let line = &wrapped_line.unwrapped_layout;
-                let baseline_offset = point(
-                    px(0.),
-                    (line_height - line.ascent - line.descent) / 2. + line.ascent,
-                );
-                let mut wraps = wrapped_line.wrap_boundaries.iter().peekable();
-                let mut glyph_origin = point(
-                    shimmer_aligned_origin_x(
-                        line_origin,
+            for shaped in layout.line_layouts() {
+                let padding_top = (line_height - shaped.ascent() - shaped.descent()) / 2.;
+
+                for line in shaped.visual_lines() {
+                    let row_x = shimmer_aligned_origin_x(
+                        bounds.origin.x,
                         bounds.size.width,
-                        px(0.),
-                        text_align,
                         line,
-                        wraps.peek().copied(),
-                    ),
-                    line_origin.y,
-                );
-                let mut previous_glyph_position = Point::default();
+                        text_align,
+                    );
+                    let baseline_y = row_y + padding_top + shaped.ascent();
 
-                for (run_index, run) in line.runs.iter().enumerate() {
-                    let glyph_size = cx
-                        .text_system()
-                        .bounding_box(run.font_id, line.font_size)
-                        .size;
+                    for fragment in shaped.fragments_for_line(line) {
+                        let glyph_size = cx
+                            .text_system()
+                            .bounding_box(fragment.font_id, fragment.font_size)
+                            .size;
 
-                    for (glyph_index, glyph) in run.glyphs.iter().enumerate() {
-                        glyph_origin.x += glyph.position.x - previous_glyph_position.x;
-
-                        if wraps.peek().is_some_and(|wrap| {
-                            wrap.run_ix == run_index && wrap.glyph_ix == glyph_index
-                        }) {
-                            wraps.next();
-                            glyph_origin.x = shimmer_aligned_origin_x(
-                                line_origin,
-                                bounds.size.width,
-                                glyph.position.x,
-                                text_align,
-                                line,
-                                wraps.peek().copied(),
-                            );
-                            glyph_origin.y += line_height;
-                        }
-
-                        previous_glyph_position = glyph.position;
-
-                        if glyph.is_emoji {
-                            continue;
-                        }
-
-                        let glyph_bounds = Bounds::new(glyph_origin, glyph_size);
-                        let paint_origin =
-                            glyph_origin + baseline_offset + point(px(0.), glyph.position.y);
-
-                        for mask in masks.iter().flatten() {
-                            if !glyph_bounds.intersects(&mask.bounds) {
+                        for glyph in fragment.glyphs.iter() {
+                            if glyph.is_emoji {
                                 continue;
                             }
 
-                            window.with_content_mask(Some(*mask), |window| {
-                                let _ = window.paint_glyph(
-                                    paint_origin,
-                                    run.font_id,
-                                    glyph.id,
-                                    line.font_size,
-                                    color,
-                                );
-                            });
+                            let glyph_x = row_x + glyph.position.x;
+                            let glyph_bounds = Bounds::new(point(glyph_x, row_y), glyph_size);
+                            let paint_origin = point(glyph_x, baseline_y + glyph.position.y);
+
+                            for mask in masks.iter().flatten() {
+                                if !glyph_bounds.intersects(&mask.bounds) {
+                                    continue;
+                                }
+
+                                window.with_content_mask(Some(*mask), |window| {
+                                    let _ = window.paint_glyph(
+                                        paint_origin,
+                                        fragment.font_id,
+                                        glyph.id,
+                                        fragment.font_size,
+                                        color,
+                                    );
+                                });
+                            }
                         }
                     }
-                }
 
-                line_origin.y += wrapped_line.size(line_height).height;
+                    row_y += line_height;
+                }
             }
         });
     }
@@ -447,7 +425,7 @@ fn shimmer_highlight_color(
         };
         // Text already in the target's lightness (e.g. `foreground` text in a dark
         // theme) would get a band in its own color; sweep toward the other end.
-        let target = if (target.l - text.l).abs() < MIN_HIGHLIGHT_LIGHTNESS_GAP {
+        let target = if (target.l() - text.l()).abs() < MIN_HIGHLIGHT_LIGHTNESS_GAP {
             opposite
         } else {
             target
@@ -491,23 +469,22 @@ fn shimmer_band_bounds(
 }
 
 fn shimmer_aligned_origin_x(
-    origin: Point<Pixels>,
+    origin_x: Pixels,
     align_width: Pixels,
-    previous_glyph_x: Pixels,
+    line: &VisualLine,
     align: TextAlign,
-    layout: &LineLayout,
-    next_wrap: Option<&WrapBoundary>,
 ) -> Pixels {
-    let line_end = next_wrap
-        .map(|wrap| layout.runs[wrap.run_ix].glyphs[wrap.glyph_ix].position.x)
-        .unwrap_or(layout.width);
-    let line_width = line_end - previous_glyph_x;
+    let advance = line.advance_width;
+    let rtl = line.direction.is_rtl();
 
-    match align {
-        TextAlign::Left => origin.x,
-        TextAlign::Center => (origin.x * 2. + align_width - line_width) / 2.,
-        TextAlign::Right => origin.x + align_width - line_width,
-    }
+    line.offset
+        + match align {
+            TextAlign::Start if rtl => origin_x + align_width - advance,
+            TextAlign::Start | TextAlign::Left => origin_x,
+            TextAlign::End if rtl => origin_x,
+            TextAlign::Center => (origin_x * 2. + align_width - advance) / 2.,
+            TextAlign::End | TextAlign::Right => origin_x + align_width - advance,
+        }
 }
 
 #[cfg(test)]
@@ -516,7 +493,7 @@ mod tests {
 
     #[test]
     fn test_shimmer_builder() {
-        let color = Hsla::white();
+        let color = gpui::white();
         let style = ShimmerStyle::new()
             .duration(Duration::from_secs(3))
             .highlight_color(color)
@@ -619,39 +596,51 @@ mod tests {
 
     #[test]
     fn test_shimmer_highlight_stays_bright_in_both_themes() {
-        let black = Hsla::black();
-        let white = Hsla::white();
+        let black = gpui::black();
+        let white = gpui::white();
         let muted = white.mix_oklab(black, 0.55);
         let light = shimmer_highlight_color(black, white, black, false, None);
         let dark = shimmer_highlight_color(muted, black, white, true, None);
 
-        assert!(light.l > black.l);
-        assert!(dark.l > muted.l);
-        assert!(light.a > dark.a);
-        assert!((1. - (1. - light.a).powi(SHIMMER_LAYER_COUNT as i32) - 0.75).abs() < 0.001);
-        assert!((1. - (1. - dark.a).powi(SHIMMER_LAYER_COUNT as i32) - 0.6).abs() < 0.001);
+        assert!(light.l() > black.l());
+        assert!(dark.l() > muted.l());
+        assert!(light.a() > dark.a());
+        assert!((1. - (1. - light.a()).powi(SHIMMER_LAYER_COUNT as i32) - 0.75).abs() < 0.001);
+        assert!((1. - (1. - dark.a()).powi(SHIMMER_LAYER_COUNT as i32) - 0.6).abs() < 0.001);
 
         // Text that already has the target's lightness sweeps toward the other end
         // instead of getting a band in its own color.
         let on_dark_foreground = shimmer_highlight_color(white, black, white, true, None);
-        assert!(white.l - on_dark_foreground.l > 0.3);
+        assert!(white.l() - on_dark_foreground.l() > 0.3);
         let on_light_background = shimmer_highlight_color(white, white, black, false, None);
-        assert!(white.l - on_light_background.l > 0.3);
+        assert!(white.l() - on_light_background.l() > 0.3);
 
         let custom = shimmer_highlight_color(black, white, black, false, Some(muted));
-        assert_eq!(custom.h, muted.h);
-        assert_eq!(custom.s, muted.s);
-        assert_eq!(custom.l, muted.l);
+        assert_eq!(custom.h(), muted.h());
+        assert_eq!(custom.s(), muted.s());
+        assert_eq!(custom.l(), muted.l());
 
         let animation = loading_animation(Duration::from_secs(3), false);
-        assert_eq!(animation.duration, Duration::from_secs(3));
+        assert_eq!(
+            animation.motion.forward_pass().duration(),
+            Duration::from_secs(3)
+        );
         assert!(animation.synced);
-        assert!(!animation.oneshot);
+        assert_eq!(
+            animation.motion.checked_extent(),
+            Some(gpui::MotionExtent::Infinite)
+        );
         assert_eq!(animation.max_fps, None);
 
         let animation = loading_animation(Duration::from_secs(3), true);
-        assert_eq!(animation.duration, Duration::from_secs(3));
-        assert!(animation.oneshot);
+        assert_eq!(
+            animation.motion.forward_pass().duration(),
+            Duration::from_secs(3)
+        );
+        assert_eq!(
+            animation.motion.checked_extent(),
+            Some(gpui::MotionExtent::Finite(Duration::from_secs(3)))
+        );
         assert!(!animation.synced);
     }
 }

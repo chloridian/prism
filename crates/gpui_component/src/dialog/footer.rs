@@ -1,6 +1,7 @@
 use gpui::{
     AnyElement, App, InteractiveElement as _, IntoElement, ParentElement, RenderOnce,
-    StatefulInteractiveElement, StyleRefinement, Styled, Window, div, relative,
+    StatefulInteractiveElement, StyleRefinement, Styled, Window, div, prelude::FluentBuilder as _,
+    relative,
 };
 
 use gpui_base::LogicalStyledExt as _;
@@ -54,7 +55,7 @@ impl RenderOnce for DialogFooter {
         h_flex()
             .flex_row_dir(cx)
             .gap_2()
-            .justify_flex_end()
+            .map(|this| gpui_base::LogicalStyledExt::justify_flex_end(this))
             .line_height(relative(1.25))
             .rounded_b(cx.theme().radius_lg)
             .refine_style(&self.style)

@@ -5,10 +5,12 @@
 //! items settle with, the drop placeholder, the resize grip, and how the
 //! dragged and the keyboard-selected items stand out.
 
+use gpui::ColorExt as _;
 use gpui::{
     App, ElementId, Entity, InteractiveElement as _, IntoElement as _, ParentElement as _,
     Styled as _, div, prelude::FluentBuilder as _, px,
 };
+use gpui_base::HslaExt as _;
 use gpui_base::{Transition, box_shadow};
 
 pub use gpui_base::grid_layout::*;

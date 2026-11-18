@@ -1,8 +1,10 @@
+use gpui::ColorExt as _;
 use std::{collections::HashMap, fmt::Display, sync::LazyLock};
 
 use gpui::{
-    Background, Hsla, LinearColorStop, SharedString, hsla, linear_color_stop, linear_gradient,
+    Background, Hsla, LinearColorStop, Rgba, SharedString, hsla, linear_color_stop, linear_gradient,
 };
+use gpui_base::{HslaExt as _, RgbaExt as _};
 use serde::{Deserialize, Deserializer, de::Error as _};
 
 use anyhow::{Error, Result, anyhow};
@@ -18,10 +20,6 @@ pub fn hsl(h: f32, s: f32, l: f32) -> Hsla {
 }
 
 pub trait Colorize: Sized {
-    /// Returns a new color with the given opacity.
-    ///
-    /// The opacity is a value between 0.0 and 1.0, where 0.0 is fully transparent and 1.0 is fully opaque.
-    fn opacity(&self, opacity: f32) -> Self;
     /// Returns a new color with each channel divided by the given divisor.
     ///
     /// The divisor in range of 0.0 .. 1.0
@@ -63,6 +61,7 @@ pub trait Colorize: Sized {
 /// Helper functions for Oklab color space conversions
 mod oklab {
     use gpui::Rgba;
+    use gpui_base::RgbaExt as _;
 
     /// Convert sRGB component to linear RGB
     #[inline]
@@ -88,9 +87,9 @@ mod oklab {
     #[allow(non_snake_case)]
     pub fn rgb_to_oklab(rgb: Rgba) -> (f32, f32, f32) {
         // sRGB to linear RGB
-        let lr = to_linear(rgb.r);
-        let lg = to_linear(rgb.g);
-        let lb = to_linear(rgb.b);
+        let lr = to_linear(rgb.r());
+        let lg = to_linear(rgb.g());
+        let lb = to_linear(rgb.b());
 
         // Linear RGB to LMS
         let l = 0.4122214708 * lr + 0.5363325363 * lg + 0.0514459929 * lb;
@@ -127,12 +126,12 @@ mod oklab {
         let lb = -0.0041960863 * l - 0.7034186147 * m + 1.7076147010 * s;
 
         // Linear RGB to sRGB
-        Rgba {
-            r: from_linear(lr).clamp(0.0, 1.0),
-            g: from_linear(lg).clamp(0.0, 1.0),
-            b: from_linear(lb).clamp(0.0, 1.0),
-            a: 1.0,
-        }
+        Rgba::new(
+            from_linear(lr).clamp(0.0, 1.0),
+            from_linear(lg).clamp(0.0, 1.0),
+            from_linear(lb).clamp(0.0, 1.0),
+            1.0,
+        )
     }
 }
 
@@ -149,59 +148,36 @@ mod oklab {
 pub fn oklch(lightness: f32, chroma: f32, hue: f32) -> Hsla {
     let hue = hue.to_radians();
     let rgb = oklab::oklab_to_rgb(lightness, chroma * hue.cos(), chroma * hue.sin());
-    rgb.into()
+    gpui::rgb_to_hsla(rgb)
 }
 
 impl Colorize for Hsla {
-    fn opacity(&self, factor: f32) -> Self {
-        Self {
-            a: self.a * factor.clamp(0.0, 1.0),
-            ..*self
-        }
-    }
-
     fn divide(&self, divisor: f32) -> Self {
-        Self {
-            a: divisor,
-            ..*self
-        }
+        hsla(self.h(), self.s(), self.l(), divisor)
     }
 
     fn invert(&self) -> Self {
-        Self {
-            h: 1.0 - self.h,
-            s: 1.0 - self.s,
-            l: 1.0 - self.l,
-            a: self.a,
-        }
+        hsla(1.0 - self.h(), 1.0 - self.s(), 1.0 - self.l(), self.a())
     }
 
     fn invert_l(&self) -> Self {
-        Self {
-            l: 1.0 - self.l,
-            ..*self
-        }
+        hsla(self.h(), self.s(), 1.0 - self.l(), self.a())
     }
 
     fn lighten(&self, factor: f32) -> Self {
-        let l = self.l * (1.0 + factor.clamp(0.0, 1.0));
+        let l = self.l() * (1.0 + factor.clamp(0.0, 1.0));
 
-        Hsla { l, ..*self }
+        hsla(self.h(), self.s(), l, self.a())
     }
 
     fn darken(&self, factor: f32) -> Self {
-        let l = self.l * (1.0 - factor.clamp(0.0, 1.0));
+        let l = self.l() * (1.0 - factor.clamp(0.0, 1.0));
 
-        Self { l, ..*self }
+        hsla(self.h(), self.s(), l, self.a())
     }
 
     fn apply(&self, new_color: Self) -> Self {
-        Hsla {
-            h: new_color.h,
-            s: new_color.s,
-            l: self.l,
-            a: self.a,
-        }
+        hsla(new_color.h(), new_color.s(), self.l(), self.a())
     }
 
     /// Reference:
@@ -216,12 +192,12 @@ impl Colorize for Hsla {
             (a + diff * t).rem_euclid(360.0)
         }
 
-        Hsla {
-            h: lerp_hue(self.h * 360., other.h * 360., factor) / 360.,
-            s: self.s * factor + other.s * inv,
-            l: self.l * factor + other.l * inv,
-            a: self.a * factor + other.a * inv,
-        }
+        hsla(
+            lerp_hue(self.h() * 360., other.h() * 360., factor) / 360.,
+            self.s() * factor + other.s() * inv,
+            self.l() * factor + other.l() * inv,
+            self.a() * factor + other.a() * inv,
+        )
     }
 
     #[allow(non_snake_case)]
@@ -230,16 +206,11 @@ impl Colorize for Hsla {
         let inv = 1.0 - factor;
 
         // Interpolate alpha first
-        let result_alpha = self.a * factor + other.a * inv;
+        let result_alpha = self.a() * factor + other.a() * inv;
 
         // Handle the case where result alpha is zero
         if result_alpha == 0.0 {
-            return Self {
-                h: 0.0,
-                s: 0.0,
-                l: 0.0,
-                a: 0.0,
-            };
+            return hsla(0.0, 0.0, 0.0, 0.0);
         }
 
         // Convert both colors to RGB
@@ -252,8 +223,8 @@ impl Colorize for Hsla {
 
         // Premultiply alpha in Oklab space (using alpha-premultiplied interpolation)
         // This matches CSS color-mix behavior
-        let alpha1 = self.a;
-        let alpha2 = other.a;
+        let alpha1 = self.a();
+        let alpha2 = other.a();
 
         // Premultiply
         let l1_pm = l1 * alpha1;
@@ -275,31 +246,32 @@ impl Colorize for Hsla {
         let b = b_pm / result_alpha;
 
         // Convert back to RGB
-        let mut rgb = oklab::oklab_to_rgb(L, a, b);
-        rgb.a = result_alpha;
+        let rgb = oklab::oklab_to_rgb(L, a, b);
 
         // Convert RGB to HSLA
-        rgb.into()
+        let mut color = gpui::rgb_to_hsla(rgb);
+        color.alpha = result_alpha;
+        color
     }
 
     fn to_hex(&self) -> String {
         let rgb = self.to_rgb();
 
-        if rgb.a < 1. {
+        if rgb.a() < 1. {
             return format!(
                 "#{:02X}{:02X}{:02X}{:02X}",
-                ((rgb.r * 255.) as u32),
-                ((rgb.g * 255.) as u32),
-                ((rgb.b * 255.) as u32),
-                ((self.a * 255.) as u32)
+                ((rgb.r() * 255.).round() as u32),
+                ((rgb.g() * 255.).round() as u32),
+                ((rgb.b() * 255.).round() as u32),
+                ((self.a() * 255.).round() as u32)
             );
         }
 
         format!(
             "#{:02X}{:02X}{:02X}",
-            ((rgb.r * 255.) as u32),
-            ((rgb.g * 255.) as u32),
-            ((rgb.b * 255.) as u32)
+            ((rgb.r() * 255.).round() as u32),
+            ((rgb.g() * 255.).round() as u32),
+            ((rgb.b() * 255.).round() as u32)
         )
     }
 
@@ -321,35 +293,56 @@ impl Colorize for Hsla {
             1.
         };
 
-        let v = gpui::Rgba { r, g, b, a };
-        let color: Hsla = v.into();
-        Ok(color)
+        Ok(gpui::rgb_to_hsla(Rgba::new(r, g, b, a)))
     }
 
     fn hue(&self, hue: f32) -> Self {
-        let mut color = *self;
-        color.h = hue.clamp(0., 1.);
-        color
+        hsla(hue.clamp(0., 1.), self.s(), self.l(), self.a())
     }
 
     fn saturation(&self, saturation: f32) -> Self {
-        let mut color = *self;
-        color.s = saturation.clamp(0., 1.);
-        color
+        hsla(self.h(), saturation.clamp(0., 1.), self.l(), self.a())
     }
 
     fn lightness(&self, lightness: f32) -> Self {
-        let mut color = *self;
-        color.l = lightness.clamp(0., 1.);
-        color
+        hsla(self.h(), self.s(), lightness.clamp(0., 1.), self.a())
     }
 }
 
-pub(crate) static DEFAULT_COLORS: LazyLock<ShadcnColors> =
-    LazyLock::new(|| {
-        serde_json::from_str(include_str!("./default-colors.json"))
-            .expect("failed to parse default-colors.json")
-    });
+/// Serde adapter for optional colors written as `#rgb`, `#rgba`, `#rrggbb` or `#rrggbbaa` strings.
+pub(crate) mod hex_color {
+    use gpui::Hsla;
+    use serde::{Deserialize, Deserializer, Serializer, de::Error as _};
+
+    use super::Colorize as _;
+
+    pub fn serialize<S: Serializer>(
+        color: &Option<Hsla>,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error> {
+        match color {
+            Some(color) => serializer.serialize_some(&color.to_hex()),
+            None => serializer.serialize_none(),
+        }
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(
+        deserializer: D,
+    ) -> Result<Option<Hsla>, D::Error> {
+        Option::<String>::deserialize(deserializer)?
+            .map(|hex| {
+                gpui_base::rgba_from_hex(&hex)
+                    .map(gpui::rgb_to_hsla)
+                    .map_err(D::Error::custom)
+            })
+            .transpose()
+    }
+}
+
+pub(crate) static DEFAULT_COLORS: LazyLock<ShadcnColors> = LazyLock::new(|| {
+    serde_json::from_str(include_str!("./default-colors.json"))
+        .expect("failed to parse default-colors.json")
+});
 
 type ColorScales = HashMap<usize, ShadcnColor>;
 
@@ -511,7 +504,7 @@ impl ColorName {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, serde::Deserialize)]
+#[derive(Debug, Clone, PartialEq, serde::Deserialize)]
 pub(crate) struct ShadcnColors {
     pub(crate) black: ShadcnColor,
     pub(crate) white: ShadcnColor,
@@ -561,7 +554,7 @@ pub(crate) struct ShadcnColors {
     pub(crate) rose: ColorScales,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, serde::Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, serde::Deserialize)]
 pub(crate) struct ShadcnColor {
     #[serde(default)]
     pub(crate) scale: usize,
@@ -962,8 +955,7 @@ color_methods!(
 ///
 pub fn try_parse_color(color: &str) -> Result<Hsla> {
     if color.starts_with("#") {
-        let rgba = gpui::Rgba::try_from(color)?;
-        return Ok(rgba.into());
+        return Ok(gpui::rgb_to_hsla(gpui_base::rgba_from_hex(color)?));
     }
 
     let mut name = String::new();
@@ -1046,12 +1038,13 @@ pub fn try_parse_background(background: &str) -> Result<Background> {
 /// transparent `from` stop) can never push the rendered highlight past `max`.
 pub(crate) fn try_parse_background_clamped(background: &str, max: f32) -> Result<Background> {
     if let Ok(color) = try_parse_color(background) {
-        return Ok(color.alpha(color.a.min(max)).into());
+        return Ok(color.alpha(color.a().min(max)).into());
     }
 
     let gradient = parse_linear_gradient(background)?;
     let clamp = |stop: LinearColorStop| {
-        linear_color_stop(stop.color.alpha(stop.color.a.min(max)), stop.percentage)
+        let color: Hsla = stop.color.into();
+        linear_color_stop(color.alpha(color.a().min(max)), stop.percentage)
     };
     Ok(linear_gradient(
         gradient.angle,
@@ -1065,7 +1058,7 @@ pub(crate) fn try_parse_theme_color(color: &str) -> Result<Hsla> {
         return Ok(color);
     }
 
-    Ok(parse_linear_gradient(color)?.from.color)
+    Ok(parse_linear_gradient(color)?.from.color.into())
 }
 
 struct ParsedLinearGradient {
@@ -1225,26 +1218,26 @@ mod tests {
 
     #[test]
     fn test_to_hex_string() {
-        let color: Hsla = rgb(0xf8fafc).into();
+        let color: Hsla = gpui::rgb_to_hsla(rgb(0xf8fafc));
         assert_eq!(color.to_hex(), "#F8FAFC");
 
-        let color: Hsla = rgb(0xfef2f2).into();
+        let color: Hsla = gpui::rgb_to_hsla(rgb(0xfef2f2));
         assert_eq!(color.to_hex(), "#FEF2F2");
 
-        let color: Hsla = rgba(0x0413fcaa).into();
+        let color: Hsla = gpui::rgb_to_hsla(rgba(0x0413fcaa));
         assert_eq!(color.to_hex(), "#0413FCAA");
     }
 
     #[test]
     fn test_from_hex_string() {
         let color: Hsla = Hsla::parse_hex("#F8FAFC").unwrap();
-        assert_eq!(color, rgb(0xf8fafc).into());
+        assert_eq!(color, gpui::rgb_to_hsla(rgb(0xf8fafc)));
 
         let color: Hsla = Hsla::parse_hex("#FEF2F2").unwrap();
-        assert_eq!(color, rgb(0xfef2f2).into());
+        assert_eq!(color, gpui::rgb_to_hsla(rgb(0xfef2f2)));
 
         let color: Hsla = Hsla::parse_hex("#0413FCAA").unwrap();
-        assert_eq!(color, rgba(0x0413fcaa).into());
+        assert_eq!(color, gpui::rgb_to_hsla(rgba(0x0413fcaa)));
     }
 
     #[test]
@@ -1260,20 +1253,20 @@ mod tests {
     fn test_lighten() {
         let color = super::hsl(240.0, 5.0, 30.0);
         let color = color.lighten(0.5);
-        assert_eq!(color.l, 0.45000002);
+        assert_eq!(color.l(), 0.45000002);
         let color = color.lighten(0.5);
-        assert_eq!(color.l, 0.675);
+        assert_eq!(color.l(), 0.675);
         let color = color.lighten(0.1);
-        assert_eq!(color.l, 0.7425);
+        assert_eq!(color.l(), 0.7425);
     }
 
     #[test]
     fn test_darken() {
         let color = super::hsl(240.0, 5.0, 96.0);
         let color = color.darken(0.5);
-        assert_eq!(color.l, 0.48);
+        assert_eq!(color.l(), 0.48);
         let color = color.darken(0.5);
-        assert_eq!(color.l, 0.24);
+        assert_eq!(color.l(), 0.24);
     }
 
     #[test]
@@ -1292,28 +1285,23 @@ mod tests {
     fn test_mix_oklab() {
         let red = Hsla::parse_hex("#FF0000").unwrap();
         let blue = Hsla::parse_hex("#0000FF").unwrap();
-        let transparent = gpui::Hsla {
-            h: 0.0,
-            s: 0.0,
-            l: 0.0,
-            a: 0.0,
-        };
+        let transparent = gpui::hsla(0.0, 0.0, 0.0, 0.0);
 
         // Test mixing red with transparent (similar to CSS color-mix example)
         // color-mix(in oklab, red 20%, transparent) should give red with 20% opacity
         let result = red.mix_oklab(transparent, 0.2);
-        assert!((result.a - 0.2).abs() < 0.01); // Alpha should be 20%
+        assert!((result.a() - 0.2).abs() < 0.01); // Alpha should be 20%
 
         // The color should remain red (hue should be preserved)
         let rgb_result = result.to_rgb();
         let rgb_red = red.to_rgb();
         // Allow some tolerance due to color space conversions
         assert!(
-            (rgb_result.r - rgb_red.r).abs() < 0.05,
+            (rgb_result.r() - rgb_red.r()).abs() < 0.05,
             "Red channel should be preserved"
         );
-        assert!(rgb_result.g < 0.05, "Green channel should be near 0");
-        assert!(rgb_result.b < 0.05, "Blue channel should be near 0");
+        assert!(rgb_result.g() < 0.05, "Green channel should be near 0");
+        assert!(rgb_result.b() < 0.05, "Blue channel should be near 0");
 
         // Test basic color mixing in Oklab space
         let purple = red.mix_oklab(blue, 0.5);
@@ -1328,15 +1316,15 @@ mod tests {
         // Check that result is close to expected (within 1 color unit per channel)
         let rgb_0 = result_0.to_rgb();
         let rgb_blue = blue.to_rgb();
-        assert!((rgb_0.r - rgb_blue.r).abs() < 0.01);
-        assert!((rgb_0.g - rgb_blue.g).abs() < 0.01);
-        assert!((rgb_0.b - rgb_blue.b).abs() < 0.01);
+        assert!((rgb_0.r() - rgb_blue.r()).abs() < 0.01);
+        assert!((rgb_0.g() - rgb_blue.g()).abs() < 0.01);
+        assert!((rgb_0.b() - rgb_blue.b()).abs() < 0.01);
 
         let rgb_1 = result_1.to_rgb();
         let rgb_red = red.to_rgb();
-        assert!((rgb_1.r - rgb_red.r).abs() < 0.01);
-        assert!((rgb_1.g - rgb_red.g).abs() < 0.01);
-        assert!((rgb_1.b - rgb_red.b).abs() < 0.01);
+        assert!((rgb_1.r() - rgb_red.r()).abs() < 0.01);
+        assert!((rgb_1.g() - rgb_red.g()).abs() < 0.01);
+        assert!((rgb_1.b() - rgb_red.b()).abs() < 0.01);
     }
 
     #[test]

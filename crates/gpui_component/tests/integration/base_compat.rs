@@ -1,4 +1,3 @@
-
 use gpui::{
     Axis, Div, InteractiveElement as _, Length, ParentElement as _, Pixels, Stateful,
     StatefulInteractiveElement as _, Styled as _, blue, green, prelude::FluentBuilder as _, px,

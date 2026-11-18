@@ -1,3 +1,4 @@
+use gpui::ColorExt as _;
 use std::rc::Rc;
 
 use crate::{ActiveTheme, Collapsible, h_flex, sidebar::SidebarItem, v_flex};

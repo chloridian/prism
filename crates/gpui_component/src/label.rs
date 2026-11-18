@@ -248,7 +248,7 @@ impl RenderOnce for Label {
             .text_color(cx.theme().foreground)
             // Start-aligned in RTL; LTR keeps the inherited alignment.
             .when(LayoutDirection::global(cx).is_rtl(), |this| {
-                this.text_start(cx)
+                this.map(|this| gpui_base::LogicalStyledExt::text_start(this, cx))
             })
             .refine_style(&self.style)
             .child(

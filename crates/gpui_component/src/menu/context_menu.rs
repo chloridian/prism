@@ -183,7 +183,7 @@ impl DeferredMenu {
                 div()
                     .w(window.bounds().size.width)
                     .h(window.bounds().size.height)
-                    .on_scroll(|_, _, cx| {
+                    .on_scroll_wheel(|_, _, cx| {
                         cx.stop_propagation();
                     })
                     .child(
@@ -195,7 +195,7 @@ impl DeferredMenu {
                     ),
             ),
         )
-        .with_priority(gpui_base::POPUP_PRIORITY)
+        .priority(gpui_base::POPUP_PRIORITY)
         .into_any()
     }
 }

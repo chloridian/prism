@@ -1,3 +1,5 @@
+use gpui::ColorExt as _;
+use gpui_base::HslaExt as _;
 use std::{hash::Hash, ops::RangeInclusive, rc::Rc};
 
 use gpui::{
@@ -616,7 +618,7 @@ where
                 .and_then(|value_fn| value_fn(d).to_f32())
                 .unwrap_or(0.);
             let [first, _] = bar_gradient(fill.as_ref(), d, value, self.gradient_range());
-            return first.color;
+            return first.color.into();
         }
         let Some(fill) = self.fill.as_ref() else {
             return default;
@@ -1247,18 +1249,19 @@ fn clip_stops_to_bar(stops: [LinearColorStop; 2]) -> [LinearColorStop; 2] {
     let [a, b] = stops;
     let p0 = a.percentage;
     let p1 = b.percentage;
+    let (color_a, color_b): (Hsla, Hsla) = (a.color.into(), b.color.into());
     let lerp = |t: f32| -> Hsla {
-        Hsla {
-            h: a.color.h + (b.color.h - a.color.h) * t,
-            s: a.color.s + (b.color.s - a.color.s) * t,
-            l: a.color.l + (b.color.l - a.color.l) * t,
-            a: a.color.a + (b.color.a - a.color.a) * t,
-        }
+        gpui::hsla(
+            color_a.h() + (color_b.h() - color_a.h()) * t,
+            color_a.s() + (color_b.s() - color_a.s()) * t,
+            color_a.l() + (color_b.l() - color_a.l()) * t,
+            color_a.a() + (color_b.a() - color_a.a()) * t,
+        )
     };
     let span = p1 - p0;
     let sample = |target: f32| -> Hsla {
         if span.abs() < f32::EPSILON {
-            a.color
+            color_a
         } else {
             lerp((target - p0) / span)
         }
@@ -1267,7 +1270,7 @@ fn clip_stops_to_bar(stops: [LinearColorStop; 2]) -> [LinearColorStop; 2] {
         a
     } else {
         LinearColorStop {
-            color: sample(p0.clamp(0., 1.)),
+            color: sample(p0.clamp(0., 1.)).into(),
             percentage: p0.clamp(0., 1.),
         }
     };
@@ -1275,7 +1278,7 @@ fn clip_stops_to_bar(stops: [LinearColorStop; 2]) -> [LinearColorStop; 2] {
         b
     } else {
         LinearColorStop {
-            color: sample(p1.clamp(0., 1.)),
+            color: sample(p1.clamp(0., 1.)).into(),
             percentage: p1.clamp(0., 1.),
         }
     };

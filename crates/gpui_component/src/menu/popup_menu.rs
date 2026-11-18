@@ -1545,7 +1545,7 @@ impl PopupMenu {
                                 )
                                 .snap_to_window_with_margin(Edges::all(EDGE_PADDING)),
                         )
-                        .with_priority(self.priority + 1)
+                        .priority(self.priority + 1)
                     })
                 }),
         }
@@ -1656,20 +1656,22 @@ impl Render for PopupMenu {
             // the probe is a full-size absolute child, which would count as
             // scrollable content there and, with the container's padding added
             // on top, leave a menu that fits scrollable by that padding.
-            .on_prepaint(move |bounds, _, cx| {
-                view.update(cx, |menu, cx| {
-                    let width_changed = menu.bounds.size.width != bounds.size.width;
-                    menu.bounds = bounds;
-                    if width_changed {
-                        if let Some(parent) = menu
-                            .parent_menu
-                            .as_ref()
-                            .and_then(|parent| parent.upgrade())
-                        {
-                            parent.update(cx, |_, cx| cx.notify());
+            .map(|this| {
+                gpui_base::ElementExt::on_prepaint(this, move |bounds, _, cx| {
+                    view.update(cx, |menu, cx| {
+                        let width_changed = menu.bounds.size.width != bounds.size.width;
+                        menu.bounds = bounds;
+                        if width_changed {
+                            if let Some(parent) = menu
+                                .parent_menu
+                                .as_ref()
+                                .and_then(|parent| parent.upgrade())
+                            {
+                                parent.update(cx, |_, cx| cx.notify());
+                            }
                         }
-                    }
-                });
+                    });
+                })
             })
             .when(self.scrollable, |this| {
                 this.vertical_scrollbar(&self.scroll_handle)

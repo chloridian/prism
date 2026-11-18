@@ -1,3 +1,4 @@
+use gpui::ColorExt as _;
 use std::rc::Rc;
 
 use gpui::prelude::FluentBuilder as _;
@@ -11,7 +12,6 @@ use crate::button::{Button, ButtonRounded, ButtonVariants as _};
 use crate::input::clear_button;
 use crate::native_menu::NativeMenu;
 use crate::spinner::Spinner;
-use crate::touch_selection::{EditMenuItem, TouchSelectionOverlay};
 use crate::{ActiveTheme, Colorize, v_flex};
 use crate::{IconName, Size};
 use crate::{RoleOverride, Selectable, StyledExt, h_flex};
@@ -23,29 +23,6 @@ use rust_i18n::t;
 use super::state::{TextInputState, sync_focused_input_registry};
 use super::{InputContentType, InputState, sync_native_content_type};
 use crate::ThemeStyled as _;
-
-/// Set when the platform draws the touch selection UI of a focused input.
-#[derive(Default)]
-struct NativeTouchSelection(bool);
-impl Global for NativeTouchSelection {}
-
-/// Let the platform draw the touch selection UI of a focused [`Input`]: the
-/// selection handles and the edit menu a long press leaves behind.
-///
-/// Use it on a host that already shows its own text UI over the window, such
-/// as Android's floating toolbar and drag handles. The long press still
-/// selects a word; the platform follows that selection and drives it back
-/// through the window's input handler. Selections in plain text, outside an
-/// input, keep the handles and menu drawn here.
-pub fn set_native_touch_selection(enabled: bool, cx: &mut App) {
-    cx.set_global(NativeTouchSelection(enabled));
-    cx.refresh_windows();
-}
-
-fn is_native_touch_selection(cx: &App) -> bool {
-    cx.try_global::<NativeTouchSelection>()
-        .is_some_and(|native| native.0)
-}
 
 fn accessibility_role(
     is_multi_line: bool,
@@ -307,7 +284,7 @@ impl Input {
 
     /// Set full height of the input (Multi-line only).
     pub fn h_full(mut self) -> Self {
-        self.height = Some(relative(1.));
+        self.height = Some(relative(1.).into());
         self
     }
 
@@ -419,80 +396,6 @@ impl Input {
     ) -> Self {
         self.paste_handler = Some(Rc::new(handler));
         self
-    }
-
-    /// The handles and the edit menu of the selection a long press made, unless
-    /// the platform draws them; see [`set_native_touch_selection`].
-    ///
-    /// The menu offers what the native context menu would: Cut, Copy, Paste
-    /// and Select All, leaving out what cannot apply right now rather than
-    /// disabling it. Cut, Copy and Paste go through the input's actions, so a
-    /// custom key binding or an open completion menu sees them the same way.
-    fn render_touch_selection(
-        state: &TextInputState,
-        window: &Window,
-        cx: &App,
-    ) -> Vec<AnyElement> {
-        if is_native_touch_selection(cx) || state.touch_selection(cx).is_none() {
-            return Vec::new();
-        }
-        let capabilities = state.context_menu_capabilities(cx);
-        let editable = capabilities.is_editable();
-        let copyable = capabilities.is_copyable();
-        // Offered whenever the text can change, without peeking at the
-        // clipboard: on iOS every read of it shows the system's paste banner,
-        // and an empty clipboard pastes nothing.
-        let pasteable = editable;
-        let selectable = state.text(cx).len() > 0 && !state.is_all_selected(cx);
-        let focus_handle = state.presentation(cx).focus_handle().clone();
-
-        let dispatch = {
-            move |action: &dyn gpui::Action, window: &mut Window, cx: &mut App| {
-                focus_handle.dispatch_action(action, window, cx);
-            }
-        };
-        let mut items = Vec::with_capacity(4);
-        if editable && copyable {
-            let dispatch = dispatch.clone();
-            items.push(EditMenuItem::new(t!("Input.Cut"), move |window, cx| {
-                dispatch(&gpui_base::input::Cut, window, cx);
-            }));
-        }
-        if copyable {
-            let dispatch = dispatch.clone();
-            let state = state.clone();
-            items.push(EditMenuItem::new(t!("Input.Copy"), move |window, cx| {
-                dispatch(&gpui_base::input::Copy, window, cx);
-                state.close_edit_menu(cx);
-            }));
-        }
-        if pasteable {
-            let dispatch = dispatch.clone();
-            items.push(EditMenuItem::new(t!("Input.Paste"), move |window, cx| {
-                dispatch(&gpui_base::input::Paste, window, cx);
-            }));
-        }
-        if selectable {
-            let state = state.clone();
-            items.push(EditMenuItem::new(
-                t!("Input.Select All"),
-                move |window, cx| state.select_all_from_edit_menu(window, cx),
-            ));
-        }
-
-        let drag_state = state.clone();
-        let source_state = state.clone();
-        TouchSelectionOverlay::new(
-            ("input-touch-selection", state.entity_id()),
-            move |_, cx| source_state.touch_selection(cx),
-        )
-        .handles(move |edge, phase, position, _, cx| match phase {
-            TouchPhase::Started => drag_state.begin_edge_drag(edge, position, cx),
-            TouchPhase::Moved => drag_state.update_edge_drag(position, cx),
-            TouchPhase::Ended | TouchPhase::Cancelled => drag_state.end_edge_drag(cx),
-        })
-        .items(items)
-        .into_elements(window, cx)
     }
 
     fn render_toggle_mask_button(state: &TextInputState, cx: &App) -> impl IntoElement {
@@ -687,10 +590,7 @@ impl RenderOnce for Input {
             .paste_handler
             .clone()
             .filter(|_| state.presentation(cx).is_editable());
-        let mut overlays = state.render_overlays(window, cx);
-        overlays
-            .floating
-            .extend(Self::render_touch_selection(&state, window, cx));
+        let overlays = state.render_overlays(window, cx);
 
         let presentation = state.presentation(cx);
         let content_type = self.content_type;
@@ -1384,48 +1284,5 @@ mod tests {
         });
         assert!(!cx.update(|window, cx| window.has_focused_input(cx)));
         assert_eq!(cx.update(|window, cx| window.focused_input(cx)), None);
-    }
-
-    #[gpui::test]
-    fn native_touch_selection_leaves_the_handles_and_menu_to_the_platform(
-        cx: &mut gpui::TestAppContext,
-    ) {
-        use gpui::{AppContext as _, LongPressEvent, Render, point};
-
-        struct Probe(Entity<InputState>);
-        impl Render for Probe {
-            fn render(&mut self, _: &mut Window, _: &mut gpui::Context<Self>) -> impl IntoElement {
-                div().w(px(300.)).child(Input::new(&self.0))
-            }
-        }
-
-        cx.update(crate::init);
-        let (probe, cx) = cx.add_window_view(|window, cx| {
-            Probe(cx.new(|cx| InputState::new(window, cx).default_value("quick select value")))
-        });
-        cx.update(|window, cx| {
-            let _ = window.draw(cx);
-        });
-        let position = point(px(40.), px(16.));
-        for phase in [TouchPhase::Started, TouchPhase::Ended] {
-            cx.simulate_event(LongPressEvent {
-                phase,
-                start_position: position,
-                position,
-            });
-        }
-        let state = TextInputState::from(probe.read_with(cx, |probe, _| probe.0.clone()));
-        let overlay = |cx: &mut gpui::VisualTestContext| {
-            cx.update(|window, cx| Input::render_touch_selection(&state, window, cx).len())
-        };
-        assert!(cx.update(|_, cx| state.touch_selection(cx).is_some()));
-        assert!(overlay(cx) > 0);
-
-        cx.update(|_, cx| set_native_touch_selection(true, cx));
-        assert!(cx.update(|_, cx| state.touch_selection(cx).is_some()));
-        assert_eq!(overlay(cx), 0);
-
-        cx.update(|_, cx| set_native_touch_selection(false, cx));
-        assert!(overlay(cx) > 0);
     }
 }

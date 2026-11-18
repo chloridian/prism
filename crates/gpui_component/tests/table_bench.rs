@@ -12,7 +12,6 @@
 //! This binary installs a counting global allocator, so it is kept apart from
 //! the integration test binary.
 
-
 use std::{
     alloc::{GlobalAlloc, Layout, System},
     sync::atomic::{AtomicU64, Ordering},

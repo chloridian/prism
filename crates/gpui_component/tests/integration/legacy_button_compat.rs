@@ -1,5 +1,7 @@
-
-use gpui::{Axis, InteractiveElement as _, ParentElement as _, Styled as _, blue, green, px, red};
+use gpui::{
+    Axis, InteractiveElement as _, ParentElement as _, Styled as _, blue, green,
+    prelude::FluentBuilder as _, px, red,
+};
 use gpui_component::{
     Disableable as _, Icon, IconName, Selectable as _, Sizable as _, Size,
     button::{
@@ -35,7 +37,7 @@ fn legacy_button_path_and_builder_surface_remain_available() {
         .loading_icon(Icon::new(IconName::LoaderCircle))
         .dropdown_caret(true)
         .toggled(false)
-        .disabled(false)
+        .map(|this| gpui_base::Disableable::disabled(this, false))
         .selected(true)
         .with_size(Size::Small)
         .tab_index(3)

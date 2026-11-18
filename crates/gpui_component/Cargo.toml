@@ -44,6 +44,7 @@ gpui_macros.workspace = true
 gpui-base.workspace = true
 gpui-component-macros = { workspace = true }
 gpui-kit-assets = { workspace = true }
+palette.workspace = true
 ropey.workspace = true
 rust-i18n.workspace = true
 schemars.workspace = true
@@ -108,6 +109,7 @@ windows = { workspace = true, features = [
 
 [dev-dependencies]
 gpui = { workspace = true, features = ["test-support"] }
+gpui-component = { path = ".", features = ["test-support"] }
 indoc = "2"
 
 [lints]

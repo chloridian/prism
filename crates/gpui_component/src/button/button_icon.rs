@@ -173,7 +173,9 @@ mod tests {
         struct Search;
         impl From<Search> for Icon {
             fn from(_: Search) -> Self {
-                Icon::default().data(include_bytes!("../../../assets/assets/icons/search.svg"))
+                Icon::default().data(include_bytes!(
+                    "../../../gpui_kit_assets/assets/icons/search.svg"
+                ))
             }
         }
 

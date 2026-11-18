@@ -1,3 +1,4 @@
+use gpui::ColorExt as _;
 use std::{hash::Hash, rc::Rc};
 
 use gpui::{

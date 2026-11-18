@@ -550,6 +550,18 @@ mod tests {
         Context, IntoElement, ParentElement as _, Render, TestAppContext, VisualTestContext, div,
     };
 
+    const MARKDOWN: &str = "# Heading
+
+A paragraph with **bold**, `code` and a [link](https://example.com).
+
+- one
+- two
+
+```rust
+fn main() {}
+```
+";
+
     struct StatelessMarkdown {
         renders: Arc<AtomicUsize>,
     }
@@ -557,10 +569,7 @@ mod tests {
     impl Render for StatelessMarkdown {
         fn render(&mut self, _: &mut gpui::Window, _: &mut Context<Self>) -> impl IntoElement {
             self.renders.fetch_add(1, Ordering::Relaxed);
-            div().child(
-                super::markdown(include_str!("../../../../examples/fixtures/test.md"))
-                    .markdown_block_parser(|_, _| None),
-            )
+            div().child(super::markdown(MARKDOWN).markdown_block_parser(|_, _| None))
         }
     }
 

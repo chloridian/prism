@@ -1,3 +1,4 @@
+use gpui::ColorExt as _;
 use std::{rc::Rc, time::Duration};
 
 use crate::animation::{Lerp, ease_in_out_cubic};
@@ -964,7 +965,7 @@ impl RenderOnce for Tab {
             // bar neither shifts nor clips it as focus moves.
             .focus_visible(|style| {
                 style.shadow(vec![gpui::BoxShadow {
-                    color: ring,
+                    color: ring.into(),
                     offset: point(px(0.), px(0.)),
                     blur_radius: px(0.),
                     spread_radius: px(2.),

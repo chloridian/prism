@@ -136,9 +136,11 @@ pub enum FontWeightContent {
     Black = 900,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, JsonSchema, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, JsonSchema, Serialize, Deserialize)]
 #[non_exhaustive]
 pub struct ThemeStyle {
+    #[serde(default, with = "crate::theme::hex_color")]
+    #[schemars(with = "Option<String>")]
     pub color: Option<gpui::Hsla>,
     pub font_style: Option<FontStyle>,
     pub font_weight: Option<FontWeightContent>,
@@ -169,7 +171,7 @@ impl From<ThemeStyle> for HighlightStyle {
     }
 }
 
-#[derive(Debug, Default, Clone, PartialEq, Eq, Hash, JsonSchema, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, PartialEq, JsonSchema, Serialize, Deserialize)]
 #[non_exhaustive]
 pub struct SyntaxColors {
     pub attribute: Option<ThemeStyle>,
@@ -342,95 +344,109 @@ impl SyntaxColors {
     }
 }
 
-#[derive(Debug, Default, Clone, PartialEq, Eq, Hash, JsonSchema, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, PartialEq, JsonSchema, Serialize, Deserialize)]
 pub struct StatusColors {
     // Minimal stub
 }
 
 impl StatusColors {
     pub fn error(&self, _cx: &gpui::App) -> gpui::Hsla {
-        gpui::Hsla::default()
+        gpui::transparent_black()
     }
 
     pub fn error_background(&self, _cx: &gpui::App) -> gpui::Hsla {
-        gpui::Hsla::default()
+        gpui::transparent_black()
     }
 
     pub fn error_border(&self, _cx: &gpui::App) -> gpui::Hsla {
-        gpui::Hsla::default()
+        gpui::transparent_black()
     }
 
     pub fn warning(&self, _cx: &gpui::App) -> gpui::Hsla {
-        gpui::Hsla::default()
+        gpui::transparent_black()
     }
 
     pub fn warning_background(&self, _cx: &gpui::App) -> gpui::Hsla {
-        gpui::Hsla::default()
+        gpui::transparent_black()
     }
 
     pub fn warning_border(&self, _cx: &gpui::App) -> gpui::Hsla {
-        gpui::Hsla::default()
+        gpui::transparent_black()
     }
 
     pub fn info(&self, _cx: &gpui::App) -> gpui::Hsla {
-        gpui::Hsla::default()
+        gpui::transparent_black()
     }
 
     pub fn info_background(&self, _cx: &gpui::App) -> gpui::Hsla {
-        gpui::Hsla::default()
+        gpui::transparent_black()
     }
 
     pub fn info_border(&self, _cx: &gpui::App) -> gpui::Hsla {
-        gpui::Hsla::default()
+        gpui::transparent_black()
     }
 
     pub fn success(&self, _cx: &gpui::App) -> gpui::Hsla {
-        gpui::Hsla::default()
+        gpui::transparent_black()
     }
 
     pub fn success_background(&self, _cx: &gpui::App) -> gpui::Hsla {
-        gpui::Hsla::default()
+        gpui::transparent_black()
     }
 
     pub fn success_border(&self, _cx: &gpui::App) -> gpui::Hsla {
-        gpui::Hsla::default()
+        gpui::transparent_black()
     }
 
     pub fn hint(&self, _cx: &gpui::App) -> gpui::Hsla {
-        gpui::Hsla::default()
+        gpui::transparent_black()
     }
 
     pub fn hint_background(&self, _cx: &gpui::App) -> gpui::Hsla {
-        gpui::Hsla::default()
+        gpui::transparent_black()
     }
 
     pub fn hint_border(&self, _cx: &gpui::App) -> gpui::Hsla {
-        gpui::Hsla::default()
+        gpui::transparent_black()
     }
 
     pub fn created(&self, _cx: &gpui::App) -> gpui::Hsla {
-        gpui::Hsla::default()
+        gpui::transparent_black()
     }
 
     pub fn modified(&self, _cx: &gpui::App) -> gpui::Hsla {
-        gpui::Hsla::default()
+        gpui::transparent_black()
     }
 
     pub fn deleted(&self, _cx: &gpui::App) -> gpui::Hsla {
-        gpui::Hsla::default()
+        gpui::transparent_black()
     }
 }
 
-#[derive(Debug, Default, Clone, PartialEq, Eq, Hash, JsonSchema, Serialize, Deserialize)]
+#[derive(Debug, Default, Clone, PartialEq, JsonSchema, Serialize, Deserialize)]
 #[non_exhaustive]
 pub struct HighlightThemeStyle {
+    #[serde(default, with = "crate::theme::hex_color")]
+    #[schemars(with = "Option<String>")]
     pub editor_background: Option<gpui::Hsla>,
+    #[serde(default, with = "crate::theme::hex_color")]
+    #[schemars(with = "Option<String>")]
     pub editor_foreground: Option<gpui::Hsla>,
+    #[serde(default, with = "crate::theme::hex_color")]
+    #[schemars(with = "Option<String>")]
     pub editor_active_line: Option<gpui::Hsla>,
+    #[serde(default, with = "crate::theme::hex_color")]
+    #[schemars(with = "Option<String>")]
     pub editor_line_number: Option<gpui::Hsla>,
+    #[serde(default, with = "crate::theme::hex_color")]
+    #[schemars(with = "Option<String>")]
     pub editor_active_line_number: Option<gpui::Hsla>,
+    #[serde(default, with = "crate::theme::hex_color")]
+    #[schemars(with = "Option<String>")]
     pub editor_invisible: Option<gpui::Hsla>,
     #[serde(rename = "editor.gutter.background")]
+    #[serde(default, with = "crate::theme::hex_color")]
+    #[schemars(with = "Option<String>")]
     pub editor_gutter_background: Option<gpui::Hsla>,
     #[serde(flatten)]
     pub status: StatusColors,
@@ -438,7 +454,7 @@ pub struct HighlightThemeStyle {
     pub syntax: SyntaxColors,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, JsonSchema, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, JsonSchema, Serialize, Deserialize)]
 #[non_exhaustive]
 pub struct HighlightTheme {
     pub name: String,

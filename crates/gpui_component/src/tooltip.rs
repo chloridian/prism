@@ -344,7 +344,7 @@ pub(crate) trait ManagedTooltipExt:
         let trigger = Rc::new(RefCell::new(TooltipTrigger::default()));
         let trigger_writer = trigger.clone();
 
-        self.on_prepaint(move |bounds, window, _| {
+        gpui_base::ElementExt::on_prepaint(self, move |bounds, window, _| {
             let id = window.with_global_id("managed-tooltip-trigger".into(), |id, _| id.clone());
             // GPUI retains keyed element state for cached subtrees too, and
             // drops it after a frame that no longer contains the trigger.

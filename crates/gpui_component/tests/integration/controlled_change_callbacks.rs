@@ -1,4 +1,3 @@
-
 use std::{cell::RefCell, rc::Rc};
 
 use gpui::{
@@ -60,7 +59,7 @@ impl Render for Harness {
             Control::Checkbox => bind!(
                 Checkbox::new("control")
                     .checked(false)
-                    .disabled(self.disabled)
+                    .map(|this| gpui_base::Disableable::disabled(this, self.disabled))
                     .label("Choice"),
                 bool
             ),

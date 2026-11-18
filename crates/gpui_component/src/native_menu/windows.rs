@@ -5,9 +5,9 @@ use std::{
     sync::{Arc, OnceLock},
 };
 
-use gpui::{Action, App, AssetSource, ImageFormat, Pixels, Point, Window};
+use gpui::{Action, App, AssetRegistry, ImageFormat, Pixels, Point, Window};
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
-use windows::Win32::Foundation::{BOOL, GlobalFree, HANDLE, HWND, POINT};
+use windows::Win32::Foundation::{GlobalFree, HANDLE, HWND, POINT};
 use windows::Win32::Graphics::Gdi::{
     BI_RGB, BITMAPINFO, BITMAPINFOHEADER, ClientToScreen, CreateDIBSection, DIB_RGB_COLORS,
     DeleteObject, HBITMAP, HDC, HGDIOBJ,
@@ -26,6 +26,7 @@ use windows::Win32::UI::WindowsAndMessaging::{
     MF_POPUP, MF_SEPARATOR, MF_STRING, MIIM_BITMAP, SetForegroundWindow, SetMenuItemInfoW,
     TPM_LEFTALIGN, TPM_NONOTIFY, TPM_RETURNCMD, TPM_TOPALIGN, TrackPopupMenuEx,
 };
+use windows::core::BOOL;
 use windows::core::{PCSTR, PCWSTR};
 
 use super::{NativeMenuItem, resolve_icon_image};
@@ -41,7 +42,7 @@ const MENU_IMAGE_SIZE: u32 = 16;
 /// run from a foreground task to avoid re-entering GPUI while it is borrowed.
 pub(super) fn show(
     items: Vec<NativeMenuItem>,
-    asset_source: Arc<dyn AssetSource>,
+    asset_source: Arc<AssetRegistry>,
     position: Point<Pixels>,
     dark_mode: bool,
     window: &mut Window,
@@ -87,7 +88,7 @@ pub(super) fn show(
 fn run_menu(
     hwnd: isize,
     items: &[NativeMenuItem],
-    asset_source: &dyn AssetSource,
+    asset_source: &AssetRegistry,
     client_x: i32,
     client_y: i32,
     image_px: u32,
@@ -153,7 +154,7 @@ unsafe fn apply_menu_theme(hwnd: HWND, dark_mode: bool) {
         unsafe {
             LoadLibraryExW(
                 windows::core::w!("uxtheme.dll"),
-                HANDLE::default(),
+                None,
                 LOAD_LIBRARY_SEARCH_SYSTEM32,
             )
         }
@@ -196,7 +197,7 @@ unsafe fn apply_menu_theme(hwnd: HWND, dark_mode: bool) {
 /// Win32 menu creation; the returned `HMENU` must be destroyed by the caller.
 unsafe fn build_menu<'a>(
     items: &'a [NativeMenuItem],
-    asset_source: &dyn AssetSource,
+    asset_source: &AssetRegistry,
     actions: &mut Vec<&'a Box<dyn Action>>,
     bitmaps: &mut Vec<HBITMAP>,
     image_px: u32,
@@ -324,7 +325,7 @@ impl Drop for GdiplusSession {
 /// Calls GDI+ /GDI flat APIs; the returned handle is owned by the caller.
 unsafe fn load_hbitmap(
     icon: &crate::Icon,
-    asset_source: &dyn AssetSource,
+    asset_source: &AssetRegistry,
     image_px: u32,
 ) -> Option<HBITMAP> {
     let image = resolve_icon_image(icon, asset_source)?;
@@ -382,17 +383,17 @@ unsafe fn stream_from_bytes(bytes: &[u8]) -> Option<windows::Win32::System::Com:
     let hglobal = unsafe { GlobalAlloc(GMEM_MOVEABLE, bytes.len()) }.ok()?;
     let data = unsafe { GlobalLock(hglobal) };
     if data.is_null() {
-        let _ = unsafe { GlobalFree(hglobal) };
+        let _ = unsafe { GlobalFree(Some(hglobal)) };
         return None;
     }
 
     unsafe { std::ptr::copy_nonoverlapping(bytes.as_ptr(), data.cast::<u8>(), bytes.len()) };
     let _ = unsafe { GlobalUnlock(hglobal) };
 
-    match unsafe { CreateStreamOnHGlobal(hglobal, BOOL(1)) } {
+    match unsafe { CreateStreamOnHGlobal(hglobal, true) } {
         Ok(stream) => Some(stream),
         Err(_) => {
-            let _ = unsafe { GlobalFree(hglobal) };
+            let _ = unsafe { GlobalFree(Some(hglobal)) };
             None
         }
     }
@@ -471,11 +472,11 @@ unsafe fn create_dib(pixels: &[u8], width: u32, height: u32) -> Option<HBITMAP> 
     // A null `HDC` is fine with `DIB_RGB_COLORS` (no palette to resolve).
     let hbitmap = unsafe {
         CreateDIBSection(
-            HDC::default(),
+            Some(HDC::default()),
             &info,
             DIB_RGB_COLORS,
             &mut bits,
-            HANDLE::default(),
+            None,
             0,
         )
     }

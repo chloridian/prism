@@ -1,3 +1,4 @@
+use gpui::ColorExt as _;
 use std::rc::Rc;
 
 use gpui::{
@@ -327,7 +328,7 @@ impl Render for CodeActionMenu {
                     .into_any_element()
             },
         ))
-        .with_priority(gpui_base::POPUP_PRIORITY)
+        .priority(gpui_base::POPUP_PRIORITY)
         .into_any_element()
     }
 }

@@ -1,3 +1,4 @@
+use gpui::ColorExt as _;
 use gpui::{
     AnyElement, App, Div, ElementId, Half as _, Hsla, IntoElement, ParentElement, Pixels, Point,
     RenderOnce, SharedString, Size, StyleRefinement, Styled, Window, deferred, div, point,
