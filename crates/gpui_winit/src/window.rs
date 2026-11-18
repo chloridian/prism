@@ -15,10 +15,10 @@ use gpui::{
     AnyWindowHandle, Bounds, Capslock, DevicePixels, DispatchEventResult, GpuSpecs, KeyDownEvent,
     KeyUpEvent, Modifiers, ModifiersChangedEvent, MouseButton, MouseDownEvent, MouseExitEvent,
     MouseMoveEvent, MouseUpEvent, Pixels, PlatformAtlas, PlatformDisplay, PlatformInput,
-    PlatformInputHandler, PlatformWindow, Point, PromptButton, PromptLevel, RequestFrameOptions,
-    ResizeEdge, Scene, ScrollDelta, ScrollWheelEvent, Size, TouchPhase, WindowAppearance,
-    WindowBackgroundAppearance, WindowBounds, WindowControlArea, WindowKind, WindowParams, point,
-    px, size,
+    PlatformInputHandler, PlatformWindow, Point, PromptButton, PromptLevel, RawMouseMotionEvent,
+    RequestFrameOptions, ResizeEdge, Scene, ScrollDelta, ScrollWheelEvent, Size, TouchPhase,
+    WindowAppearance, WindowBackgroundAppearance, WindowBounds, WindowControlArea, WindowKind,
+    WindowParams, point, px, size,
 };
 use gpui_util::ResultExt as _;
 use raw_window_handle::{
@@ -38,10 +38,14 @@ use winit::{
     event::{ElementState, MouseScrollDelta, WindowEvent},
     event_loop::ActiveEventLoop,
     platform::windows::{BackdropType, WindowAttributesExtWindows as _, WindowExtWindows as _},
-    window::{Fullscreen, ResizeDirection, Theme, Window, WindowAttributes, WindowId, WindowLevel},
+    window::{
+        CursorGrabMode, Fullscreen, ResizeDirection, Theme, Window, WindowAttributes, WindowId,
+        WindowLevel,
+    },
 };
 
 use crate::{
+    capture::{Capture, Grab},
     display::{WinitDisplay, logical_point},
     input::{self, ClickState, DoubleClick},
     renderer::{Renderer, RendererContext},
@@ -88,6 +92,7 @@ pub(crate) struct WindowInner {
     handle: AnyWindowHandle,
     hwnd: HWND,
     cursor: Rc<CursorState>,
+    capture: RefCell<Capture>,
     callbacks: Callbacks,
     input_handler: Cell<Option<PlatformInputHandler>>,
     scale_factor: Cell<f32>,
@@ -179,6 +184,7 @@ impl WindowInner {
             handle,
             hwnd,
             cursor,
+            capture: RefCell::default(),
             callbacks: Callbacks::default(),
             input_handler: Cell::new(None),
             scale_factor: Cell::new(scale_factor),
@@ -226,11 +232,67 @@ impl WindowInner {
     pub(crate) fn apply_cursor(&self) {
         self.window
             .set_cursor(system::cursor_icon(self.cursor.style.get()));
-        self.window.set_cursor_visible(self.cursor.visible.get());
+        self.sync_cursor_visibility();
     }
 
     pub(crate) fn hide_cursor(&self) {
         self.window.set_cursor_visible(false);
+    }
+
+    fn sync_cursor_visibility(&self) {
+        self.window
+            .set_cursor_visible(self.cursor.visible.get() && !self.is_captured());
+    }
+
+    pub(crate) fn is_captured(&self) -> bool {
+        self.capture.borrow().is_captured()
+    }
+
+    fn capture_cursor(&self) {
+        if self.is_captured() {
+            return;
+        }
+        let scale_factor = f64::from(self.scale_factor.get());
+        let position = self.mouse_position.get();
+        let restore = PhysicalPosition::new(
+            f64::from(position.x.as_f32()) * scale_factor,
+            f64::from(position.y.as_f32()) * scale_factor,
+        );
+        let grab = match self.window.set_cursor_grab(CursorGrabMode::Locked) {
+            Ok(()) => Grab::Locked,
+            Err(_) => match self.window.set_cursor_grab(CursorGrabMode::Confined) {
+                Ok(()) => Grab::Confined,
+                Err(error) => {
+                    log::warn!("unable to capture the cursor: {error}");
+                    return;
+                }
+            },
+        };
+        self.capture.borrow_mut().begin(grab, restore);
+        self.sync_cursor_visibility();
+    }
+
+    pub(crate) fn release_capture(&self) {
+        let Some(restore) = self.capture.borrow_mut().end() else {
+            return;
+        };
+        self.window
+            .set_cursor_grab(CursorGrabMode::None)
+            .context("unable to release the cursor")
+            .log_err();
+        self.window
+            .set_cursor_position(restore)
+            .context("unable to restore the cursor position")
+            .log_err();
+        self.sync_cursor_visibility();
+    }
+
+    pub(crate) fn handle_raw_motion(&self, (x, y): (f64, f64)) {
+        if self.is_captured() {
+            self.dispatch(PlatformInput::RawMouseMotion(RawMouseMotionEvent {
+                delta: point(x, y),
+            }));
+        }
     }
 
     /// Moves the window so its client area starts at `origin`, since winit positions the outer frame.
@@ -397,6 +459,7 @@ impl WindowInner {
 
     fn handle_resized(&self, size: PhysicalSize<u32>) {
         if size.width == 0 || size.height == 0 {
+            self.release_capture();
             return;
         }
         self.renderer.borrow_mut().update_drawable_size(gpui::size(
@@ -415,6 +478,7 @@ impl WindowInner {
     fn handle_focused(&self, focused: bool) {
         self.active.set(focused);
         if !focused {
+            self.release_capture();
             self.pressed_button.set(None);
         }
         with_callback(&self.callbacks.active_status_change, |callback| {
@@ -432,6 +496,19 @@ impl WindowInner {
     }
 
     fn handle_cursor_moved(&self, position: PhysicalPosition<f64>) {
+        if self.is_captured() {
+            let recentre = self
+                .capture
+                .borrow()
+                .recentre(position, self.window.inner_size());
+            if let Some(center) = recentre {
+                self.window
+                    .set_cursor_position(center)
+                    .context("unable to recentre the cursor")
+                    .log_err();
+            }
+            return;
+        }
         if !self.cursor.visible.replace(true) {
             self.window.set_cursor_visible(true);
         }
@@ -553,6 +630,7 @@ impl WinitWindow {
 
 impl Drop for WinitWindow {
     fn drop(&mut self) {
+        self.inner.release_capture();
         self.windows.borrow_mut().remove(&self.inner.id());
     }
 }
@@ -848,6 +926,14 @@ impl PlatformWindow for WinitWindow {
 
     fn gpu_device_lost(&self) -> Option<bool> {
         Some(self.inner.renderer.borrow().device_lost())
+    }
+
+    fn capture_cursor(&self) {
+        self.inner.capture_cursor();
+    }
+
+    fn release_cursor(&self) {
+        self.inner.release_capture();
     }
 
     fn update_ime_position(&self, _bounds: Bounds<Pixels>) {}

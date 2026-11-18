@@ -6,6 +6,7 @@
 #![cfg(target_os = "windows")]
 
 mod app;
+mod capture;
 mod clipboard;
 mod credentials;
 mod dispatcher;
