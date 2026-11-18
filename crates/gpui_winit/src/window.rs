@@ -9,7 +9,7 @@ use std::{
     time::Instant,
 };
 
-use anyhow::{Context as _, Result, bail};
+use anyhow::{Context as _, Result};
 use futures::channel::oneshot;
 use gpui::{
     A11yCallbacks, AnyWindowHandle, Bounds, Capslock, DevicePixels, DispatchEventResult, GpuSpecs,
@@ -22,7 +22,7 @@ use gpui::{
 };
 use gpui_util::ResultExt as _;
 use raw_window_handle::{
-    DisplayHandle, HandleError, HasDisplayHandle, HasWindowHandle, RawWindowHandle, WindowHandle,
+    DisplayHandle, HandleError, HasDisplayHandle, HasWindowHandle, WindowHandle,
 };
 use windows::Win32::{
     Foundation::{HWND, POINT},
@@ -50,7 +50,7 @@ use crate::{
     display::{WinitDisplay, logical_point},
     frame::{Frame, FrameStyle},
     input::{self, ClickState, DoubleClick},
-    renderer::{Renderer, RendererContext},
+    renderer::{Renderer, RendererContext, WindowHandles},
     system,
 };
 
@@ -94,7 +94,7 @@ pub(crate) struct WindowInner {
     frame: OnceCell<Frame>,
     // The renderer owns the surface, so it must drop before the window it draws to.
     renderer: RefCell<Renderer>,
-    window: Arc<Window>,
+    window: Window,
     handle: AnyWindowHandle,
     hwnd: HWND,
     cursor: Rc<CursorState>,
@@ -164,18 +164,17 @@ impl WindowInner {
             attributes = attributes.with_window_level(WindowLevel::AlwaysOnTop);
         }
 
-        let window = Arc::new(
-            event_loop
-                .create_window(attributes)
-                .context("creating the winit window")?,
-        );
+        let window = event_loop
+            .create_window(attributes)
+            .context("creating the winit window")?;
         window.set_enabled_buttons(enabled_buttons(&params));
-        let hwnd = hwnd_of(&window)?;
+        let handles = WindowHandles::new(&window)?;
+        let hwnd = handles.hwnd();
 
         let inner_size = window.inner_size();
         let renderer = Renderer::new(
             renderer_context,
-            window.clone(),
+            handles,
             size(
                 DevicePixels(inner_size.width as i32),
                 DevicePixels(inner_size.height as i32),
@@ -1085,13 +1084,6 @@ fn enabled_buttons(params: &WindowParams) -> winit::window::WindowButtons {
         buttons |= winit::window::WindowButtons::MAXIMIZE;
     }
     buttons
-}
-
-fn hwnd_of(window: &Window) -> Result<HWND> {
-    match window.window_handle()?.as_raw() {
-        RawWindowHandle::Win32(handle) => Ok(HWND(handle.hwnd.get() as *mut c_void)),
-        other => bail!("unexpected window handle {other:?}"),
-    }
 }
 
 /// Lines or characters one wheel notch scrolls, as configured in the system settings.
