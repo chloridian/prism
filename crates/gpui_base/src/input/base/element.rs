@@ -1,6 +1,5 @@
 use crate::HslaExt as _;
 use crate::input::{DisplayMap, FoldRange, InputExtras as _, InputModeKind, OverviewRulerLane};
-use crate::text_compat::ShapedLineExt as _;
 use gpui::ColorExt as _;
 use gpui::Corners;
 use gpui::Half;
@@ -10,10 +9,9 @@ use gpui::{
 };
 use gpui::{
     HighlightStyle, Hitbox, HitboxBehavior, Hsla, InteractiveElement, IntoElement, LayoutId,
-    LongPressEvent, MouseButton, MouseMoveEvent, MouseUpEvent, PaintQuad, ParentElement as _, Path,
-    Pixels, Point, Position, ShapedLine, SharedString, Size, Style, Styled as _, TextAlign,
-    TextRun, TextStyle, TouchDragEvent, TouchPhase, UnderlineStyle, Window, fill, point, px,
-    relative, size,
+    MouseButton, MouseMoveEvent, MouseUpEvent, PaintQuad, ParentElement as _, Path, Pixels, Point,
+    Position, ShapedLine, SharedString, Size, Style, Styled as _, TextAlign, TextRun, TextStyle,
+    UnderlineStyle, Window, point, px, relative, size,
 };
 use ropey::Rope;
 use smallvec::SmallVec;
@@ -642,10 +640,11 @@ fn layout_overview_ruler<M: InputModeKind>(
                 OverviewRulerLane::Right => (third * 2., third),
                 OverviewRulerLane::Full => (px(0.), track.size.width),
             };
-            fill(
-                Bounds::new(point(track.left() + left, top), size(width, bottom - top)),
-                color,
-            )
+            PaintQuad::new(Bounds::new(
+                point(track.left() + left, top),
+                size(width, bottom - top),
+            ))
+            .background(color)
         })
         .collect()
 }
@@ -1681,13 +1680,11 @@ impl<M: InputModeKind> TextElement<M> {
         };
         let bar = |rows: Range<usize>, color: Hsla| {
             let bottom = top(rows.end.saturating_sub(1).max(rows.start)) + line_height;
-            fill(
-                Bounds::from_corners(
-                    point(origin_x, top(rows.start)),
-                    point(origin_x + width, bottom),
-                ),
-                color,
-            )
+            PaintQuad::new(Bounds::from_corners(
+                point(origin_x, top(rows.start)),
+                point(origin_x + width, bottom),
+            ))
+            .background(color)
         };
 
         let foreground = state.editor_style.foreground;
@@ -1717,13 +1714,11 @@ impl<M: InputModeKind> TextElement<M> {
                         }
                     }
                     DecorationRows::Boundary(row) => marks.push(
-                        fill(
-                            Bounds::new(
-                                point(origin_x, top(row) - GUTTER_BOUNDARY_MARK_HEIGHT.half()),
-                                size(width, GUTTER_BOUNDARY_MARK_HEIGHT),
-                            ),
-                            color,
-                        )
+                        PaintQuad::new(Bounds::new(
+                            point(origin_x, top(row) - GUTTER_BOUNDARY_MARK_HEIGHT.half()),
+                            size(width, GUTTER_BOUNDARY_MARK_HEIGHT),
+                        ))
+                        .background(color)
                         .corner_radii(width.half()),
                     ),
                 }
@@ -1938,7 +1933,9 @@ impl<M: InputModeKind> TextElement<M> {
                     point(original_x, bounds.origin.y + top),
                     size(bounds.size.width, rows * line_height),
                 );
-                folded_lines.backgrounds.push(fill(bounds, color));
+                folded_lines
+                    .backgrounds
+                    .push(PaintQuad::new(bounds).background(color));
             }
             let Some(render) = render.as_ref() else {
                 continue;
@@ -2770,7 +2767,7 @@ impl<M: InputModeKind> TextElement<M> {
                     .then(|| {
                         compose_decoration_collections(
                             Vec::new(),
-                            state.extras.decoration_layers().into_iter(),
+                            state.extras.decoration_layers(),
                             visible_byte_range,
                         )
                     })
@@ -2782,7 +2779,7 @@ impl<M: InputModeKind> TextElement<M> {
                 .then(|| {
                     compose_decoration_collections(
                         Vec::new(),
-                        state.extras.decoration_layers().into_iter(),
+                        state.extras.decoration_layers(),
                         visible_byte_range,
                     )
                 })
@@ -2882,7 +2879,7 @@ impl<M: InputModeKind> TextElement<M> {
         if !state.masked {
             styles = compose_decoration_collections(
                 styles,
-                state.extras.decoration_layers().into_iter(),
+                state.extras.decoration_layers(),
                 visible_byte_range,
             )
             .unwrap_or_default();
@@ -3888,10 +3885,10 @@ impl<M: InputModeKind> Element for TextElement<M> {
                 // Paint the current line background
                 if is_active {
                     if let Some(bg_color) = active_line_color {
-                        window.paint_quad(fill(
-                            Bounds::new(p, size(bounds.size.width, height)),
-                            bg_color,
-                        ));
+                        window.paint_quad(
+                            PaintQuad::new(Bounds::new(p, size(bounds.size.width, height)))
+                                .background(bg_color),
+                        );
                     }
                 }
                 offset_y += height;
@@ -4033,7 +4030,7 @@ impl<M: InputModeKind> Element for TextElement<M> {
                             line_height,
                         ),
                     );
-                    window.paint_quad(fill(ghost_bounds, editor_background));
+                    window.paint_quad(PaintQuad::new(ghost_bounds).background(editor_background));
 
                     // Paint ghost line text
                     _ = ghost_line.paint(
@@ -4059,10 +4056,13 @@ impl<M: InputModeKind> Element for TextElement<M> {
         // Paint blinking cursors (shared blink state for all carets)
         if focused && show_cursor {
             for cursor_info in prepaint.cursor_infos_with_scroll() {
-                window.paint_quad(fill(
-                    snap_caret_to_device_pixels(cursor_info.bounds, window.scale_factor()),
-                    editor_style.caret,
-                ));
+                window.paint_quad(
+                    PaintQuad::new(snap_caret_to_device_pixels(
+                        cursor_info.bounds,
+                        window.scale_factor(),
+                    ))
+                    .background(editor_style.caret),
+                );
             }
         }
 
@@ -4084,7 +4084,7 @@ impl<M: InputModeKind> Element for TextElement<M> {
                 prepaint.ghost_lines_height,
                 editor_paddings,
             );
-            window.paint_quad(fill(gutter_bounds, gutter_bg));
+            window.paint_quad(PaintQuad::new(gutter_bounds).background(gutter_bg));
 
             // Each item is the normal lines.
             for ((line_no, rows), &buffer_line) in line_numbers
@@ -4098,13 +4098,13 @@ impl<M: InputModeKind> Element for TextElement<M> {
                 // paint active line number background
                 if is_active {
                     if let Some(bg_color) = active_line_color {
-                        window.paint_quad(fill(
-                            Bounds::new(
+                        window.paint_quad(
+                            PaintQuad::new(Bounds::new(
                                 point(gutter_bounds.origin.x, p.y),
                                 size(gutter_bounds.size.width, height),
-                            ),
-                            bg_color,
-                        ));
+                            ))
+                            .background(bg_color),
+                        );
                     }
                 }
 
@@ -4151,7 +4151,7 @@ impl<M: InputModeKind> Element for TextElement<M> {
 
                     // Paint background to cover any existing text
                     let bg_bounds = Bounds::new(p, size(first_line.width + px(4.), line_height));
-                    window.paint_quad(fill(bg_bounds, editor_background));
+                    window.paint_quad(PaintQuad::new(bg_bounds).background(editor_background));
 
                     // Paint first line completion text
                     _ = first_line.paint(p, line_height, text_align, None, window, cx);
@@ -4445,8 +4445,8 @@ mod tests {
         RangeDecoration, Redo, Undo,
     };
     use gpui::{
-        AppContext as _, Context, EntityInputHandler as _, ListAlignment, ListOffset, ListState,
-        Render, TestAppContext, VisualTestContext, div, list, prelude::FluentBuilder as _,
+        Context, EntityInputHandler as _, ListAlignment, ListOffset, ListState, Render,
+        TestAppContext, VisualTestContext, div, list, prelude::FluentBuilder as _,
     };
 
     #[test]

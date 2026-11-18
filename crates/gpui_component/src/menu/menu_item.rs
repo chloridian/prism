@@ -1,4 +1,4 @@
-use crate::{ActiveTheme, Disableable, StyledExt, h_flex};
+use crate::{ActiveTheme, Disableable, h_flex};
 use gpui::{
     AnyElement, App, ClickEvent, ElementId, InteractiveElement, IntoElement, MouseButton,
     ParentElement, RenderOnce, Role, SharedString, StatefulInteractiveElement as _,
@@ -131,7 +131,7 @@ impl RenderOnce for MenuItemElement {
                 // Not `group_hover` on the item's own group: GPUI styles an
                 // element before registering its group, and that fallback keeps
                 // the pointer's item lit after a key moves the highlight away.
-                this.hover(|this| {
+                this.hover_style(|this| {
                     this.bg(cx.theme().tokens.accent)
                         .text_color(cx.theme().accent_foreground)
                 })

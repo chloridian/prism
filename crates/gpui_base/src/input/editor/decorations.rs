@@ -1098,6 +1098,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::reversed_empty_ranges)]
     fn geometric_collections_share_utf8_normalization_and_edit_affinity() {
         let mut collections = DecorationCollections::<RangeDecoration>::default();
         let text = Rope::from("héllo world");
@@ -1129,6 +1130,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::reversed_empty_ranges)]
     fn gutter_collections_keep_empty_ranges_as_line_boundaries() {
         let mut collections = DecorationCollections::<GutterDecoration>::default();
         let text = Rope::from("one\ntwo\nthree");

@@ -342,7 +342,7 @@ impl RenderOnce for Slider {
                             .when(axis.is_horizontal(), |this| this.w_full().h_1p5())
                             .when(axis.is_vertical(), |this| this.h_full().w_1p5())
                             .bg(bar_color.opacity(0.2))
-                            .active(|this| this.bg(bar_color.opacity(0.4)))
+                            .active_style(|this| this.bg(bar_color.opacity(0.4)))
                             .corner_radii(radius)
                             .child(
                                 div()

@@ -12,8 +12,8 @@ use gpui_base::{ColorPicker as BaseColorPicker, ColorSwatch};
 pub use gpui_base::{ColorPickerEvent, ColorPickerState};
 
 use crate::{
-    ActiveTheme as _, Colorize as _, Icon, Selectable, Sizable, Size, StyleSized, StyledExt as _,
-    ThemeStyled as _, h_flex,
+    ActiveTheme as _, Colorize as _, Icon, Selectable, Sizable, Size, StyleSized, ThemeStyled as _,
+    h_flex,
     input::{Input, input_style},
     popover::Popover,
     select::Caret,
@@ -143,8 +143,8 @@ impl ColorPicker {
             .bg(color)
             .border_1()
             .border_color(color.darken(0.1))
-            .hover(|this| this.border_color(color.darken(0.3)).bg(color.lighten(0.1)))
-            .active(|this| this.border_color(color.darken(0.5)).bg(color.darken(0.2)))
+            .hover_style(|this| this.border_color(color.darken(0.3)).bg(color.lighten(0.1)))
+            .active_style(|this| this.border_color(color.darken(0.5)).bg(color.darken(0.2)))
             .on_hover(move |color, entered, window, cx| {
                 if entered {
                     hover_state.update(cx, |state, cx| state.preview_color(color, window, cx));

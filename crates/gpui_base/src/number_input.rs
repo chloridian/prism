@@ -7,7 +7,7 @@ use gpui::{
     StyleRefinement, Styled, Window, actions, div, prelude::FluentBuilder as _,
 };
 
-use crate::{Button, InputBase, StyledExt as _};
+use crate::{Button, InputBase};
 
 actions!(number_input, [Increment, Decrement]);
 

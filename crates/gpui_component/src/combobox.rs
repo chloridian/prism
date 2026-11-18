@@ -14,8 +14,8 @@ pub use crate::select::Caret;
 
 use crate::ThemeStyled as _;
 use crate::{
-    ActiveTheme, Disableable, ElementExt as _, Icon, IconName, IndexPath, Sizable, Size,
-    StyleSized, StyledExt, h_flex,
+    ActiveTheme, ElementExt as _, Icon, IconName, IndexPath, Sizable, Size, StyleSized, StyledExt,
+    h_flex,
     input::{clear_button, input_style},
     list::{List, ListState},
     searchable_list::{

@@ -38,13 +38,6 @@ impl SyntaxHighlighter {
         true
     }
 
-    pub(crate) fn capture_names(
-        &mut self,
-        _text: &ropey::Rope,
-    ) -> Vec<(Range<usize>, SharedString)> {
-        Vec::new()
-    }
-
     pub fn edit_tree(&mut self, _edit: Option<crate::input::InputEdit>, _text: &ropey::Rope) {
         // No-op in WASM
     }

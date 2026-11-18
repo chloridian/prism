@@ -1143,7 +1143,7 @@ mod tests {
     use gpui::{ColorExt as _, linear_color_stop, linear_gradient, px};
     use gpui_base::HslaExt as _;
 
-    use crate::{Colorize as _, Theme, ThemeConfig, ThemeMode, ThemeSet, try_parse_color};
+    use crate::{Colorize as _, Theme, ThemeConfig, ThemeMode, try_parse_color};
 
     #[test]
     fn test_semantic_theme_config_parses_and_roundtrips() {

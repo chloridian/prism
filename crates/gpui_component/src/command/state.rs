@@ -12,8 +12,7 @@ use gpui::{
 use rust_i18n::t;
 
 use crate::{
-    ActiveTheme as _, ElementExt as _, Icon, IconName, IndexPath, StyledExt as _,
-    VirtualListScrollHandle,
+    ActiveTheme as _, Icon, IconName, IndexPath, StyledExt as _, VirtualListScrollHandle,
     actions::{Cancel, Confirm, SelectDown, SelectUp},
     command::{
         command::CommandOptions,

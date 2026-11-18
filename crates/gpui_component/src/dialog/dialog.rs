@@ -13,7 +13,7 @@ use gpui_base::{ElementExt as _, LogicalStyledExt as _, TextSelectionScopeId, mo
 use rust_i18n::t;
 
 use crate::{
-    ActiveTheme as _, IconName, Sizable as _, StyledExt, TITLE_BAR_HEIGHT, WindowExt as _,
+    ActiveTheme as _, IconName, Sizable as _, TITLE_BAR_HEIGHT, WindowExt as _,
     animation::cubic_bezier,
     button::{Button, ButtonVariant, ButtonVariants as _},
     dialog::{DialogContent, DialogDispatchAnchor, DialogTitle},

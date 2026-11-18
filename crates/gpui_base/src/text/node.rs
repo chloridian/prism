@@ -18,7 +18,7 @@ use gpui::{
 use markdown::mdast;
 
 use crate::{
-    GlobalState, ScrollableMask, Scrollbar, StyledExt, h_flex,
+    GlobalState, ScrollableMask, Scrollbar, h_flex,
     scrollable_mask::horizontal_scroll_area,
     text::{
         CodeBlockActionsFn, CodeBlockHighlighterFn, Link, LinkClickHandlerFn, LinkFn,
@@ -394,7 +394,7 @@ impl Element for CustomBlockElement {
         self.content.paint(window, cx);
         if selection == Some(BlockSelection::Full) {
             let color = view.as_ref().unwrap().read(cx).text_view_style.selection();
-            window.paint_quad(gpui::fill(bounds, color));
+            window.paint_quad(gpui::PaintQuad::new(bounds).background(color));
         }
     }
 }
@@ -4491,7 +4491,7 @@ impl BlockNode {
                     // Body rows only: the header keeps its own fill.
                     .when_some(
                         style.table_row_hover().filter(|_| row_ix > 0),
-                        |this, color| this.hover(|this| this.bg(color)),
+                        |this, color| this.hover_style(|this| this.bg(color)),
                     )
                     .children(cells)
                     .into_any_element(),

@@ -716,7 +716,7 @@ mod tests {
     /// of data laid out for more points sits mid-axis and stays centered.
     #[test]
     fn only_the_last_point_right_aligns_its_label() {
-        use gpui::{Hsla, TextAlign};
+        use gpui::TextAlign;
 
         use super::{build_point_x_labels, point_range};
         use crate::plot::scale::ScalePoint;

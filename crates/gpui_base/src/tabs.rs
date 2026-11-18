@@ -10,8 +10,7 @@ use gpui::{
 use smallvec::SmallVec;
 
 use crate::{
-    LayoutDirection, StateStyle, StyledExt as _, TestSupportExt as _,
-    a11y_disabled::A11yDisabledExt as _,
+    LayoutDirection, StateStyle, TestSupportExt as _, a11y_disabled::A11yDisabledExt as _,
 };
 
 type ClickHandler = Rc<dyn Fn(&ClickEvent, &mut Window, &mut App)>;

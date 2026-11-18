@@ -165,22 +165,6 @@ impl TextInputState {
             .update(cx, |state, _| state.on_context_menu(handler)))
     }
 
-    pub(crate) fn context_menu_capabilities(
-        &self,
-        cx: &App,
-    ) -> gpui_base::input::InputContextMenuCapabilities {
-        dispatch!(self, |state| state.read(cx).context_menu_capabilities())
-    }
-
-    /// Whether every character is already selected, so Select All has nothing
-    /// left to offer.
-    pub(crate) fn is_all_selected(&self, cx: &App) -> bool {
-        dispatch!(self, |state| {
-            let state = state.read(cx);
-            state.selected_range() == (0..state.text().len())
-        })
-    }
-
     /// Builds and syncs this input's overlays. See [`super::overlay`].
     pub(super) fn render_overlays(
         &self,

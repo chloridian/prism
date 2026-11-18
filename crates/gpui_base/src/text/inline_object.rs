@@ -359,7 +359,7 @@ impl Element for InlineObject {
         }
         if selected {
             let color = view.as_ref().unwrap().read(cx).text_view_style.selection();
-            window.paint_quad(gpui::fill(bounds, color));
+            window.paint_quad(gpui::PaintQuad::new(bounds).background(color));
         }
         if let Some(link) = self.link.clone() {
             window.set_cursor_style(CursorStyle::PointingHand, hitbox);

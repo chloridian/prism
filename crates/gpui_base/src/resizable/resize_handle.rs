@@ -379,7 +379,7 @@ impl<T: 'static, E: 'static + Render> Element for ResizeHandle<T, E> {
                                 // shrinkable child collapses with it.
                                 .flex_none()
                                 .bg(bg_color)
-                                .group_hover("handle", |this| this.bg(bg_color))
+                                .group_hover_style("handle", |this| this.bg(bg_color))
                                 .when(axis.is_horizontal(), |this| this.h_full().w(HANDLE_SIZE))
                                 .when(axis.is_vertical(), |this| this.w_full().h(HANDLE_SIZE))
                                 .into_any_element()
@@ -492,7 +492,7 @@ impl<T: 'static, E: 'static + Render> Element for ResizeHandle<T, E> {
             window.on_mouse_event({
                 let state = state.clone();
                 let hitbox = hitbox.clone();
-                move |ev: &MouseUpEvent, _, window, _| {
+                move |_ev: &MouseUpEvent, _, window, _| {
                     if !state.get().is_active() {
                         return;
                     }

@@ -1,4 +1,4 @@
-use crate::{ActiveTheme, StyledExt};
+use crate::ActiveTheme;
 use gpui::ColorExt as _;
 use gpui::{
     Animation, AnimationExt, IntoElement, RenderOnce, StyleRefinement, Styled, bounce, div,
@@ -41,7 +41,7 @@ impl RenderOnce for Skeleton {
             .w_full()
             .h_4()
             .bg(if self.secondary {
-                cx.theme().skeleton.opacity(0.5).into()
+                cx.theme().skeleton.opacity(0.5)
             } else {
                 cx.theme().skeleton
             })

@@ -13,7 +13,7 @@ use gpui::{
 };
 
 use crate::{
-    ElementExt, StyledExt as _,
+    ElementExt,
     motion::{Spring, spring},
 };
 

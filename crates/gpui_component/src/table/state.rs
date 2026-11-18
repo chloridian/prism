@@ -899,7 +899,7 @@ where
         }
 
         cx.stop_propagation();
-        if self.selects_row_on_click(e, cx) {
+        if self.selects_row_on_click(e) {
             self.set_selected_row(row_ix, cx);
         }
 
@@ -909,7 +909,7 @@ where
     }
 
     /// Whether a click on a row selects it, see `select_on_modifier_click`.
-    fn selects_row_on_click(&self, e: &ClickEvent, cx: &App) -> bool {
+    fn selects_row_on_click(&self, e: &ClickEvent) -> bool {
         let modifiers = e.modifiers();
         self.select_on_modifier_click || !(modifiers.secondary() || modifiers.shift)
     }
@@ -956,7 +956,7 @@ where
             && self.row_selectable
             && is_reselect
             && !is_double_click
-            && self.selects_row_on_click(e, cx);
+            && self.selects_row_on_click(e);
         if should_escalate_to_row {
             self.set_selected_row(row_ix, cx);
             return;
@@ -1718,7 +1718,7 @@ where
                     .h_full()
                     .justify_center()
                     .bg(cx.theme().table_row_border)
-                    .group_hover(&group_id, |this| this.bg(cx.theme().border).h_full())
+                    .group_hover_style(&group_id, |this| this.bg(cx.theme().border).h_full())
                     .w(px(1.)),
             )
             .into_any_element()
@@ -1872,7 +1872,7 @@ where
                 this.when(self.row_selectable, |this| {
                     this.on_click(cx.listener(move |table, e: &ClickEvent, _window, cx| {
                         cx.stop_propagation();
-                        if table.selects_row_on_click(e, cx) {
+                        if table.selects_row_on_click(e) {
                             table.set_selected_row(row_ix, cx);
                         }
                     }))
@@ -1913,8 +1913,8 @@ where
                     true => this,
                     false => this.opacity(0.5),
                 })
-                .hover(|this| this.bg(cx.theme().tokens.secondary).opacity(7.))
-                .active(|this| this.bg(cx.theme().tokens.secondary_active).opacity(1.))
+                .hover_style(|this| this.bg(cx.theme().tokens.secondary).opacity(7.))
+                .active_style(|this| this.bg(cx.theme().tokens.secondary_active).opacity(1.))
                 .on_click(
                     cx.listener(move |table, _, window, cx| table.perform_sort(col_ix, window, cx)),
                 )
@@ -2340,7 +2340,7 @@ where
         window: &mut Window,
         cx: &mut Context<Self>,
     ) -> gpui::AnyElement {
-        let is_stripe_row = self.options.stripe && row_ix % 2 != 0;
+        let is_stripe_row = self.options.stripe && !row_ix.is_multiple_of(2);
         // `selected_row()` is `None` outside row mode, so a selected cell or
         // column never highlights its row.
         let is_selected = self.selected_row() == Some(row_ix);
@@ -2380,7 +2380,7 @@ where
                 })
                 .when(is_stripe_row, |this| this.bg(cx.theme().tokens.table_even))
                 .refine_style(&style)
-                .hover(|this| {
+                .hover_style(|this| {
                     if is_selected || self.right_clicked_row == Some(row_ix) {
                         this
                     } else {

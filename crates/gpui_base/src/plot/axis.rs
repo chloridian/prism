@@ -253,7 +253,7 @@ fn axis_text(label: &AxisText, origin: Point<Pixels>) -> Text {
 
 #[cfg(test)]
 mod tests {
-    use gpui::{Hsla, px};
+    use gpui::px;
 
     use super::*;
 

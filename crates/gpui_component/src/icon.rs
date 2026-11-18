@@ -7,7 +7,6 @@ use gpui::{
     prelude::FluentBuilder as _, svg,
 };
 pub use gpui_kit_assets::IconNamed;
-use palette::IntoColor as _;
 
 // Preserve the original enum (including exhaustive matches and inherent view)
 // while the complete, shared catalog is owned by gpui-kit-assets.

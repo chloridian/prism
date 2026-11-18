@@ -3,9 +3,7 @@ use std::rc::Rc;
 
 use gpui_base::LogicalStyledExt as _;
 
-use crate::{
-    ActiveTheme, Icon, IconName, InteractiveElementExt as _, Sizable as _, StyledExt, h_flex,
-};
+use crate::{ActiveTheme, Icon, IconName, InteractiveElementExt as _, Sizable as _, h_flex};
 #[cfg(target_os = "linux")]
 use gpui::Subscription;
 use gpui::{
@@ -257,8 +255,8 @@ impl RenderOnce for ControlIcon {
             .content_center()
             .items_center()
             .text_color(cx.theme().foreground)
-            .hover(|style| style.bg(hover_bg).text_color(hover_fg))
-            .active(|style| style.bg(active_bg).text_color(hover_fg))
+            .hover_style(|style| style.bg(hover_bg).text_color(hover_fg))
+            .active_style(|style| style.bg(active_bg).text_color(hover_fg))
             .when(is_windows, |this| {
                 this.window_control_area(self.window_control_area())
             })

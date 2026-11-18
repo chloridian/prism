@@ -1,7 +1,7 @@
 use std::rc::Rc;
 
 use crate::{
-    Disableable, Sizable, StyledExt,
+    Disableable, Sizable,
     checkbox::Checkbox,
     setting::{
         AnySettingField, RenderOptions,

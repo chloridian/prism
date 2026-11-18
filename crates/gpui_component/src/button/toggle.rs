@@ -9,7 +9,7 @@ use gpui::{
 use gpui_base::{Toggle as BaseToggle, ToggleGroup as BaseToggleGroup};
 use smallvec::{SmallVec, smallvec};
 
-use crate::{ActiveTheme, Disableable, Icon, Sizable, Size, StyledExt, tooltip::ComponentTooltip};
+use crate::{ActiveTheme, Disableable, Icon, Sizable, Size, tooltip::ComponentTooltip};
 
 #[derive(Default, Copy, Debug, Clone, PartialEq, Eq, Hash)]
 pub enum ToggleVariant {
@@ -205,7 +205,7 @@ impl RenderOnce for Toggle {
             // hover state while one is present. If a checked toggle skipped it,
             // the stale state would paint its label in the hover color once
             // something else unchecks it while the pointer rests elsewhere.
-            .hover(|this| {
+            .hover_style(|this| {
                 if !hoverable {
                     return this;
                 }

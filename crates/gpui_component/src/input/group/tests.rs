@@ -84,8 +84,7 @@ mod interaction {
     use crate::{Root, WindowExt as _};
     use gpui::{
         ClipboardEntry, ClipboardItem, Context, Entity, EntityInputHandler as _, FocusHandle,
-        InputEvent as _, LongPressEvent, Modifiers, Render, TouchPhase, VisualTestContext, point,
-        px,
+        Modifiers, Render, VisualTestContext, point, px,
     };
     use gpui_base::test_support::{ElementSnapshot, find};
     use std::rc::Rc;

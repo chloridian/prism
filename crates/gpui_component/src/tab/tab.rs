@@ -917,7 +917,7 @@ impl RenderOnce for Tab {
             .bg(inner_bg)
             .rounded(inner_radius)
             .when(inner_shadow, |this| this.shadow_xs())
-            .hover(|this| this.bg(hover_inner_bg).rounded(inner_radius));
+            .hover_style(|this| this.bg(hover_inner_bg).rounded(inner_radius));
 
         let inner_element = if animate_fg {
             inner_content
@@ -963,7 +963,7 @@ impl RenderOnce for Tab {
             // Keyboard focus (the tab list roves it with the arrow keys) gets
             // the theme ring. An inset shadow draws it inside the tab, so the
             // bar neither shifts nor clips it as focus moves.
-            .focus_visible(|style| {
+            .focus_visible_style(|style| {
                 style.shadow(vec![gpui::BoxShadow {
                     color: ring.into(),
                     offset: point(px(0.), px(0.)),
@@ -1005,7 +1005,7 @@ impl RenderOnce for Tab {
                     .border_b(normal_style.borders.bottom)
                     .border_color(normal_style.border_color)
             })
-            .hover(|this| {
+            .hover_style(|this| {
                 // Always register the hover style: GPUI only refreshes the cached
                 // hover state while one is present. If the selected tab skipped it,
                 // the stale state would keep hover colors after unselecting.

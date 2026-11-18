@@ -1,7 +1,7 @@
 use gpui_base::LogicalStyledExt as _;
 
 use crate::{
-    ActiveTheme as _, RoleOverride, Sizable as _, StyledExt as _, h_flex,
+    ActiveTheme as _, RoleOverride, Sizable as _, h_flex,
     shimmer::{ShimmerStyle, ShimmerText},
     spinner::Spinner,
 };

@@ -5,8 +5,7 @@ use gpui::{
 };
 
 use crate::{
-    ActiveTheme, Disableable, Icon, IconName, Selectable, Sizable, Size, StyleSized, StyledExt,
-    h_flex,
+    ActiveTheme, Disableable, Icon, IconName, Selectable, Sizable, Size, StyleSized, h_flex,
 };
 
 /// A single row element used inside searchable-list dropdowns (Select, ComboBox, MultiComboBox).
@@ -112,7 +111,7 @@ impl RenderOnce for SearchableListItemElement {
             .refine_style(&self.style)
             .when(!self.disabled, |this| {
                 this.when(!self.selected, |this| {
-                    this.hover(|this| {
+                    this.hover_style(|this| {
                         this.bg(cx.theme().accent.opacity(0.7))
                             .text_color(cx.theme().accent_foreground)
                     })

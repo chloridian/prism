@@ -11,8 +11,7 @@ use rust_i18n::t;
 
 use crate::ThemeStyled as _;
 use crate::{
-    ActiveTheme, Disableable, ElementExt as _, Icon, IconName, IndexPath, Sizable, Size,
-    StyleSized, StyledExt,
+    ActiveTheme, ElementExt as _, Icon, IconName, IndexPath, Sizable, Size, StyleSized, StyledExt,
     actions::Cancel,
     h_flex,
     input::{clear_button, input_style},

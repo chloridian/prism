@@ -5,7 +5,7 @@ use gpui::{
 use gpui_base::LogicalStyledExt as _;
 
 use crate::{
-    StyledExt as _, WindowExt as _,
+    WindowExt as _,
     button::ButtonVariant,
     dialog::{
         Dialog, DialogButtonProps, DialogDescription, DialogEntrance, DialogFooter, DialogHeader,

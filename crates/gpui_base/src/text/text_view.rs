@@ -1,4 +1,3 @@
-use crate::HslaExt as _;
 use std::{ops::Range, rc::Rc, sync::Arc};
 
 use gpui::prelude::FluentBuilder as _;
@@ -9,7 +8,6 @@ use gpui::{
     Styled, Window, div, point, px,
 };
 
-use crate::StyledExt;
 use crate::text::TextViewFormat;
 use crate::text::markdown_ext::{MarkdownExtensions, MarkdownNode, MarkdownPlugin};
 use crate::text::node::{CodeBlock, TableData};

@@ -613,7 +613,7 @@ impl TabGroupSkin {
                                     })
                                 })
                                 .when(droppable, |this| {
-                                    this.drag_over::<DragPanel>(|this, _, _, cx| {
+                                    this.on_drag_over::<DragPanel>(|this, _, _, cx| {
                                         this.rounded_s(px(0.), cx)
                                             .border_s(px(2.), cx)
                                             .border_e(px(0.), cx)
@@ -631,7 +631,7 @@ impl TabGroupSkin {
                                             );
                                         }
                                     })
-                                    .drag_over::<AnyDrag>(|this, _, _, cx| {
+                                    .on_drag_over::<AnyDrag>(|this, _, _, cx| {
                                         this.rounded_s(px(0.), cx)
                                             .border_s(px(2.), cx)
                                             .border_e(px(0.), cx)
@@ -656,7 +656,7 @@ impl TabGroupSkin {
                     .flex_grow_1()
                     .min_w_16()
                     .when(droppable, |this| {
-                        this.drag_over::<DragPanel>(|this, _, _, cx| {
+                        this.on_drag_over::<DragPanel>(|this, _, _, cx| {
                             this.bg(cx.theme().tokens.drop_target)
                         })
                         .on_drop({
@@ -670,7 +670,7 @@ impl TabGroupSkin {
                                 group.drop_panel(drag.clone(), ix, false, window, cx);
                             }
                         })
-                        .drag_over::<AnyDrag>(|this, _, _, cx| {
+                        .on_drag_over::<AnyDrag>(|this, _, _, cx| {
                             this.bg(cx.theme().tokens.drop_target)
                         })
                         .on_drop({

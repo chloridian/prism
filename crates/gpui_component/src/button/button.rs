@@ -4,7 +4,7 @@ use std::{rc::Rc, time::Duration};
 
 use crate::{
     ActiveTheme, Colorize as _, Disableable, Icon, Placement, RoleOverride, Selectable, Sizable,
-    Size, StyleSized, StyledExt,
+    Size, StyleSized,
     button::ButtonIcon,
     h_flex,
     select::Caret,
@@ -739,7 +739,7 @@ impl RenderOnce for Button {
                     // A loading button keeps its normal colors, but must not react
                     // to the pointer, it is not waiting for another click.
                     .when(interactive, |this| {
-                        this.active(|this| {
+                        this.active_style(|this| {
                             let active_style = style.active(self.outline, cx);
                             this.bg(active_style.bg)
                                 .border_color(active_style.border)
@@ -748,11 +748,11 @@ impl RenderOnce for Button {
                         .when_some(hover_group, |this, group| {
                             let idle_bg = style.hovered(self.outline, cx).bg.opacity(0.5);
                             this.when(hover_group_held, |this| this.bg(idle_bg))
-                                .group_hover(group, |this| this.bg(idle_bg))
+                                .group_hover_style(group, |this| this.bg(idle_bg))
                         })
                     })
             })
-            .hover(|this| {
+            .hover_style(|this| {
                 // Always register the hover style: GPUI only refreshes the cached
                 // hover state while one is present. If a selected button skipped it,
                 // the stale state would keep hover colors after unselecting.

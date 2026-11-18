@@ -10,7 +10,7 @@ use gpui_base::{
     TableRow as BaseTableRow,
 };
 
-use crate::{ActiveTheme as _, AnyChildElement, ChildElement, Sizable, Size, StyledExt as _};
+use crate::{ActiveTheme as _, AnyChildElement, ChildElement, Sizable, Size};
 
 const MIN_CELL_WIDTH: Pixels = px(100.);
 
@@ -451,7 +451,9 @@ impl RenderOnce for TableRow {
             .refine_style(&self.style)
             .border_color(cx.theme().table_row_border)
             .when(self.ix > 0, |this| this.border_t_1())
-            .when_some(self.hover_style, |this, style| this.hover(move |_| *style))
+            .when_some(self.hover_style, |this, style| {
+                this.hover_style(move |_| *style)
+            })
             .children(
                 self.children
                     .into_iter()

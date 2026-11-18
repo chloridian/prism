@@ -12,7 +12,6 @@ use gpui::{
 use crate::{
     LayoutDirection,
     actions::{Confirm, SelectDown, SelectLeft, SelectRight, SelectUp},
-    styled::StyledExt as _,
 };
 
 const CONTEXT: &str = "Tree";

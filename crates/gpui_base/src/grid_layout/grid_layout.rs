@@ -15,7 +15,7 @@ use super::{
     layout::{self, GridArea},
     state::{DragGridItem, GridDrag, GridGesture, GridLayoutState, GridMetrics},
 };
-use crate::{StyledExt as _, Transition, actions::Cancel, state_style::StateStyle, transition};
+use crate::{Transition, actions::Cancel, state_style::StateStyle, transition};
 
 /// The side of the square, at an item's trailing-bottom corner, that the
 /// pointer resizes the item by.
