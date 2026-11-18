@@ -230,6 +230,7 @@ unsafe fn import_core_video_texture(
             1,
             1,
             size.into(),
+            None,
         )
     };
     Some(unsafe {
@@ -245,6 +246,7 @@ unsafe fn import_core_video_texture(
                 usage: wgpu::TextureUsages::TEXTURE_BINDING,
                 view_formats: &[],
             },
+            wgpu::TextureUses::UNINITIALIZED,
         )
     })
 }
