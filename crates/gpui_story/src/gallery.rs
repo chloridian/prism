@@ -106,7 +106,6 @@ impl Gallery {
                 StoryContainer::panel::<MarkerStory>(window, cx),
                 StoryContainer::panel::<MessageStory>(window, cx),
                 StoryContainer::panel::<MessageScrollerStory>(window, cx),
-                StoryContainer::panel::<NativeMenuStory>(window, cx),
                 StoryContainer::panel::<NotificationStory>(window, cx),
                 StoryContainer::panel::<NumberInputStory>(window, cx),
                 StoryContainer::panel::<OtpInputStory>(window, cx),
