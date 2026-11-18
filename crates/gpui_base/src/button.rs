@@ -223,12 +223,12 @@ impl InteractiveElement for Button {
         self.base.interactivity()
     }
 
-    fn hover(mut self, f: impl FnOnce(StyleRefinement) -> StyleRefinement) -> Self {
+    fn hover_style(mut self, f: impl FnOnce(StyleRefinement) -> StyleRefinement) -> Self {
         self.hover_style = Some(f(StyleRefinement::default()));
         self
     }
 
-    fn group_hover(
+    fn group_hover_style(
         mut self,
         group_name: impl Into<SharedString>,
         f: impl FnOnce(StyleRefinement) -> StyleRefinement,
@@ -239,12 +239,12 @@ impl InteractiveElement for Button {
 }
 
 impl StatefulInteractiveElement for Button {
-    fn active(mut self, f: impl FnOnce(StyleRefinement) -> StyleRefinement) -> Self {
+    fn active_style(mut self, f: impl FnOnce(StyleRefinement) -> StyleRefinement) -> Self {
         self.active_style = Some(f(StyleRefinement::default()));
         self
     }
 
-    fn group_active(
+    fn group_active_style(
         mut self,
         group_name: impl Into<SharedString>,
         f: impl FnOnce(StyleRefinement) -> StyleRefinement,

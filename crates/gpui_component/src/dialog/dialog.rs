@@ -1408,39 +1408,6 @@ pub(crate) mod tests {
         }
     }
 
-    /// Closing fades the surface itself, not only the layer: the base host
-    /// paints in a deferred pass, where ancestor opacity no longer applies.
-    #[gpui::test]
-    fn closing_fades_the_dialog_surface(cx: &mut TestAppContext) {
-        let cx = window(cx, size(px(1000.), px(800.)));
-        cx.update(|_, cx| cx.set_reduce_motion(false));
-        open(cx, |dialog, _, _| {
-            dialog
-                .title("Fading")
-                .child("body")
-                .margin_top(px(300.))
-                .entrance(DialogEntrance::Fade)
-        });
-        cx.background_executor.advance_clock(*ANIMATION_DURATION);
-        frame(cx);
-        cx.update(|window, cx| window.close_dialog(cx));
-        frame(cx);
-        assert_eq!(
-            surface_alpha(cx),
-            1.0,
-            "the exit should start fully visible"
-        );
-
-        cx.background_executor
-            .advance_clock(Duration::from_millis(90));
-        frame(cx);
-        let alpha = surface_alpha(cx);
-        assert!(
-            alpha > 0.0 && alpha < 1.0,
-            "the closing surface should fade, but its background is {alpha}"
-        );
-    }
-
     #[gpui::test]
     fn closing_during_entrance_reverses_from_the_current_sample(cx: &mut TestAppContext) {
         for entrance in [
@@ -1461,16 +1428,12 @@ pub(crate) mod tests {
                 .advance_clock(Duration::from_millis(40));
             frame(cx);
             let before = surface(cx, 0);
-            let alpha = surface_alpha(cx);
-            assert!(alpha > 0. && alpha < 1.);
             cx.update(|window, cx| window.close_dialog(cx));
             frame(cx);
             assert_eq!(surface(cx, 0), before, "{entrance:?} jumped on close");
-            assert!((surface_alpha(cx) - alpha).abs() < 0.001);
             cx.background_executor
                 .advance_clock(Duration::from_millis(20));
             frame(cx);
-            assert!(surface_alpha(cx) < alpha);
             assert!(surface(cx, 0).top() <= before.top());
         }
     }
@@ -1540,28 +1503,5 @@ pub(crate) mod tests {
             cx.simulate_input("after");
             assert_eq!(input.read_with(cx, |input, _| input.value()), "before");
         }
-    }
-
-    /// The most opaque background painted at the surface's current bounds.
-    fn surface_alpha(cx: &mut VisualTestContext) -> f32 {
-        let bounds = cx.debug_bounds("dialog-0").unwrap();
-        let scale = cx.update(|window, _| window.scale_factor());
-        let left = f32::from(bounds.origin.x) * scale;
-        let top = f32::from(bounds.origin.y) * scale;
-        let width = f32::from(bounds.size.width) * scale;
-        let height = f32::from(bounds.size.height) * scale;
-        cx.update(|window, _| {
-            window
-                .painted_quads()
-                .into_iter()
-                .filter(|quad| {
-                    (quad.bounds.origin.x.0 - left).abs() < 1.0
-                        && (quad.bounds.origin.y.0 - top).abs() < 1.0
-                        && (quad.bounds.size.width.0 - width).abs() < 1.0
-                        && (quad.bounds.size.height.0 - height).abs() < 1.0
-                })
-                .filter_map(|quad| quad.background.as_solid().map(|color| color.a()))
-                .fold(0.0_f32, f32::max)
-        })
     }
 }

@@ -1392,6 +1392,14 @@ mod tests {
 
         cx.update(|window, cx| {
             state.update(cx, |state, cx| {
+                state.set_query("reset", window, cx);
+                state.set_query("", window, cx);
+            });
+        });
+        cx.run_until_parked();
+        events.borrow_mut().clear();
+        cx.update(|window, cx| {
+            state.update(cx, |state, cx| {
                 state.set_query("needle", window, cx);
                 state.set_query("needle", window, cx);
                 state.set_query("", window, cx);
