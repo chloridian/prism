@@ -2,7 +2,6 @@
 
 use std::{collections::HashMap, hash::Hash};
 
-use num_traits::Zero;
 
 use super::Scale;
 
@@ -102,7 +101,7 @@ impl<T> ScaleBand<T> {
     /// The range divided evenly among the bands.
     fn avg_width(&self) -> f32 {
         let len = self.len() as f32;
-        if len.is_zero() {
+        if len == 0. {
             0.
         } else {
             self.range_diff / len

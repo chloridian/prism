@@ -91,23 +91,19 @@ impl ThemeRegistry {
         cx.global_mut::<Self>()
     }
 
-    /// Watch themes directory.
+    /// Load the themes in a directory once.
     ///
     /// And reload themes to trigger the `on_load` callback.
     #[cfg(not(target_family = "wasm"))]
-    pub fn watch_dir<F>(themes_dir: PathBuf, cx: &mut App, on_load: F) -> Result<()>
+    pub fn load_dir<F>(themes_dir: PathBuf, cx: &mut App, on_load: F) -> Result<()>
     where
         F: Fn(&mut App) + 'static,
     {
-        Self::global_mut(cx).themes_dir = themes_dir.clone();
+        Self::global_mut(cx).themes_dir = themes_dir;
 
         // Load theme in the background.
         cx.spawn(async move |cx| {
             _ = cx.update(|cx| {
-                if let Err(err) = Self::_watch_themes_dir(themes_dir, cx) {
-                    tracing::error!("Failed to watch themes directory: {}", err);
-                }
-
                 Self::reload_themes(cx);
                 on_load(cx);
             });
@@ -180,55 +176,6 @@ impl ThemeRegistry {
                 (name, Rc::clone(theme))
             })
             .collect();
-    }
-
-    #[cfg(not(target_family = "wasm"))]
-    fn _watch_themes_dir(themes_dir: PathBuf, cx: &mut App) -> anyhow::Result<()> {
-        use notify::Watcher as _;
-
-        if !themes_dir.exists() {
-            std::fs::create_dir_all(&themes_dir)?;
-        }
-
-        let (tx, rx) = smol::channel::bounded(1);
-        let mut watcher = notify::RecommendedWatcher::new(
-            move |res: notify::Result<notify::Event>| match res {
-                Ok(event) => {
-                    let touched = event.need_rescan()
-                        || matches!(
-                            event.kind,
-                            notify::EventKind::Any
-                                | notify::EventKind::Create(_)
-                                | notify::EventKind::Modify(_)
-                                | notify::EventKind::Remove(_)
-                        );
-                    if touched {
-                        let _ = tx.try_send(());
-                    }
-                }
-                Err(err) => tracing::error!("Failed to receive theme event: {err}"),
-            },
-            notify::Config::default().with_follow_symlinks(false),
-        )?;
-
-        cx.spawn(async move |cx| {
-            if let Err(err) = watcher.watch(&themes_dir, notify::RecursiveMode::NonRecursive) {
-                match err.kind {
-                    notify::ErrorKind::MaxFilesWatch => tracing::error!(
-                        "Theme file watch limit reached, theme hot reload is disabled: {err}"
-                    ),
-                    _ => tracing::error!("Failed to watch themes directory: {err}"),
-                }
-            }
-
-            while rx.recv().await.is_ok() {
-                tracing::info!("Reloading themes...");
-                _ = cx.update(Self::reload_themes);
-            }
-        })
-        .detach();
-
-        Ok(())
     }
 
     #[cfg(not(target_family = "wasm"))]

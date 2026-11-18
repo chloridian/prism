@@ -9,7 +9,6 @@ use gpui::{
     Point, SharedString, TextAlign, Window, point, px,
 };
 use gpui_component_macros::IntoPlot;
-use num_traits::Zero;
 
 use crate::{
     ActiveTheme,
@@ -361,7 +360,7 @@ where
 
     /// The resolved outer radius for the given bounds.
     fn resolve_outer_radius(&self, bounds: &Bounds<Pixels>) -> f32 {
-        if self.outer_radius.is_zero() {
+        if self.outer_radius == 0. {
             bounds.size.height.as_f32() * 0.4
         } else {
             self.outer_radius
