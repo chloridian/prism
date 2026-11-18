@@ -1,4 +1,6 @@
+use gpui::ColorExt as _;
 use gpui::{App, FontWeight, HighlightStyle, Hsla, SharedString};
+use gpui_base::HslaExt as _;
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 use std::{
@@ -402,7 +404,7 @@ impl StatusColors {
     pub fn error_background(&self, cx: &App) -> Hsla {
         let bg = cx.theme().background;
         self.error_background
-            .unwrap_or(bg.blend(self.error(cx).alpha(0.2)))
+            .unwrap_or(bg.blend(&self.error(cx).alpha(0.2)))
     }
 
     #[inline]
@@ -419,7 +421,7 @@ impl StatusColors {
     pub fn warning_background(&self, cx: &App) -> Hsla {
         let bg = cx.theme().background;
         self.warning_background
-            .unwrap_or(bg.blend(self.warning(cx).alpha(0.2)))
+            .unwrap_or(bg.blend(&self.warning(cx).alpha(0.2)))
     }
 
     #[inline]
@@ -436,7 +438,7 @@ impl StatusColors {
     pub fn info_background(&self, cx: &App) -> Hsla {
         let bg = cx.theme().background;
         self.info_background
-            .unwrap_or(bg.blend(self.info(cx).alpha(0.2)))
+            .unwrap_or(bg.blend(&self.info(cx).alpha(0.2)))
     }
 
     #[inline]
@@ -453,7 +455,7 @@ impl StatusColors {
     pub fn success_background(&self, cx: &App) -> Hsla {
         let bg = cx.theme().background;
         self.success_background
-            .unwrap_or(bg.blend(self.success(cx).alpha(0.2)))
+            .unwrap_or(bg.blend(&self.success(cx).alpha(0.2)))
     }
 
     #[inline]
@@ -470,7 +472,7 @@ impl StatusColors {
     pub fn hint_background(&self, cx: &App) -> Hsla {
         let bg = cx.theme().background;
         self.hint_background
-            .unwrap_or(bg.blend(self.hint(cx).alpha(0.2)))
+            .unwrap_or(bg.blend(&self.hint(cx).alpha(0.2)))
     }
 
     #[inline]
