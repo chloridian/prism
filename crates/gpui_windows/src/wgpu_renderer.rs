@@ -16,9 +16,12 @@ use windows::{
             DWRITE_FACTORY_TYPE_SHARED, DWRITE_PIXEL_GEOMETRY_BGR, DWriteCreateFactory,
             IDWriteFactory5, IDWriteRenderingParams1,
         },
+        UI::WindowsAndMessaging::GWLP_HINSTANCE,
     },
     core::Interface as _,
 };
+
+use crate::util::get_window_long;
 
 /// The device every window shares, and what the application requires of it.
 #[derive(Clone, Default)]
@@ -34,11 +37,16 @@ impl RendererContext {
 }
 
 #[derive(Clone, Copy, Debug)]
-struct WindowHandle(NonZeroIsize);
+struct WindowHandle {
+    hwnd: NonZeroIsize,
+    hinstance: Option<NonZeroIsize>,
+}
 
 impl rwh::HasWindowHandle for WindowHandle {
     fn window_handle(&self) -> Result<rwh::WindowHandle<'_>, rwh::HandleError> {
-        let raw = rwh::RawWindowHandle::Win32(rwh::Win32WindowHandle::new(self.0));
+        let mut handle = rwh::Win32WindowHandle::new(self.hwnd);
+        handle.hinstance = self.hinstance;
+        let raw = rwh::RawWindowHandle::Win32(handle);
         Ok(unsafe { rwh::WindowHandle::borrow_raw(raw) })
     }
 }
@@ -60,10 +68,11 @@ impl Renderer {
         hwnd: HWND,
         size: Size<DevicePixels>,
     ) -> Result<Self> {
-        let window = WindowHandle(
-            NonZeroIsize::new(hwnd.0 as isize)
+        let window = WindowHandle {
+            hwnd: NonZeroIsize::new(hwnd.0 as isize)
                 .ok_or_else(|| anyhow::anyhow!("window handle is null"))?,
-        );
+            hinstance: NonZeroIsize::new(unsafe { get_window_long(hwnd, GWLP_HINSTANCE) }),
+        };
         let config = WgpuSurfaceConfig {
             size: Size {
                 width: DevicePixels(size.width.0.max(1)),
