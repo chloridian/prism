@@ -7,7 +7,6 @@ members = [
   "./crates/gpui_ce_parley/",
   "./crates/gpui_linux/",
   "./crates/gpui_macos/",
-  "./crates/gpui_apple/",
   "./crates/gpui_tokio/",
   "./crates/gpui_macros/",
   "./crates/gpui_windows/",
