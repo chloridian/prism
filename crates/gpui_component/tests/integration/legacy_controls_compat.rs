@@ -1,7 +1,6 @@
-
 use gpui::{
     InteractiveElement as _, ParentElement as _, StatefulInteractiveElement as _, Styled as _,
-    blue, green, px, red,
+    blue, green, prelude::FluentBuilder as _, px, red,
 };
 use gpui_component::{
     Disableable as _, Selectable as _, Sizable as _, Size,
@@ -17,7 +16,7 @@ fn legacy_checkbox_builder_and_traits_remain_available() {
         .tooltip("Stored on this device")
         .checked(true)
         .selected(false)
-        .disabled(false)
+        .map(|this| gpui_base::Disableable::disabled(this, false))
         .with_size(Size::Small)
         .tab_index(2)
         .tab_stop(true)

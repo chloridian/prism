@@ -7,6 +7,7 @@ use gpui::{
     prelude::FluentBuilder as _, svg,
 };
 pub use gpui_kit_assets::IconNamed;
+use palette::IntoColor as _;
 
 // Preserve the original enum (including exhaustive matches and inherent view)
 // while the complete, shared catalog is owned by gpui-kit-assets.
@@ -244,8 +245,8 @@ impl Styled for Icon {
         &mut self.style
     }
 
-    fn text_color(mut self, color: impl Into<Hsla>) -> Self {
-        self.text_color = Some(color.into());
+    fn text_color(mut self, color: impl palette::IntoColor<Hsla>) -> Self {
+        self.text_color = Some(color.into_color());
         self
     }
 }
@@ -285,7 +286,7 @@ mod tests {
     use super::*;
     use gpui::{px, size};
 
-    const SVG: &[u8] = include_bytes!("../../assets/assets/icons/arrow-up.svg");
+    const SVG: &[u8] = include_bytes!("../../gpui_kit_assets/assets/icons/arrow-up.svg");
 
     #[test]
     fn test_icon_builder_preserves_owned_data_and_transform_on_clone() {

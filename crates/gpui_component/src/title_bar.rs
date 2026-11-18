@@ -1,3 +1,4 @@
+use gpui_base::{HslaExt as _, RgbaExt as _};
 use std::rc::Rc;
 
 use gpui_base::LogicalStyledExt as _;
@@ -26,12 +27,12 @@ const TITLE_BAR_LEFT_PADDING: Pixels = px(12.);
 fn default_title_bar_background(title_bar: Hsla, background: Hsla) -> Background {
     let title_bar_rgb = title_bar.to_rgb();
     let background_rgb = background.to_rgb();
-    let mixed = Hsla::from(Rgba {
-        r: title_bar_rgb.r * 0.55 + background_rgb.r * 0.45,
-        g: title_bar_rgb.g * 0.55 + background_rgb.g * 0.45,
-        b: title_bar_rgb.b * 0.55 + background_rgb.b * 0.45,
-        a: title_bar_rgb.a * 0.55 + background_rgb.a * 0.45,
-    });
+    let mixed = gpui::rgb_to_hsla(Rgba::new(
+        title_bar_rgb.r() * 0.55 + background_rgb.r() * 0.45,
+        title_bar_rgb.g() * 0.55 + background_rgb.g() * 0.45,
+        title_bar_rgb.b() * 0.55 + background_rgb.b() * 0.45,
+        title_bar_rgb.a() * 0.55 + background_rgb.a() * 0.45,
+    ));
 
     linear_gradient(
         180.,
@@ -614,22 +615,14 @@ mod tests {
 
     #[test]
     fn test_default_title_bar_background() {
-        let title_bar = Hsla::black();
-        let background = Hsla::white();
+        let title_bar = gpui::black();
+        let background = gpui::white();
 
         assert_eq!(
             default_title_bar_background(title_bar, background),
             linear_gradient(
                 180.,
-                linear_color_stop(
-                    Hsla::from(Rgba {
-                        r: 0.45,
-                        g: 0.45,
-                        b: 0.45,
-                        a: 1.,
-                    }),
-                    0.,
-                ),
+                linear_color_stop(gpui::rgb_to_hsla(Rgba::new(0.45, 0.45, 0.45, 1.)), 0.,),
                 linear_color_stop(title_bar, 1.),
             )
         );

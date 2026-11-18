@@ -143,17 +143,9 @@ pub(crate) fn window_content_insets(window: &Window) -> Edges<Pixels> {
 }
 
 /// Per-side inset from the window bounds to the part of the window that is
-/// fully visible: not under the system bars, a display cutout or the on-screen
-/// keyboard ([`Window::fully_visible_bounds`]). Zero on desktop.
-pub(crate) fn window_safe_insets(window: &Window) -> Edges<Pixels> {
-    let viewport = window.viewport_size();
-    let visible = window.fully_visible_bounds();
-    Edges {
-        top: visible.top(),
-        right: viewport.width - visible.right(),
-        bottom: viewport.height - visible.bottom(),
-        left: visible.left(),
-    }
+/// fully visible. Prism's windows are never covered by system bars, so this is zero.
+pub(crate) fn window_safe_insets(_window: &Window) -> Edges<Pixels> {
+    Edges::default()
 }
 
 impl ParentElement for WindowBorder {
@@ -194,8 +186,6 @@ impl RenderOnce for WindowBorder {
         let resize_hit_size = self.resize_hit_size;
         window.set_client_inset(platform_inset);
         let radii = window_corner_radii(window, cx);
-        // Lets the compositor treat the rounded corners as transparent.
-        window.set_client_corner_radii(radii);
         let window_size = window.window_bounds().get_bounds().size;
         let is_window_active = window.is_window_active();
         let border_color = cx.theme().window_border;
@@ -262,12 +252,7 @@ impl RenderOnce for WindowBorder {
                             // does not grow the paint bounds for blur, so a larger blur
                             // or offset would be visibly cut off by the window surface.
                             gpui::BoxShadow {
-                                color: Hsla {
-                                    h: 0.,
-                                    s: 0.,
-                                    l: 0.,
-                                    a: 0.18 * opacity,
-                                },
+                                color: gpui::hsla(0., 0., 0., 0.18 * opacity).into(),
                                 // GNOME-style ambient shadow: horizontally centered
                                 // with only a slight downward bias.
                                 blur_radius: px(10.),
@@ -278,12 +263,7 @@ impl RenderOnce for WindowBorder {
                             // The contact layer adds definition without increasing the
                             // space between the content and the outer window bounds.
                             gpui::BoxShadow {
-                                color: Hsla {
-                                    h: 0.,
-                                    s: 0.,
-                                    l: 0.,
-                                    a: 0.18 * opacity,
-                                },
+                                color: gpui::hsla(0., 0., 0., 0.18 * opacity).into(),
                                 blur_radius: px(3.),
                                 spread_radius: px(0.),
                                 offset: point(px(0.0), px(1.0)),

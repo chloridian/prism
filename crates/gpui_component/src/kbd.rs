@@ -252,7 +252,7 @@ impl RenderOnce for Kbd {
         div()
             // Lets a test ask whether a given shortcut hint was painted this
             // frame; a no-op outside test-support builds.
-            .debug_selector(|| format!("kbd:{}", self.stroke.unparse(cx.platform_info().os)))
+            .debug_selector(|| format!("kbd:{}", self.stroke.unparse()))
             .text_color(cx.theme().muted_foreground)
             .bg(cx.theme().tokens.muted)
             .when(self.outline, |this| {

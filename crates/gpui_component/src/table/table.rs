@@ -547,7 +547,7 @@ impl RenderOnce for TableHead {
                 this.justify_center()
             })
             .when(self.align == TextAlign::Right, |this| {
-                this.justify_flex_end()
+                this.map(|this| gpui_base::LogicalStyledExt::justify_flex_end(this))
             })
             .refine_style(&self.style)
             .children(self.children)
@@ -640,7 +640,7 @@ impl RenderOnce for TableCell {
                 this.justify_center()
             })
             .when(self.align == TextAlign::Right, |this| {
-                this.justify_flex_end()
+                this.map(|this| gpui_base::LogicalStyledExt::justify_flex_end(this))
             })
             .refine_style(&self.style)
             .children(self.children)

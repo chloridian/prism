@@ -1,3 +1,4 @@
+use gpui_base::HslaExt as _;
 use std::sync::Arc;
 
 use crate::{ActiveTheme, AxisExt, StyledExt, ThemeStyled as _};
@@ -357,9 +358,9 @@ impl RenderOnce for Slider {
                                     .rounded_full_style(cx),
                             )
                             .when_some(start_ring, |this, ring| {
-                                this.child(thumb(relative(percentage.start), true, ring))
+                                this.child(thumb(relative(percentage.start).into(), true, ring))
                             })
-                            .child(thumb(relative(percentage.end), false, end_ring)),
+                            .child(thumb(relative(percentage.end).into(), false, end_ring)),
                     ),
             )
     }

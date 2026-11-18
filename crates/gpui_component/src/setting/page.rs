@@ -218,7 +218,11 @@ impl SettingPage {
         let programmatic = changed || scroll_group_ix.is_some();
         let scrolled = !programmatic
             && !page_state.read(cx).scrolled_programmatically
-            && page_state.read(cx).scroll_top != scroll_top;
+            && !{
+                let previous = page_state.read(cx).scroll_top;
+                previous.item_ix == scroll_top.item_ix
+                    && previous.offset_in_item == scroll_top.offset_in_item
+            };
         page_state.update(cx, |state, _| {
             state.scroll_top = scroll_top;
             state.scrolled_programmatically = programmatic;

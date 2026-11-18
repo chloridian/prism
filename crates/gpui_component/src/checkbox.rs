@@ -1,3 +1,4 @@
+use gpui::ColorExt as _;
 use std::{rc::Rc, time::Duration};
 
 use crate::{
@@ -456,7 +457,7 @@ mod tests {
                 .on_click(move |_, _, _| parent_clicks.set(parent_clicks.get() + 1))
                 .child(
                     Checkbox::new("checkbox")
-                        .disabled(self.disabled)
+                        .map(|this| gpui_base::Disableable::disabled(this, self.disabled))
                         .size_full()
                         .on_click(move |checked, _, _| {
                             assert!(*checked);
@@ -487,8 +488,7 @@ mod tests {
     }
 
     fn activate_key(cx: &mut VisualTestContext, key: &str) {
-        let keystroke =
-            cx.update(|_, cx| Keystroke::parse_with_os(key, cx.platform_info().os).unwrap());
+        let keystroke = Keystroke::parse(key).unwrap();
         cx.simulate_event(KeyDownEvent {
             keystroke: keystroke.clone(),
             is_held: false,

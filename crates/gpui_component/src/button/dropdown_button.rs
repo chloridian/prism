@@ -194,7 +194,7 @@ impl RenderOnce for DropdownButton {
                         })
                         .border_edges(Edges::all(true))
                         .selected(selected)
-                        .disabled(disabled)
+                        .map(|this| gpui_base::Disableable::disabled(this, disabled))
                         .when(self.outline, |this| this.outline())
                         .with_size(size)
                         .with_variant(variant)
@@ -225,7 +225,7 @@ impl RenderOnce for DropdownButton {
                             bottom: true,
                         })
                         .selected(selected)
-                        .disabled(self.disabled)
+                        .map(|this| gpui_base::Disableable::disabled(this, self.disabled))
                         .when(self.outline, |this| this.outline())
                         .with_size(size)
                         .with_variant(variant)

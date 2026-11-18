@@ -1,3 +1,4 @@
+use gpui::ColorExt as _;
 use std::{ops::Range, time::Duration};
 
 use gpui::{
@@ -494,7 +495,9 @@ impl RenderOnce for MessageScroller {
                                 .when_some(jump_button_renderer, |button, renderer| {
                                     renderer(button)
                                 })
-                                .when(!show_jump_button, |button| button.disabled(true)),
+                                .when(!show_jump_button, |button| {
+                                    button.map(|this| gpui_base::Disableable::disabled(this, true))
+                                }),
                         ),
                 )
             })
@@ -583,7 +586,7 @@ mod tests {
         assert_eq!(top(cx).item_ix, 10);
 
         // A wheel scroll by one row: its 40px and the 32px gap after it.
-        cx.simulate_event(gpui::ScrollEvent {
+        cx.simulate_event(gpui::ScrollWheelEvent {
             position: gpui::point(px(200.), px(200.)),
             delta: gpui::ScrollDelta::Pixels(gpui::point(px(0.), px(-72.))),
             ..Default::default()

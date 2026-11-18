@@ -8,6 +8,7 @@
 //! caller keeps the `InputState` or `TextareaState`; the group owns only
 //! composition and the frame.
 
+use gpui::ColorExt as _;
 use std::time::Duration;
 
 use gpui_base::LogicalStyledExt as _;
@@ -419,13 +420,13 @@ impl InputGroupAddon {
                 InputGroupAddonAlignment::InlineEnd => this.pe(rems(0.375), cx),
                 InputGroupAddonAlignment::BlockStart => this
                     .w_full()
-                    .justify_flex_start()
+                    .map(|this| gpui_base::LogicalStyledExt::justify_flex_start(this))
                     .px(block_px)
                     .pt_2()
                     .when(border_bottom, |this| this.pb_2()),
                 InputGroupAddonAlignment::BlockEnd => this
                     .w_full()
-                    .justify_flex_start()
+                    .map(|this| gpui_base::LogicalStyledExt::justify_flex_start(this))
                     .px(block_px)
                     .pb_2()
                     .when(border_top, |this| this.pt_2()),
@@ -578,7 +579,9 @@ impl InputGroupButton {
             .style()
             .clone();
         self.button
-            .when(disabled, |this| this.disabled(true))
+            .when(disabled, |this| {
+                this.map(|this| gpui_base::Disableable::disabled(this, true))
+            })
             .map(|this| {
                 if compact {
                     this.with_size(Size::Medium)
@@ -632,7 +635,9 @@ impl ButtonVariants for InputGroupButton {
 
 impl Disableable for InputGroupButton {
     fn disabled(mut self, disabled: bool) -> Self {
-        self.button = self.button.disabled(disabled);
+        self.button = self
+            .button
+            .map(|this| gpui_base::Disableable::disabled(this, disabled));
         self
     }
 }

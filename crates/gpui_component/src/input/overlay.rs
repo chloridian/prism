@@ -813,8 +813,7 @@ mod tests {
         for ch in ['h', 'o', 's', 't'] {
             cx.update(|window, cx| {
                 let text = ch.to_string();
-                let mut key = gpui::Keystroke::parse_with_os(&text, cx.platform_info().os)
-                    .expect("a letter is a keystroke");
+                let mut key = gpui::Keystroke::parse(&text).expect("a letter is a keystroke");
                 key.key_char = Some(text.into());
                 window.dispatch_keystroke(key, cx);
             });

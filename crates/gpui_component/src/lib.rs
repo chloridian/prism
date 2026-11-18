@@ -1,4 +1,3 @@
-
 use gpui::App;
 use std::ops::Deref;
 use std::sync::LazyLock;

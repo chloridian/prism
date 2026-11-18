@@ -60,7 +60,8 @@ impl ButtonGroup {
 
     /// Adds a button as a child to the ButtonGroup.
     pub fn child(mut self, child: Button) -> Self {
-        self.children.push(child.disabled(self.disabled));
+        self.children
+            .push(child.map(|this| gpui_base::Disableable::disabled(this, self.disabled)));
         self
     }
 
@@ -330,8 +331,7 @@ mod tests {
     }
 
     fn activate_key(cx: &mut VisualTestContext, key: &str) {
-        let keystroke =
-            cx.update(|_, cx| Keystroke::parse_with_os(key, cx.platform_info().os).unwrap());
+        let keystroke = Keystroke::parse(key).unwrap();
         cx.simulate_event(KeyDownEvent {
             keystroke: keystroke.clone(),
             is_held: false,

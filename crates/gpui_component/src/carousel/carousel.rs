@@ -774,7 +774,7 @@ fn carousel_control(
                 .when(!has_custom_content, |this| this.icon(icon))
                 .accessibility_label(label.clone())
                 .tooltip(label)
-                .disabled(disabled)
+                .map(|this| gpui_base::Disableable::disabled(this, disabled))
                 .absolute()
                 .rounded_full_style(cx)
                 .when(axis.is_horizontal() && !next, |this| {
@@ -933,7 +933,7 @@ impl RenderOnce for CarouselPaginationItem {
             .with_size(self.size)
             .selected(selected)
             .accessibility_label(label)
-            .disabled(disabled)
+            .map(|this| gpui_base::Disableable::disabled(this, disabled))
             .children(self.children)
             .when(!disabled, |this| {
                 this.on_click(move |event, window, cx| {

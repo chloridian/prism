@@ -1,9 +1,11 @@
+use gpui::ColorExt as _;
 use gpui::{
     Anchor, AnyElement, App, ElementId, Entity, FocusHandle, Focusable, Hsla,
     InteractiveElement as _, IntoElement, ParentElement, RenderOnce, SharedString,
     StatefulInteractiveElement as _, StyleRefinement, Styled, TextAlign, Window, div, hsla,
     linear_color_stop, linear_gradient, prelude::FluentBuilder as _,
 };
+use gpui_base::HslaExt as _;
 use rust_i18n::t;
 
 use gpui_base::{ColorPicker as BaseColorPicker, ColorSwatch};
@@ -26,15 +28,13 @@ fn color_palettes() -> Vec<Vec<Hsla>> {
     use crate::theme::DEFAULT_COLORS;
 
     macro_rules! c {
-        ($color:tt) => {
-            {
-                let mut keys = DEFAULT_COLORS.$color.keys().collect::<Vec<_>>();
-                keys.sort();
-                keys.into_iter()
-                    .map(|k| DEFAULT_COLORS.$color.get(k).map(|c| c.hsla).unwrap())
-                    .collect::<Vec<_>>()
-            }
-        };
+        ($color:tt) => {{
+            let mut keys = DEFAULT_COLORS.$color.keys().collect::<Vec<_>>();
+            keys.sort();
+            keys.into_iter()
+                .map(|k| DEFAULT_COLORS.$color.get(k).map(|c| c.hsla).unwrap())
+                .collect::<Vec<_>>()
+        }};
     }
 
     vec![
@@ -261,16 +261,16 @@ impl ColorPicker {
                 hsla(h, 1.0, 0.5, 1.0)
             })
             .collect::<Vec<_>>();
-        let saturation_start = hsla(slider_color.h, 0.0, slider_color.l, 1.0);
-        let saturation_end = hsla(slider_color.h, 1.0, slider_color.l, 1.0);
+        let saturation_start = hsla(slider_color.h(), 0.0, slider_color.l(), 1.0);
+        let saturation_end = hsla(slider_color.h(), 1.0, slider_color.l(), 1.0);
         let lightness_colors = (0..steps)
             .map(|ix| {
                 let l = ix as f32 / (steps.saturating_sub(1)) as f32;
-                hsla(slider_color.h, 1.0, l, 1.0)
+                hsla(slider_color.h(), 1.0, l, 1.0)
             })
             .collect::<Vec<_>>();
-        let alpha_start = hsla(slider_color.h, slider_color.s, slider_color.l, 0.0);
-        let alpha_end = hsla(slider_color.h, slider_color.s, slider_color.l, 1.0);
+        let alpha_start = hsla(slider_color.h(), slider_color.s(), slider_color.l(), 0.0);
+        let alpha_end = hsla(slider_color.h(), slider_color.s(), slider_color.l(), 1.0);
 
         let label_color = cx.theme().foreground.opacity(0.7);
 
@@ -307,7 +307,7 @@ impl ColorPicker {
                             .text_xs()
                             .text_color(label_color)
                             .text_align(TextAlign::Right)
-                            .child(format!("{:.0}", slider_color.h * 360.)),
+                            .child(format!("{:.0}", slider_color.h() * 360.)),
                     ),
             )
             .child(
@@ -345,7 +345,7 @@ impl ColorPicker {
                             .text_xs()
                             .text_color(label_color)
                             .text_align(TextAlign::Right)
-                            .child(format!("{:.0}", slider_color.s * 100.)),
+                            .child(format!("{:.0}", slider_color.s() * 100.)),
                     ),
             )
             .child(
@@ -379,7 +379,7 @@ impl ColorPicker {
                             .text_xs()
                             .text_color(label_color)
                             .text_align(TextAlign::Right)
-                            .child(format!("{:.0}", slider_color.l * 100.)),
+                            .child(format!("{:.0}", slider_color.l() * 100.)),
                     ),
             )
             .child(
@@ -413,7 +413,7 @@ impl ColorPicker {
                             .text_xs()
                             .text_color(label_color)
                             .text_align(TextAlign::Right)
-                            .child(format!("{:.0}", slider_color.a * 100.)),
+                            .child(format!("{:.0}", slider_color.a() * 100.)),
                     ),
             )
     }

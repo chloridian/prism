@@ -401,7 +401,7 @@ impl<M: crate::input::overlay::OverlayMode> Render for SearchPanel<M> {
                             .xsmall()
                             .ghost()
                             .icon(IconName::ChevronLeft)
-                            .disabled(!has_matches)
+                            .map(|this| gpui_base::Disableable::disabled(this, !has_matches))
                             .on_click(cx.listener(|this, _, window, cx| {
                                 this.prev(window, cx);
                             })),
@@ -411,7 +411,7 @@ impl<M: crate::input::overlay::OverlayMode> Render for SearchPanel<M> {
                             .xsmall()
                             .ghost()
                             .icon(IconName::ChevronRight)
-                            .disabled(!has_matches)
+                            .map(|this| gpui_base::Disableable::disabled(this, !has_matches))
                             .on_click(cx.listener(|this, _, window, cx| {
                                 this.next(window, cx);
                             })),
@@ -451,7 +451,7 @@ impl<M: crate::input::overlay::OverlayMode> Render for SearchPanel<M> {
                             Button::new("replace-one")
                                 .small()
                                 .label(t!("Input.Replace"))
-                                .disabled(!has_matches)
+                                .map(|this| gpui_base::Disableable::disabled(this, !has_matches))
                                 .on_click(cx.listener(|this, _, window, cx| {
                                     this.replace_next(window, cx);
                                 })),
@@ -460,7 +460,7 @@ impl<M: crate::input::overlay::OverlayMode> Render for SearchPanel<M> {
                             Button::new("replace-all")
                                 .small()
                                 .label(t!("Input.Replace All"))
-                                .disabled(!has_matches)
+                                .map(|this| gpui_base::Disableable::disabled(this, !has_matches))
                                 .on_click(cx.listener(|this, _, window, cx| {
                                     this.replace_all(window, cx);
                                 })),

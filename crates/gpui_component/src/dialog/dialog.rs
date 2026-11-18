@@ -345,14 +345,14 @@ pub(crate) fn overlay_color(overlay: bool, cx: &App) -> Hsla {
 fn dialog_shadow(delta: f32) -> Vec<BoxShadow> {
     vec![
         BoxShadow {
-            color: hsla(0., 0., 0., 0.1 * delta),
+            color: hsla(0., 0., 0., 0.1 * delta).into(),
             offset: point(px(0.), px(20.)),
             blur_radius: px(25.),
             spread_radius: px(-5.),
             inset: false,
         },
         BoxShadow {
-            color: hsla(0., 0., 0., 0.1 * delta),
+            color: hsla(0., 0., 0., 0.1 * delta).into(),
             offset: point(px(0.), px(8.)),
             blur_radius: px(10.),
             spread_radius: px(-6.),
@@ -886,7 +886,7 @@ impl RenderOnce for Dialog {
                                                         .on_any_mouse_down(|_, _, cx| {
                                                             cx.stop_propagation()
                                                         })
-                                                        .on_scroll(|_, _, cx| {
+                                                        .on_scroll_wheel(|_, _, cx| {
                                                             cx.stop_propagation()
                                                         }),
                                                 )
@@ -934,6 +934,7 @@ pub(crate) mod tests {
         AppContext as _, Bounds, Context, Render, StatefulInteractiveElement as _, TestAppContext,
         VisualTestContext, size,
     };
+    use gpui_base::HslaExt as _;
     use std::{cell::Cell, rc::Rc};
 
     struct DialogHost {
@@ -1559,7 +1560,7 @@ pub(crate) mod tests {
                         && (quad.bounds.size.width.0 - width).abs() < 1.0
                         && (quad.bounds.size.height.0 - height).abs() < 1.0
                 })
-                .filter_map(|quad| quad.background.as_solid().map(|color| color.a))
+                .filter_map(|quad| quad.background.as_solid().map(|color| color.a()))
                 .fold(0.0_f32, f32::max)
         })
     }

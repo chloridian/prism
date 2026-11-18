@@ -997,39 +997,41 @@ impl Render for CommandState {
                     // container padding, and only while it is shown, so a
                     // loading list leaves no blank strip under the query.
                     .when(rows_count == 0 && !self.loading, |this| this.p_1())
-                    .on_prepaint({
-                        let measure_state = command_state.clone();
-                        move |bounds, window, cx| {
-                            measure_state.update(cx, |state, cx| {
-                                // The list's `p_1` is one quarter rem on each
-                                // side. Its rem-dependent padding and inherited
-                                // layout-relevant text style participate in
-                                // the row-size cache key.
-                                let text_style = window.text_style();
-                                state.set_list_measurement_key(
-                                    ListMeasurementKey {
-                                        content_width: (bounds.size.width
-                                            - window.rem_size() * 0.5)
-                                            .max(px(0.)),
-                                        rem_size: window.rem_size(),
-                                        line_height: window.line_height(),
-                                        text_shape: TextShapeKey {
-                                            font_family: text_style.font_family,
-                                            font_features: text_style.font_features,
-                                            font_fallbacks: text_style.font_fallbacks,
-                                            font_size: text_style.font_size,
-                                            font_weight: text_style.font_weight,
-                                            font_style: text_style.font_style,
-                                            white_space: text_style.white_space,
-                                            text_overflow: text_style.text_overflow,
-                                            line_clamp: text_style.line_clamp,
+                    .map(|this| {
+                        gpui_base::ElementExt::on_prepaint(this, {
+                            let measure_state = command_state.clone();
+                            move |bounds, window, cx| {
+                                measure_state.update(cx, |state, cx| {
+                                    // The list's `p_1` is one quarter rem on each
+                                    // side. Its rem-dependent padding and inherited
+                                    // layout-relevant text style participate in
+                                    // the row-size cache key.
+                                    let text_style = window.text_style();
+                                    state.set_list_measurement_key(
+                                        ListMeasurementKey {
+                                            content_width: (bounds.size.width
+                                                - window.rem_size() * 0.5)
+                                                .max(px(0.)),
+                                            rem_size: window.rem_size(),
+                                            line_height: window.line_height(),
+                                            text_shape: TextShapeKey {
+                                                font_family: text_style.font_family,
+                                                font_features: text_style.font_features,
+                                                font_fallbacks: text_style.font_fallbacks,
+                                                font_size: text_style.font_size,
+                                                font_weight: text_style.font_weight,
+                                                font_style: text_style.font_style,
+                                                white_space: text_style.white_space,
+                                                text_overflow: text_style.text_overflow,
+                                                line_clamp: text_style.line_clamp,
+                                            },
                                         },
-                                    },
-                                    window,
-                                    cx,
-                                )
-                            })
-                        }
+                                        window,
+                                        cx,
+                                    )
+                                })
+                            }
+                        })
                     })
                     .max_h(self.options.max_h)
                     .overflow_hidden()

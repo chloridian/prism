@@ -6,6 +6,7 @@ use gpui::{
     App, Global, Hsla, IsZero as _, Pixels, SharedString, Window, WindowAppearance,
     prelude::FluentBuilder as _, px,
 };
+use gpui_base::HslaExt as _;
 pub use gpui_base::{
     ColorTokens, RadiusTokens, SemanticThemeTokens, ShadowTokens, SpacingTokens, TextStyleToken,
     TypographyTokens,
@@ -24,7 +25,6 @@ mod mono_font;
 mod motion;
 mod registry;
 mod schema;
-mod system_font;
 mod theme_color;
 
 pub use color::*;
@@ -157,7 +157,7 @@ fn system_scrollbar_mode(auto_hide: bool, is_windows: bool) -> ScrollbarMode {
 ///
 /// Construct with [`Theme::default`] and assign fields; new fields may be
 /// added without a breaking change.
-#[derive(Debug, Clone, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[non_exhaustive]
 pub struct Theme {
     pub colors: ThemeColor,
@@ -347,7 +347,6 @@ impl Theme {
         let fonts_changed =
             (&theme.font_family, &theme.mono_font_family) != (&fonts_before.0, &fonts_before.1);
         if mode_changed || reload_mode || fonts_changed {
-            system_font::resolve_default_font(cx);
             mono_font::resolve_default_mono_font(cx);
         }
         Self::sync_base(cx);
@@ -695,13 +694,14 @@ impl Theme {
 #[cfg(test)]
 mod semantic_token_tests {
     use gpui::{Hsla, IsZero as _, px};
+    use gpui_base::HslaExt as _;
 
     use super::{RADIUS_FULL, ScrollbarMode, Theme, system_scrollbar_mode};
 
     #[test]
     fn semantic_colors_are_a_live_projection_of_legacy_fields() {
         let mut theme = Theme::default();
-        let primary = Hsla::default().alpha(0.42);
+        let primary = gpui::transparent_black().alpha(0.42);
         theme.primary = primary;
 
         assert_eq!(theme.color_tokens().primary, primary);
@@ -713,8 +713,8 @@ mod semantic_token_tests {
         let mut theme = Theme::default();
         let component_color = theme.button_primary;
         let mut tokens = theme.semantic_tokens();
-        tokens.colors.primary = Hsla::default().alpha(0.25);
-        tokens.colors.destructive = Hsla::default().alpha(0.75);
+        tokens.colors.primary = gpui::transparent_black().alpha(0.25);
+        tokens.colors.destructive = gpui::transparent_black().alpha(0.75);
         tokens.radius.md = px(10.);
 
         theme.apply_semantic_tokens(&tokens);
@@ -792,7 +792,7 @@ impl From<&ThemeColor> for Theme {
     fn from(colors: &ThemeColor) -> Self {
         Theme {
             mode: ThemeMode::default(),
-            transparent: Hsla::transparent_black(),
+            transparent: gpui::transparent_black(),
             font_family: ".SystemUIFont".into(),
             font_size: px(16.),
             mono_font_family: mono_font::default_mono_font_family(),
@@ -880,8 +880,8 @@ mod update_tests {
     fn editing_colors_updates_the_tokens_and_the_base_projection(cx: &mut TestAppContext) {
         cx.update(|cx| {
             init(cx);
-            let sidebar = gpui::rgb(0x123456).into();
-            let primary = gpui::rgb(0xabcdef).into();
+            let sidebar = gpui::rgb_to_hsla(gpui::rgb(0x123456));
+            let primary = gpui::rgb_to_hsla(gpui::rgb(0xabcdef));
 
             Theme::update(cx, |theme| {
                 theme.sidebar = sidebar;
@@ -918,18 +918,20 @@ mod update_tests {
     fn a_gradient_survives_until_its_own_color_is_edited(cx: &mut TestAppContext) {
         cx.update(|cx| {
             init(cx);
-            let from = gpui::rgb(0x4f46e5).into();
-            let to = gpui::rgb(0x06b6d4).into();
+            let from = gpui::rgb_to_hsla(gpui::rgb(0x4f46e5));
+            let to = gpui::rgb_to_hsla(gpui::rgb(0x06b6d4));
             let token = gradient(from, to);
             Theme::update(cx, |theme| theme.tokens.primary = token);
             // The token's solid color is written back, so text painted with
             // `theme.primary` matches the gradient's representative color.
             assert_eq!(Theme::global(cx).primary, from);
 
-            Theme::update(cx, |theme| theme.secondary = gpui::rgb(0x222222).into());
+            Theme::update(cx, |theme| {
+                theme.secondary = gpui::rgb_to_hsla(gpui::rgb(0x222222))
+            });
             assert_eq!(Theme::global(cx).tokens.primary, token);
 
-            let solid = gpui::rgb(0x999999).into();
+            let solid = gpui::rgb_to_hsla(gpui::rgb(0x999999));
             Theme::update(cx, |theme| theme.primary = solid);
             assert_eq!(Theme::global(cx).tokens.primary, solid.into());
         });
@@ -1150,10 +1152,10 @@ mod base_theme_projection_tests {
             macro_rules! color {
                 ($field:ident) => {
                     assert!(
-                        (left.$field.h - right.$field.h).abs() < 1e-6
-                            && (left.$field.s - right.$field.s).abs() < 1e-6
-                            && (left.$field.l - right.$field.l).abs() < 1e-6
-                            && (left.$field.a - right.$field.a).abs() < 1e-6,
+                        (left.$field.h() - right.$field.h()).abs() < 1e-6
+                            && (left.$field.s() - right.$field.s()).abs() < 1e-6
+                            && (left.$field.l() - right.$field.l()).abs() < 1e-6
+                            && (left.$field.a() - right.$field.a()).abs() < 1e-6,
                         "{} differs: {:?} != {:?}",
                         stringify!($field),
                         left.$field,

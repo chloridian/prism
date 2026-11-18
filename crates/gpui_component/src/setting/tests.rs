@@ -5,7 +5,7 @@ use crate::{
     setting::{SettingGroup, SettingItem},
 };
 use gpui::{
-    Context, Focusable as _, KeyBinding, Render, ScrollDelta, ScrollEvent, TestAppContext,
+    Context, Focusable as _, KeyBinding, Render, ScrollDelta, ScrollWheelEvent, TestAppContext,
     VisualTestContext, actions, point, size,
 };
 
@@ -246,7 +246,7 @@ fn scrolling_marks_the_group_at_the_top(cx: &mut TestAppContext) {
     assert_eq!(selection(&host, cx), (1, None));
 
     let scroll = |delta: f32, cx: &mut VisualTestContext| {
-        cx.simulate_event(ScrollEvent {
+        cx.simulate_event(ScrollWheelEvent {
             position: point(px(600.), px(400.)),
             delta: ScrollDelta::Pixels(point(px(0.), px(delta))),
             ..Default::default()

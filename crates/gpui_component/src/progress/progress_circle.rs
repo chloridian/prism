@@ -1,5 +1,6 @@
 use crate::{ActiveTheme, Sizable, Size, StyledExt};
 use gpui::Bounds;
+use gpui::ColorExt as _;
 use gpui::prelude::FluentBuilder as _;
 use gpui::{
     Animation, AnimationExt as _, AnyElement, App, ElementId, Hsla, IntoElement, ParentElement,
@@ -7,8 +8,8 @@ use gpui::{
     relative,
 };
 use gpui_base::{Progress as BaseProgress, Transition, transition};
-use web_time::Duration;
 use std::f32::consts::TAU;
+use web_time::Duration;
 
 use crate::plot::shape::{Arc, ArcData};
 

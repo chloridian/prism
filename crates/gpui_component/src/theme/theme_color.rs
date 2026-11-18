@@ -2,12 +2,11 @@ use std::{ops::Deref, sync::Arc};
 
 use crate::{ThemeMode, theme::DEFAULT_THEME_COLORS};
 
-use gpui::{Background, Fill, Hsla};
-use schemars::JsonSchema;
+use gpui::{Background, Hsla};
 use serde::{Deserialize, Serialize};
 
 /// A theme token that keeps a solid representative color and its renderable background.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[non_exhaustive]
 pub struct ThemeToken {
     pub color: Hsla,
@@ -49,14 +48,8 @@ impl From<ThemeToken> for Background {
     }
 }
 
-impl From<ThemeToken> for Fill {
-    fn from(token: ThemeToken) -> Self {
-        Fill::Color(token.background)
-    }
-}
-
 /// Theme colors used throughout the UI components.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Serialize, Deserialize)]
 #[non_exhaustive]
 pub struct ThemeColor {
     /// Used for accents such as hover background on MenuItem, ListItem, etc.
@@ -356,7 +349,7 @@ macro_rules! define_theme_tokens {
         /// components should use [`gpui_base::SemanticThemeTokens`] instead. The
         /// legacy fields remain public so existing theme files and direct field
         /// access continue to work unchanged.
-        #[derive(Debug, Default, Clone, Copy, PartialEq, Serialize, Deserialize, JsonSchema)]
+        #[derive(Debug, Default, Clone, Copy, PartialEq, Serialize, Deserialize)]
         pub struct ThemeTokens {
             $(pub $field: ThemeToken,)+
         }

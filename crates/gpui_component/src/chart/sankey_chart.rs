@@ -1,3 +1,5 @@
+use gpui::ColorExt as _;
+use gpui_base::HslaExt as _;
 use std::{
     hash::{DefaultHasher, Hash, Hasher},
     rc::Rc,
@@ -421,7 +423,7 @@ impl<T> SankeyChart<T> {
                 line.text.hash(&mut hasher);
                 line.font_size.map(f32::to_bits).hash(&mut hasher);
                 line.color
-                    .map(|color| [color.h, color.s, color.l, color.a].map(f32::to_bits))
+                    .map(|color| [color.h(), color.s(), color.l(), color.a()].map(f32::to_bits))
                     .hash(&mut hasher);
             }
         }
