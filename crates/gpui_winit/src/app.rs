@@ -4,7 +4,7 @@ use std::rc::Rc;
 
 use winit::{
     application::ApplicationHandler,
-    event::WindowEvent,
+    event::{DeviceEvent, DeviceId, WindowEvent},
     event_loop::{ActiveEventLoop, ControlFlow},
     window::WindowId,
 };
@@ -39,6 +39,28 @@ impl ApplicationHandler<Wake> for App {
         self.shared.run_main_tasks();
     }
 
+    fn device_event(
+        &mut self,
+        event_loop: &ActiveEventLoop,
+        _device_id: DeviceId,
+        event: DeviceEvent,
+    ) {
+        let DeviceEvent::MouseMotion { delta } = event else {
+            return;
+        };
+        let _scope = self.shared.enter(event_loop);
+        let captured = self
+            .shared
+            .windows
+            .borrow()
+            .values()
+            .find(|window| window.is_captured())
+            .cloned();
+        if let Some(window) = captured {
+            window.handle_raw_motion(delta);
+        }
+    }
+
     fn window_event(
         &mut self,
         event_loop: &ActiveEventLoop,
@@ -51,6 +73,7 @@ impl ApplicationHandler<Wake> for App {
         };
         match event {
             WindowEvent::CloseRequested => {
+                window.release_capture();
                 if window.should_close() {
                     self.shared.windows.borrow_mut().remove(&window_id);
                     window.notify_closed();
