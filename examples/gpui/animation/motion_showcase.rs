@@ -1,6 +1,6 @@
 //! Small UI previews for the motion playback controls.
 //!
-//! Run with `cargo run -p gpui-ce --example motion_showcase --locked`.
+//! Run with `cargo run --release --example motion_showcase --locked`.
 //! Each panel names the API that drives its animation. No network or service is used.
 
 use std::time::{Duration, Instant};

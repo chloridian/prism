@@ -64,9 +64,7 @@ web-sys = { version = "0.3", features = ["HtmlCanvasElement"] }
 js-sys.workspace = true
 
 [dev-dependencies]
-bytemuck = { version = "1", features = ["derive"] }
 criterion.workspace = true
-env_logger.workspace = true
 gpui_platform = { workspace = true, features = ["wayland", "x11", "test-support"] }
 naga = { version = "30.0.2", features = ["wgsl-in"] }
 
@@ -78,9 +76,6 @@ wayland-backend = { version = "0.3.15", features = [
 ] }
 wayland-client = "0.31.11"
 wayland-protocols = { version = "0.32.9", features = ["client"] }
-
-[[example]]
-name = "custom_gpu"
 
 [[bench]]
 name = "renderer"

@@ -7,45 +7,22 @@
 //! 3. Transformations - rotate, scale, translate
 //! 4. Repeating and duration controls
 
+#[path = "../example_support/assets.rs"]
+mod assets;
 #[path = "../shared/prelude.rs"]
 mod example_prelude;
 
 use std::time::Duration;
 
-use anyhow::Result;
 use gpui::colors::Colors;
 use gpui::{
-    Animation, AnimationExt as _, App, AssetSource, Bounds, ColorExt, Context, Hsla, SharedString,
-    Transformation, Window, WindowBounds, WindowOptions, bounce, div, ease_in_out, linear,
-    percentage, prelude::*, px, rgb, size as gpui_size, svg,
+    Animation, AnimationExt as _, App, Bounds, ColorExt, Context, Hsla, Transformation, Window,
+    WindowBounds, WindowOptions, bounce, div, ease_in_out, linear, percentage, prelude::*, px, rgb,
+    size as gpui_size, svg,
 };
 use palette::IntoColor;
 
-struct Assets {}
-
-impl AssetSource for Assets {
-    fn load(&self, path: &str) -> Result<Option<std::borrow::Cow<'static, [u8]>>> {
-        std::fs::read(path)
-            .map(Into::into)
-            .map_err(Into::into)
-            .map(Some)
-    }
-
-    fn list(&self, path: &str) -> Result<Vec<SharedString>> {
-        Ok(std::fs::read_dir(path)?
-            .filter_map(|entry| {
-                Some(SharedString::from(
-                    entry.ok()?.path().to_string_lossy().into_owned(),
-                ))
-            })
-            .collect::<Vec<_>>())
-    }
-}
-
-const ARROW_CIRCLE_SVG: &str = concat!(
-    env!("CARGO_MANIFEST_DIR"),
-    "/examples/legacy/image/arrow_circle.svg"
-);
+const ARROW_CIRCLE_SVG: &str = "image/arrow_circle.svg";
 
 struct AnimationExample;
 
@@ -263,7 +240,10 @@ fn section(colors: &Colors, title: &'static str, content: impl IntoElement) -> i
 
 fn main() {
     gpui_platform::application()
-        .with_assets(Assets {})
+        .with_assets(assets::DirAssets::new(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/gpui/assets"
+        )))
         .run(|cx: &mut App| {
             let bounds = Bounds::centered(None, gpui_size(px(500.), px(650.)), cx);
             cx.open_window(

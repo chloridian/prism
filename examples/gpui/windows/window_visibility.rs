@@ -1,4 +1,4 @@
-//! Run with `cargo run -p gpui-ce --example window_visibility`.
+//! Run with `cargo run --release --example window_visibility`.
 //! Pass `-- --smoke` for an automatic hide/show cycle followed by exit.
 
 use gpui::{

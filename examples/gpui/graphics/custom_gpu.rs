@@ -6,7 +6,7 @@
 //! Run with:
 //!
 //! ```sh
-//! cargo run -p gpui_ce_wgpu --example custom_gpu
+//! cargo run --release --example custom_gpu
 //! ```
 
 mod custom_gpu {
