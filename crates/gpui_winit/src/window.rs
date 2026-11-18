@@ -12,13 +12,13 @@ use std::{
 use anyhow::{Context as _, Result, bail};
 use futures::channel::oneshot;
 use gpui::{
-    AnyWindowHandle, Bounds, Capslock, DevicePixels, DispatchEventResult, GpuSpecs, KeyDownEvent,
-    KeyUpEvent, Modifiers, ModifiersChangedEvent, MouseButton, MouseDownEvent, MouseExitEvent,
-    MouseMoveEvent, MouseUpEvent, Pixels, PlatformAtlas, PlatformDisplay, PlatformInput,
-    PlatformInputHandler, PlatformWindow, Point, PromptButton, PromptLevel, RawMouseMotionEvent,
-    RequestFrameOptions, ResizeEdge, Scene, ScrollDelta, ScrollWheelEvent, Size, TouchPhase,
-    WindowAppearance, WindowBackgroundAppearance, WindowBounds, WindowControlArea, WindowKind,
-    WindowParams, point, px, size,
+    A11yCallbacks, AnyWindowHandle, Bounds, Capslock, DevicePixels, DispatchEventResult, GpuSpecs,
+    KeyDownEvent, KeyUpEvent, Modifiers, ModifiersChangedEvent, MouseButton, MouseDownEvent,
+    MouseExitEvent, MouseMoveEvent, MouseUpEvent, Pixels, PlatformAtlas, PlatformDisplay,
+    PlatformInput, PlatformInputHandler, PlatformWindow, Point, PromptButton, PromptLevel,
+    RawMouseMotionEvent, RequestFrameOptions, ResizeEdge, Scene, ScrollDelta, ScrollWheelEvent,
+    Size, TouchPhase, WindowAppearance, WindowBackgroundAppearance, WindowBounds,
+    WindowControlArea, WindowKind, WindowParams, point, px, size,
 };
 use gpui_util::ResultExt as _;
 use raw_window_handle::{
@@ -45,6 +45,7 @@ use winit::{
 };
 
 use crate::{
+    accessibility::Accessibility,
     capture::{Capture, Grab},
     display::{WinitDisplay, logical_point},
     input::{self, ClickState, DoubleClick},
@@ -86,6 +87,8 @@ struct Callbacks {
 }
 
 pub(crate) struct WindowInner {
+    // The adapter subclasses the window procedure, so it must drop before the window.
+    accessibility: RefCell<Option<Accessibility>>,
     // The renderer owns the surface, so it must drop before the window it draws to.
     renderer: RefCell<Renderer>,
     window: Arc<Window>,
@@ -95,6 +98,7 @@ pub(crate) struct WindowInner {
     capture: RefCell<Capture>,
     callbacks: Callbacks,
     input_handler: Cell<Option<PlatformInputHandler>>,
+    pending_reveal: Cell<Option<Reveal>>,
     scale_factor: Cell<f32>,
     modifiers: Cell<Modifiers>,
     mouse_position: Cell<Point<Pixels>>,
@@ -187,6 +191,10 @@ impl WindowInner {
             capture: RefCell::default(),
             callbacks: Callbacks::default(),
             input_handler: Cell::new(None),
+            accessibility: RefCell::new(None),
+            pending_reveal: Cell::new(params.show.then_some(Reveal {
+                focus: params.focus,
+            })),
             scale_factor: Cell::new(scale_factor),
             modifiers: Cell::new(Modifiers::default()),
             mouse_position: Cell::new(Point::default()),
@@ -203,14 +211,19 @@ impl WindowInner {
         inner.align_client_origin(bounds.origin, scale_factor);
         inner.restore_bounds.set(inner.bounds());
         inner.apply_cursor();
-        if params.show {
-            inner.window.set_visible(true);
-        }
-        if params.focus {
-            inner.window.focus_window();
-        }
         inner.schedule_frame();
         Ok(inner)
+    }
+
+    /// Shows the window once the accessibility adapter is installed, because the adapter must
+    /// exist before the window is first visible.
+    fn reveal(&self) {
+        if let Some(reveal) = self.pending_reveal.take() {
+            self.window.set_visible(true);
+            if reveal.focus {
+                self.window.focus_window();
+            }
+        }
     }
 
     pub(crate) fn id(&self) -> WindowId {
@@ -618,6 +631,11 @@ impl WindowInner {
     }
 }
 
+#[derive(Clone, Copy)]
+struct Reveal {
+    focus: bool,
+}
+
 /// A GPUI window handed to the application. Dropping it closes the window.
 pub(crate) struct WinitWindow {
     inner: Rc<WindowInner>,
@@ -790,6 +808,7 @@ impl PlatformWindow for WinitWindow {
     }
 
     fn set_visible(&self, visible: bool) {
+        self.inner.pending_reveal.take();
         self.inner.window.set_visible(visible);
     }
 
@@ -870,6 +889,7 @@ impl PlatformWindow for WinitWindow {
     }
 
     fn draw(&self, scene: &Scene) {
+        self.inner.reveal();
         if self.inner.renderer.borrow_mut().draw(scene) {
             self.inner.force_render_pending.set(true);
             self.inner.schedule_frame();
@@ -939,6 +959,18 @@ impl PlatformWindow for WinitWindow {
     }
 
     fn update_ime_position(&self, _bounds: Bounds<Pixels>) {}
+
+    fn a11y_init(&self, callbacks: A11yCallbacks) {
+        *self.inner.accessibility.borrow_mut() =
+            Some(Accessibility::new(self.inner.hwnd, callbacks));
+        self.inner.reveal();
+    }
+
+    fn a11y_tree_update(&self, tree_update: accesskit::TreeUpdate) {
+        if let Some(accessibility) = self.inner.accessibility.borrow_mut().as_mut() {
+            accessibility.update(tree_update);
+        }
+    }
 
     fn play_system_bell(&self) {
         let _ = unsafe { MessageBeep(MB_OK) };
