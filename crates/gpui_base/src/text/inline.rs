@@ -23,8 +23,9 @@ use gpui::{
     AnyTooltip, App, AppContext as _, BorderStyle, Bounds, ClickEvent, CursorStyle, Edges, Element,
     ElementId, ForegroundExecutor, Global, GlobalElementId, Half, HighlightStyle, Hitbox,
     HitboxBehavior, Hsla, InspectorElementId, LayoutId, MouseButton, MouseClickEvent,
-    MouseDownEvent, MouseMoveEvent, MouseUpEvent, Pixels, Point, SharedString, StyleRefinement,
-    StyledText, Task, TextAlign, TextLayout, TextRun, TextStyle, Window, point, px, size,
+    MouseDownEvent, MouseMoveEvent, MouseUpEvent, Pixels, Point, SharedString, Style,
+    StyleRefinement, StyledText, Task, TextAlign, TextLayout, TextRun, TextStyle, Window, point,
+    px, size,
 };
 
 use crate::{
@@ -1175,9 +1176,10 @@ impl Element for Inline {
             None => StyledText::new(self.text.clone()).with_runs(runs.clone()),
         };
         self.retained_key = Some((runs, text_style));
-        let (layout_id, _) =
+        let (text_id, _) =
             self.styled_text
                 .request_layout(global_element_id, inspector_id, window, cx);
+        let layout_id = window.request_layout(Style::default(), [text_id], cx);
 
         (layout_id, ())
     }

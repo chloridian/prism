@@ -385,7 +385,7 @@ impl SyntaxHighlighter {
                     "SyntaxHighlighter init failed, fallback to use `text`, {}",
                     err
                 );
-                Self::build_for_language("text").unwrap()
+                Self::build_inert("text".into())
             }
         }
     }

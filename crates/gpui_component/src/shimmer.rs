@@ -2,8 +2,8 @@ use gpui::ColorExt as _;
 use gpui::{
     Animation, AnimationExt as _, App, Bounds, ContentMask, Element, ElementId, GlobalElementId,
     Hsla, InspectorElementId, IntoElement, LayoutId, ParentElement as _, Pixels, RenderOnce,
-    SharedString, StyleRefinement, Styled, StyledText, TextAlign, VisualLine, Window, div, point,
-    px, size,
+    SharedString, Style, StyleRefinement, Styled, StyledText, TextAlign, VisualLine, Window, div,
+    point, px, size,
 };
 use gpui_base::HslaExt as _;
 use web_time::Duration;
@@ -362,8 +362,11 @@ impl Element for ShimmerGlyphs {
         window: &mut Window,
         cx: &mut App,
     ) -> (LayoutId, Self::RequestLayoutState) {
-        self.text
-            .request_layout(global_id, inspector_id, window, cx)
+        let (text_id, ()) = self
+            .text
+            .request_layout(global_id, inspector_id, window, cx);
+        let layout_id = window.request_layout(Style::default(), [text_id], cx);
+        (layout_id, ())
     }
 
     fn prepaint(
