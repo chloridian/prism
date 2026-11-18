@@ -62,11 +62,11 @@ pub(super) struct WgpuPipelines {
     pub(super) smoothed_polychrome_sprites: WgpuRenderPipeline,
     #[cfg_attr(
         not(any(
-            all(target_family = "wasm", feature = "custom-gpu"),
+            target_family = "wasm",
             target_os = "macos",
             target_os = "linux",
             target_os = "freebsd",
-            all(target_os = "windows", feature = "wgpu-surfaces")
+            target_os = "windows"
         )),
         allow(dead_code)
     )]
@@ -260,11 +260,11 @@ impl WgpuBindGroupLayouts {
     }
 
     #[cfg(any(
-        all(target_family = "wasm", feature = "custom-gpu"),
+        target_family = "wasm",
         target_os = "macos",
         target_os = "linux",
         target_os = "freebsd",
-        all(target_os = "windows", feature = "wgpu-surfaces")
+        target_os = "windows"
     ))]
     pub(super) fn create_surface(
         &self,
@@ -738,11 +738,11 @@ mod tests {
             &sampler,
         );
         #[cfg(any(
-            all(target_family = "wasm", feature = "custom-gpu"),
+            target_family = "wasm",
             target_os = "macos",
             target_os = "linux",
             target_os = "freebsd",
-            all(target_os = "windows", feature = "wgpu-surfaces")
+            target_os = "windows"
         ))]
         let _surface = layouts.create_surface(device, binding(), &view, &view, &sampler);
         let _blur = layouts.create_blur(device, binding(), &view, &sampler);

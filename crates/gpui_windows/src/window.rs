@@ -1107,6 +1107,23 @@ impl PlatformWindow for WindowsWindow {
         Some(self.state.renderer.borrow().gpu_specs())
     }
 
+    fn gpu_context(&self) -> Option<Box<dyn std::any::Any>> {
+        let (device, queue) = self.state.renderer.borrow().gpu_context();
+        Some(Box::new((device, queue)))
+    }
+
+    fn gpu_device_lost(&self) -> Option<bool> {
+        Some(self.state.renderer.borrow().device_lost())
+    }
+
+    fn gpu_context_info(&self) -> Option<Box<dyn std::any::Any>> {
+        self.state
+            .renderer
+            .borrow()
+            .gpu_context_info()
+            .map(|context| Box::new(context) as Box<dyn std::any::Any>)
+    }
+
     fn update_ime_position(&self, bounds: Bounds<Pixels>) {
         let scale_factor = self.state.scale_factor.get();
         let caret_position = POINT {

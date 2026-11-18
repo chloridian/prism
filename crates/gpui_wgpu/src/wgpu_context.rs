@@ -338,8 +338,9 @@ impl WgpuContextHandle {
     #[cfg(any(
         target_os = "linux",
         target_os = "freebsd",
-        all(target_os = "macos", feature = "custom-gpu"),
-        all(target_family = "wasm", feature = "custom-gpu")
+        target_os = "macos",
+        target_os = "windows",
+        target_family = "wasm"
     ))]
     pub fn from_window(window: &gpui::Window) -> Option<Self> {
         window
@@ -402,8 +403,9 @@ impl WgpuRenderTarget {
     #[cfg(any(
         target_os = "linux",
         target_os = "freebsd",
-        all(target_os = "macos", feature = "custom-gpu"),
-        all(target_family = "wasm", feature = "custom-gpu")
+        target_os = "macos",
+        target_os = "windows",
+        target_family = "wasm"
     ))]
     pub fn surface(&self) -> gpui::Surface {
         gpui::surface(gpui::SurfaceSource::Texture {

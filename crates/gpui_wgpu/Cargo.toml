@@ -15,8 +15,6 @@ path = "src/gpui_wgpu.rs"
 [features]
 default = []
 test-support = ["gpui/test-support", "dep:image"]
-custom-gpu = ["gpui/custom-gpu"]
-wgpu-surfaces = ["gpui/wgpu-surfaces"]
 
 [dependencies]
 gpui = { path = "../gpui", version = "0.4.0", package = "gpui-ce", default-features = false }
@@ -83,7 +81,6 @@ wayland-protocols = { version = "0.32.9", features = ["client"] }
 
 [[example]]
 name = "custom_gpu"
-required-features = ["custom-gpu"]
 
 [[bench]]
 name = "renderer"

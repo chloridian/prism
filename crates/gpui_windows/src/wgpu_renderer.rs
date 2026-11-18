@@ -5,8 +5,8 @@ use std::{num::NonZeroIsize, sync::Arc};
 use anyhow::Result;
 use gpui::{DevicePixels, GpuSpecs, Scene, Size};
 use gpui_wgpu::{
-    FontRasterizationSettings, GpuContext, SubpixelOrder, WgpuAtlas, WgpuDeviceRequirements,
-    WgpuRenderer, WgpuSurfaceConfig, wgpu,
+    FontRasterizationSettings, GpuContext, SubpixelOrder, WgpuAtlas, WgpuContextHandle,
+    WgpuDeviceRequirements, WgpuRenderer, WgpuSurfaceConfig, wgpu,
 };
 use raw_window_handle as rwh;
 use windows::{
@@ -109,6 +109,10 @@ impl Renderer {
 
     pub(crate) fn gpu_context(&self) -> (Arc<wgpu::Device>, Arc<wgpu::Queue>) {
         self.renderer.gpu_context()
+    }
+
+    pub(crate) fn gpu_context_info(&self) -> Option<WgpuContextHandle> {
+        self.renderer.gpu_context_info()
     }
 
     pub(crate) fn device_lost(&self) -> bool {

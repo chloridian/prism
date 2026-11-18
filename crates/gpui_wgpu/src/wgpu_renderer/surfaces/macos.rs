@@ -5,7 +5,6 @@ pub(in crate::wgpu_renderer) struct SurfaceCache {
     texture_cache: core_video::metal_texture_cache::CVMetalTextureCache,
     surfaces: FxHashMap<usize, CachedSurface>,
     /// Bindings for application-rendered WGPU textures.
-    #[cfg(feature = "custom-gpu")]
     textures: FxHashMap<wgpu::Texture, SurfaceBinding>,
 }
 
@@ -27,7 +26,6 @@ impl SurfaceCache {
         Ok(Self {
             texture_cache,
             surfaces: FxHashMap::default(),
-            #[cfg(feature = "custom-gpu")]
             textures: FxHashMap::default(),
         })
     }
@@ -51,7 +49,6 @@ pub(super) fn retain_surface_cache(renderer: &WgpuRenderer, surfaces: &[PaintSur
         .collect::<smallvec::SmallVec<[usize; 4]>>();
     let mut cache = renderer.resources().surface_cache.borrow_mut();
     cache.surfaces.retain(|key, _| active_keys.contains(key));
-    #[cfg(feature = "custom-gpu")]
     {
         let active_textures = surfaces
             .iter()
@@ -98,7 +95,6 @@ pub(super) fn draw_surfaces(
                 )?;
                 cache.surfaces.insert(key, imported);
             }
-            #[cfg(feature = "custom-gpu")]
             gpui::SurfaceSource::Texture { texture, .. } => {
                 let Some(texture) = texture.downcast_ref::<wgpu::Texture>() else {
                     log::error!("surface source is not a WGPU texture");
@@ -253,7 +249,7 @@ unsafe fn import_core_video_texture(
     })
 }
 
-#[cfg(all(test, feature = "test-support", feature = "custom-gpu"))]
+#[cfg(all(test, feature = "test-support"))]
 mod tests {
     use std::sync::Arc;
 
