@@ -1,7 +1,5 @@
 //! The highlighter module without tree-sitter: for WASM, or a native build
-//! that chose `syntect` or no highlighter at all. Syntax highlighting itself
-//! comes from `syntect_backend` when that feature is on; the theme types here
-//! are shared either way.
+//! that chose no highlighter. The theme types here are shared either way.
 //!
 //! Note: diagnostics.rs is available in WASM, only syntax highlighting requires stubs.
 
@@ -9,18 +7,12 @@ use gpui::{HighlightStyle, SharedString};
 use std::ops::Range;
 use std::time::Duration;
 
-// Syntax highlighter stub. With `syntect` it names highlights for the
-// presentations that resolve styles themselves, such as a diff.
-pub struct SyntaxHighlighter {
-    #[cfg_attr(not(feature = "syntect"), allow(dead_code))]
-    language: SharedString,
-}
+// Syntax highlighter stub.
+pub struct SyntaxHighlighter {}
 
 impl SyntaxHighlighter {
-    pub fn new(language: impl AsRef<str>) -> Self {
-        Self {
-            language: language.as_ref().to_owned().into(),
-        }
+    pub fn new(_language: impl AsRef<str>) -> Self {
+        Self {}
     }
 
     pub fn highlight(&self, _text: &ropey::Rope) -> Vec<(Range<usize>, HighlightStyle)> {
@@ -50,9 +42,6 @@ impl SyntaxHighlighter {
         &mut self,
         _text: &ropey::Rope,
     ) -> Vec<(Range<usize>, SharedString)> {
-        #[cfg(feature = "syntect")]
-        return super::syntect_backend::capture_names(&self.language, &_text.to_string());
-        #[cfg(not(feature = "syntect"))]
         Vec::new()
     }
 
@@ -120,7 +109,6 @@ impl LanguageConfig {
 // For WASM, we create minimal stubs here
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use serde_repr::{Deserialize_repr, Serialize_repr};
 use std::{
     collections::HashMap,
     sync::{LazyLock, Mutex},
@@ -134,7 +122,7 @@ pub enum FontStyle {
     Underline,
 }
 
-#[derive(Debug, Clone, Copy, Hash, Eq, PartialEq, JsonSchema, Serialize_repr, Deserialize_repr)]
+#[derive(Debug, Clone, Copy, Hash, Eq, PartialEq, JsonSchema)]
 #[repr(u16)]
 pub enum FontWeightContent {
     Thin = 100,

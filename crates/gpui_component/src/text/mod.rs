@@ -16,7 +16,7 @@ pub use gpui_base::text::{
 };
 pub use style::TextViewStyle;
 
-#[cfg(any(feature = "tree-sitter", feature = "syntect"))]
+#[cfg(feature = "tree-sitter")]
 use std::cell::RefCell;
 #[cfg(feature = "tree-sitter")]
 use std::collections::HashMap;
@@ -72,7 +72,7 @@ pub(crate) fn install_text_view_defaults(theme: &crate::Theme, cx: &mut gpui::Ap
         .with_style(base_text_view_style(theme))
         .with_inherit_text_color(true);
 
-    #[cfg(any(feature = "tree-sitter", feature = "syntect"))]
+    #[cfg(feature = "tree-sitter")]
     let defaults = defaults.with_code_block_highlighter(component_code_block_highlighter(
         theme.highlight_theme.clone(),
     ));
@@ -125,27 +125,8 @@ pub(crate) fn component_code_block_highlighter(
     }
 }
 
-/// The syntect counterpart: syntect keeps no state between calls, and the
-/// highlights of an unchanged block are cached by the text view itself.
-#[cfg(all(feature = "syntect", not(feature = "tree-sitter")))]
-pub(crate) fn component_code_block_highlighter(
-    highlight_theme: std::sync::Arc<crate::highlighter::HighlightTheme>,
-) -> impl Fn(&gpui_base::text::CodeBlock) -> Vec<(std::ops::Range<usize>, gpui::HighlightStyle)>
-+ Send
-+ Sync
-+ 'static {
-    move |block| match block.lang() {
-        Some(lang) => crate::highlighter::highlight_code(
-            lang.as_ref(),
-            block.code().as_ref(),
-            highlight_theme.as_ref(),
-        ),
-        None => Vec::new(),
-    }
-}
-
 /// The type [`shared_code_block_highlighter`] returns.
-#[cfg(any(feature = "tree-sitter", feature = "syntect"))]
+#[cfg(feature = "tree-sitter")]
 pub(crate) type SharedCodeBlockHighlighter = dyn Fn(&gpui_base::text::CodeBlock) -> Vec<(std::ops::Range<usize>, gpui::HighlightStyle)>
     + Send
     + Sync;
@@ -162,20 +143,16 @@ pub(crate) type SharedCodeBlockHighlighter = dyn Fn(&gpui_base::text::CodeBlock)
 /// Entries are also keyed on the [`LanguageRegistry`] generation: registering
 /// a language drops them, so the next frame gets a new highlighter and code
 /// blocks painted before the language existed are highlighted again.
-#[cfg(any(feature = "tree-sitter", feature = "syntect"))]
+#[cfg(feature = "tree-sitter")]
 pub(crate) fn shared_code_block_highlighter(
     highlight_theme: &std::sync::Arc<crate::highlighter::HighlightTheme>,
 ) -> std::sync::Arc<SharedCodeBlockHighlighter> {
-    // Syntect's languages are fixed at build time, so its entries never go stale.
-    #[cfg(feature = "tree-sitter")]
     let generation = LanguageRegistry::singleton().generation();
-    #[cfg(not(feature = "tree-sitter"))]
-    let generation = 0;
     shared_code_block_highlighter_at(highlight_theme, generation)
 }
 
 /// [`shared_code_block_highlighter`] at an explicit registry `generation`.
-#[cfg(any(feature = "tree-sitter", feature = "syntect"))]
+#[cfg(feature = "tree-sitter")]
 fn shared_code_block_highlighter_at(
     highlight_theme: &std::sync::Arc<crate::highlighter::HighlightTheme>,
     generation: u64,
@@ -229,33 +206,6 @@ mod tests {
     /// The component highlighter is the only place that still knows about
     /// `LanguageRegistry` and `HighlightTheme`, so these two cases follow it
     /// here from the code block it used to live in.
-    /// A Markdown code fence in a language tree-sitter is not built with —
-    /// TOML here — is highlighted by syntect in a build that chose it.
-    #[cfg(all(feature = "syntect", not(feature = "tree-sitter")))]
-    #[test]
-    fn syntect_highlights_a_code_fence() {
-        use gpui_base::text::CodeBlock;
-
-        use crate::highlighter::HighlightTheme;
-
-        let code = "[package]\nname = \"demo\"\n";
-        let highlighter = super::component_code_block_highlighter(HighlightTheme::default_light());
-        let styles = highlighter(&CodeBlock::from_code(code, Some("toml")));
-        let string = code.find("\"demo\"").unwrap();
-        assert!(
-            styles
-                .iter()
-                .any(|(range, style)| range.contains(&string) && style.color.is_some()),
-            "the string must be colored: {styles:?}"
-        );
-        assert_eq!(
-            styles.last().map(|(range, _)| range.end),
-            Some(code.len()),
-            "the runs cover the whole block"
-        );
-        assert!(highlighter(&CodeBlock::from_code(code, Some("no-such-language"))).is_empty());
-    }
-
     #[cfg(feature = "tree-sitter")]
     mod code_block_highlighter {
         use std::ops::Range;

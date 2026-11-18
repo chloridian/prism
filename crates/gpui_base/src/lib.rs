@@ -56,7 +56,6 @@ mod popover;
 mod popup;
 mod positioner;
 mod progress;
-pub mod questionnaire;
 mod radio;
 mod radio_group;
 mod reduce_motion;
@@ -85,7 +84,6 @@ mod toggle;
 mod toggle_group;
 mod toolbar;
 mod tooltip;
-mod touch_selection;
 mod tree;
 mod undo_history;
 mod virtual_list;
@@ -224,7 +222,6 @@ pub use toolbar::{Toolbar, ToolbarGroup};
 pub use tooltip::{
     Tooltip, TooltipDefaults, TooltipOverlay, TooltipPositioner, TooltipRequest, TooltipTransition,
 };
-pub use touch_selection::{SelectionEdge, TouchHandle, TouchSelectionSnapshot};
 pub use tree::{Tree, TreeEntry, TreeEntryState, TreeEvent, TreeItem, TreeState};
 #[doc(hidden)]
 pub use tree::{init as init_tree, key_context as tree_key_context};
