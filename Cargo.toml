@@ -28,6 +28,7 @@ members = [
   "./crates/gpui_component_macros/",
   "./crates/gpui_kit_assets/",
   "./crates/gpui_kit/",
+  "./crates/gpui_story/",
   "./examples/hello_world/",
   "./examples/input/",
   "./examples/sidebar/",
