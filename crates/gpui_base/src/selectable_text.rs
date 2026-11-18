@@ -145,7 +145,6 @@ fn selection_quad_bounds(
     quads
 }
 
-#[cfg(not(feature = "gpui-fast"))]
 impl gpui::IntoElement for SelectableText {
     type Element = Self;
 

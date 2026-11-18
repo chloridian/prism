@@ -46,7 +46,6 @@ impl EntranceSurface {
     }
 }
 
-#[cfg(not(feature = "gpui-fast"))]
 impl gpui::IntoElement for EntranceSurface {
     type Element = Self;
 

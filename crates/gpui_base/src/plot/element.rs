@@ -46,7 +46,6 @@ impl<P: Plot + 'static> PlotElement<P> {
     }
 }
 
-#[cfg(not(feature = "gpui-fast"))]
 impl<P: Plot + 'static> gpui::IntoElement for PlotElement<P> {
     type Element = Self;
 

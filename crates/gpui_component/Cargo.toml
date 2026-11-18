@@ -15,9 +15,8 @@ edition.workspace = true
 doctest = false
 
 [features]
-gpui-fast = ["dep:gpui-fast", "gpui-base/gpui-fast", "gpui-kit-assets/gpui-fast"]
-test-support = ["gpui/test-support", "gpui-base/test-support", "gpui-fast?/test-support"]
-inspector = ["gpui_macros/inspector", "gpui/inspector", "gpui-base/inspector", "gpui-fast?/inspector"]
+test-support = ["gpui/test-support", "gpui-base/test-support"]
+inspector = ["gpui_macros/inspector", "gpui/inspector", "gpui-base/inspector"]
 tree-sitter = ["dep:tree-sitter", "dep:tree-sitter-json"]
 
 # For syntax highlighting in Markdown and CodeEditor.
@@ -51,7 +50,7 @@ schemars.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 smallvec.workspace = true
-sum-tree.workspace = true
+sum_tree.workspace = true
 tracing.workspace = true
 log.workspace = true
 markdown = { version = "1.0.0", features = ["serde"] }

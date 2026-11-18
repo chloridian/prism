@@ -450,7 +450,6 @@ impl<E: Element> Observed<E> {
         }
     }
 }
-#[cfg(not(feature = "gpui-fast"))]
 impl<E: Element<PrepaintState = Option<Hitbox>> + InteractiveElement> gpui::IntoElement
     for Observed<E>
 {
@@ -647,7 +646,6 @@ impl<E: Element> ObservedText<E> {
         ObservedText::new(self.inner.id(id), self.text, self.alternative)
     }
 }
-#[cfg(not(feature = "gpui-fast"))]
 impl<E: Element> gpui::IntoElement for ObservedText<E> {
     type Element = Self;
     fn into_element(self) -> Self {

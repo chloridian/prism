@@ -480,7 +480,6 @@ impl Element for Positioner {
     }
 }
 
-#[cfg(not(feature = "gpui-fast"))]
 impl gpui::IntoElement for Positioner {
     type Element = Self;
 

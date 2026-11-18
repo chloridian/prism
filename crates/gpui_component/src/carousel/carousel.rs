@@ -317,7 +317,6 @@ struct CarouselLoopItem {
     state: Entity<CarouselState>,
 }
 
-#[cfg(not(feature = "gpui-fast"))]
 impl IntoElement for CarouselLoopItem {
     type Element = Self;
 

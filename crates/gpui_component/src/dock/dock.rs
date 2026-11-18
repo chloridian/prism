@@ -174,7 +174,6 @@ struct DockResizeTracker {
     shared: Rc<SkinShared>,
 }
 
-#[cfg(not(feature = "gpui-fast"))]
 impl IntoElement for DockResizeTracker {
     type Element = Self;
 

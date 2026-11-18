@@ -1457,62 +1457,6 @@ mod tests {
     };
     use gpui::{Entity, TestAppContext};
 
-    /// A view reading a text view state, inside a view notified on every
-    /// frame, counting its renders.
-    #[cfg(feature = "gpui-fast")]
-    mod parse_ack {
-        use std::{cell::Cell, rc::Rc};
-
-        use gpui::{
-            AppContext as _, Context, Entity, IntoElement, ParentElement as _, Render,
-            TestAppContext, Window, div,
-        };
-
-        use super::super::TextViewState;
-
-        struct Reader {
-            state: Entity<TextViewState>,
-            renders: Rc<Cell<usize>>,
-        }
-
-        impl Render for Reader {
-            fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-                self.renders.set(self.renders.get() + 1);
-                div().child(self.state.read(cx).text.clone())
-            }
-        }
-
-        struct Holder {
-            reader: Entity<Reader>,
-        }
-
-        impl Render for Holder {
-            fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
-                div().child(self.reader.clone())
-            }
-        }
-
-        /// The background parser acknowledging a text parsed as it was set
-        /// commits nothing, and leaves the state alone: a view that read it,
-        /// in a view notified for something else, is not built again.
-        #[gpui::test]
-        fn acknowledging_a_parse_leaves_its_readers_retained(cx: &mut TestAppContext) {
-            cx.update(crate::init);
-            let renders = Rc::new(Cell::new(0));
-            let (holder, cx) = cx.add_window_view(|_, cx| Holder {
-                reader: cx.new(|cx| Reader {
-                    state: cx.new(|cx| TextViewState::markdown("Some **text**.", cx)),
-                    renders: renders.clone(),
-                }),
-            });
-            cx.update(|window, cx| window.draw(cx).clear(cx));
-            let before = renders.get();
-            cx.run_until_parked();
-            holder.update(cx, |_, cx| cx.notify());
-            cx.update(|window, cx| window.draw(cx).clear(cx));
-            assert_eq!(renders.get(), before, "the reader rendered again");
-        }
-    }
 
     mod stream_fade {
         use std::{cell::Cell, ops::Range, rc::Rc, time::Duration};

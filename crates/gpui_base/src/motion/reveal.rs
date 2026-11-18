@@ -25,7 +25,6 @@ impl MotionReveal {
     }
 }
 
-#[cfg(not(feature = "gpui-fast"))]
 impl gpui::IntoElement for MotionReveal {
     type Element = Self;
 

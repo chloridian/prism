@@ -422,7 +422,6 @@ fn visible_range(origins: &[Pixels], sizes: &[Pixels], viewport: Range<Pixels>) 
     first..last.max(first)
 }
 
-#[cfg(not(feature = "gpui-fast"))]
 impl IntoElement for VirtualList {
     type Element = Self;
 

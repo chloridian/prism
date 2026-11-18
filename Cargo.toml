@@ -23,6 +23,10 @@ members = [
   "./crates/gpui_zed_util/",
   "./crates/gpui_ce_util/",
   "./crates/gpui_path/",
+  "./crates/gpui_base/",
+  "./crates/gpui_component/",
+  "./crates/gpui_component_macros/",
+  "./crates/gpui_kit_assets/",
   "./tooling/perf/",
 ]
 default-members = ["./crates/gpui/"]
@@ -252,6 +256,19 @@ gpui_wgpu = { path = "./crates/gpui_wgpu/", version = "0.4.0", package = "gpui_c
 gpui_macros = { path = "./crates/gpui_macros/", version = "0.4.0", package = "gpui_ce_macros" }
 gpui_shared_string = { path = "./crates/gpui_shared_string/", version = "0.4.0", package = "gpui_ce_shared_string" }
 gpui_tokio = { path = "./crates/gpui_tokio/", version = "0.4.0", package = "gpui_ce_tokio" }
+
+gpui-base = { path = "./crates/gpui_base/", version = "0.10.0" }
+gpui-component = { path = "./crates/gpui_component/", version = "0.10.0" }
+gpui-component-macros = { path = "./crates/gpui_component_macros/", version = "0.10.0" }
+gpui-kit-assets = { path = "./crates/gpui_kit_assets/", version = "0.10.0" }
+lsp-types = { version = "0.97.0", features = ["proposed"] }
+reqwest = { version = "0.13", default-features = false }
+ropey = { version = "=2.0.0-beta.1", features = [
+  "metric_chars",
+  "metric_lines_lf",
+  "metric_utf16",
+] }
+rust-i18n = "4.2.0"
 
 [workspace.dependencies.windows]
 version = "0.62.2"
