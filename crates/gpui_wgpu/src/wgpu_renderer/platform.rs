@@ -159,7 +159,7 @@ impl WgpuRenderer {
             .create_view(&wgpu::TextureViewDescriptor::default());
         let rendered = self.render_to_view(scene, &view);
         if rendered {
-            frame.present();
+            self.resources().queue.present(frame);
         } else {
             // Vulkan's native swapchain cannot release an acquired image just
             // by dropping it. Repeated failed frames would exhaust its images
@@ -408,7 +408,8 @@ fn initialize_context_and_surface(
     adapter_policy: SoftwareAdapterPolicy,
     extra_requirements: Option<&WgpuDeviceRequirements>,
 ) -> anyhow::Result<(WgpuContext, wgpu::Surface<'static>)> {
-    NativeBackend::try_in_preference_order("a GPU context for the window", |backend| {
+    let backends = extra_requirements.and_then(|reqs| reqs.backends);
+    NativeBackend::try_in_preference_order("a GPU context for the window", backends, |backend| {
         let instance = backend.instance(display());
         let surface = create_surface(&instance.raw, surface_target)?;
         let context = WgpuContext::new_with_adapter_policy(
