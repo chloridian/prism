@@ -798,9 +798,8 @@ impl PlatformWindow for WinitWindow {
         self.inner
             .window
             .set_system_backdrop(match background_appearance {
-                WindowBackgroundAppearance::Opaque | WindowBackgroundAppearance::Transparent => {
-                    BackdropType::None
-                }
+                WindowBackgroundAppearance::Opaque => BackdropType::Auto,
+                WindowBackgroundAppearance::Transparent => BackdropType::None,
                 WindowBackgroundAppearance::Blurred => BackdropType::TransientWindow,
                 WindowBackgroundAppearance::MicaBackdrop => BackdropType::MainWindow,
                 WindowBackgroundAppearance::MicaAltBackdrop => BackdropType::TabbedWindow,
