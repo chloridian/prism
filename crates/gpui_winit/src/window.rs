@@ -1,7 +1,7 @@
 //! A GPUI window on a winit window: event translation, drawing and the `PlatformWindow` implementation.
 
 use std::{
-    cell::{Cell, RefCell},
+    cell::{Cell, OnceCell, RefCell},
     collections::HashMap,
     ffi::c_void,
     rc::Rc,
@@ -37,7 +37,7 @@ use winit::{
     dpi::{LogicalSize, PhysicalPosition, PhysicalSize},
     event::{ElementState, MouseScrollDelta, WindowEvent},
     event_loop::ActiveEventLoop,
-    platform::windows::{BackdropType, WindowAttributesExtWindows as _, WindowExtWindows as _},
+    platform::windows::{BackdropType, WindowExtWindows as _},
     window::{
         CursorGrabMode, Fullscreen, ResizeDirection, Theme, Window, WindowAttributes, WindowId,
         WindowLevel,
@@ -48,6 +48,7 @@ use crate::{
     accessibility::Accessibility,
     capture::{Capture, Grab},
     display::{WinitDisplay, logical_point},
+    frame::{Frame, FrameStyle},
     input::{self, ClickState, DoubleClick},
     renderer::{Renderer, RendererContext},
     system,
@@ -87,8 +88,10 @@ struct Callbacks {
 }
 
 pub(crate) struct WindowInner {
-    // The adapter subclasses the window procedure, so it must drop before the window.
+    // Both subclass the window procedure, so they must drop before the window. The adapter
+    // installs after the frame, so it drops first.
     accessibility: RefCell<Option<Accessibility>>,
+    frame: OnceCell<Frame>,
     // The renderer owns the surface, so it must drop before the window it draws to.
     renderer: RefCell<Renderer>,
     window: Arc<Window>,
@@ -133,6 +136,7 @@ impl WindowInner {
         let scale_factor = display.scale_factor();
         let bounds = params.bounds;
         let title_bar = params.titlebar.as_ref();
+        let custom_title_bar = title_bar.is_none_or(|titlebar| titlebar.appears_transparent);
 
         let mut attributes = WindowAttributes::default()
             .with_title(
@@ -141,7 +145,7 @@ impl WindowInner {
                     .map_or("", |title| title.as_ref()),
             )
             .with_visible(false)
-            .with_resizable(params.is_resizable)
+            .with_resizable(params.is_resizable && !matches!(params.kind, WindowKind::PopUp))
             .with_inner_size(PhysicalSize::new(
                 physical(bounds.size.width, scale_factor),
                 physical(bounds.size.height, scale_factor),
@@ -149,9 +153,7 @@ impl WindowInner {
             .with_position(PhysicalPosition::new(
                 (bounds.origin.x.as_f32() * scale_factor) as i32,
                 (bounds.origin.y.as_f32() * scale_factor) as i32,
-            ))
-            .with_decorations(!title_bar.is_some_and(|titlebar| titlebar.appears_transparent))
-            .with_undecorated_shadow(true);
+            ));
         if let Some(min_size) = params.window_min_size {
             attributes = attributes.with_min_inner_size(LogicalSize::new(
                 f64::from(min_size.width.as_f32()),
@@ -192,6 +194,7 @@ impl WindowInner {
             callbacks: Callbacks::default(),
             input_handler: Cell::new(None),
             accessibility: RefCell::new(None),
+            frame: OnceCell::new(),
             pending_reveal: Cell::new(params.show.then_some(Reveal {
                 focus: params.focus,
             })),
@@ -208,6 +211,18 @@ impl WindowInner {
             frame_requested: Cell::new(false),
             force_render_pending: Cell::new(false),
         });
+        let frame = Frame::install(
+            hwnd,
+            Rc::downgrade(&inner),
+            FrameStyle {
+                custom_title_bar,
+                movable: params.is_movable,
+                resizable: params.is_resizable,
+                minimizable: params.is_minimizable,
+                has_min_size: params.window_min_size.is_some(),
+            },
+        );
+        inner.frame.set(frame).ok();
         inner.align_client_origin(bounds.origin, scale_factor);
         inner.restore_bounds.set(inner.bounds());
         inner.apply_cursor();
@@ -359,11 +374,11 @@ impl WindowInner {
         }
     }
 
-    fn is_fullscreen(&self) -> bool {
+    pub(crate) fn is_fullscreen(&self) -> bool {
         self.window.fullscreen().is_some()
     }
 
-    fn is_maximized(&self) -> bool {
+    pub(crate) fn is_maximized(&self) -> bool {
         !self.is_fullscreen() && self.window.is_maximized()
     }
 
@@ -448,14 +463,7 @@ impl WindowInner {
                 with_callback(&self.callbacks.appearance_changed, |callback| callback());
             }
             WindowEvent::CursorEntered { .. } => self.set_hovered(true),
-            WindowEvent::CursorLeft { .. } => {
-                self.set_hovered(false);
-                self.dispatch(PlatformInput::MouseExited(MouseExitEvent {
-                    position: self.mouse_position.get(),
-                    pressed_button: self.pressed_button.get(),
-                    modifiers: self.modifiers.get(),
-                }));
-            }
+            WindowEvent::CursorLeft { .. } => self.cursor_left(),
             WindowEvent::CursorMoved { position, .. } => self.handle_cursor_moved(position),
             WindowEvent::MouseInput { state, button, .. } => self.handle_mouse_input(state, button),
             WindowEvent::MouseWheel { delta, .. } => self.handle_mouse_wheel(delta),
@@ -510,6 +518,15 @@ impl WindowInner {
         }
     }
 
+    pub(crate) fn cursor_left(&self) {
+        self.set_hovered(false);
+        self.dispatch(PlatformInput::MouseExited(MouseExitEvent {
+            position: self.mouse_position.get(),
+            pressed_button: self.pressed_button.get(),
+            modifiers: self.modifiers.get(),
+        }));
+    }
+
     fn handle_cursor_moved(&self, position: PhysicalPosition<f64>) {
         if self.is_captured() {
             let recentre = self
@@ -541,41 +558,102 @@ impl WindowInner {
             return;
         };
         let position = self.mouse_position.get();
-        let modifiers = self.modifiers.get();
         match state {
             ElementState::Pressed => {
                 self.pressed_button.set(Some(button));
-                let scale_factor = self.scale_factor.get();
-                let physical = point(
-                    DevicePixels((position.x.as_f32() * scale_factor) as i32),
-                    DevicePixels((position.y.as_f32() * scale_factor) as i32),
-                );
-                let click_count = self.click_state.borrow_mut().update(
-                    button,
-                    physical,
-                    Instant::now(),
-                    DoubleClick::system(),
-                );
-                self.dispatch(PlatformInput::MouseDown(MouseDownEvent {
-                    button,
-                    position,
-                    modifiers,
-                    click_count,
-                    first_mouse: false,
-                }));
+                self.press(button, position);
             }
             ElementState::Released => {
                 if self.pressed_button.get() == Some(button) {
                     self.pressed_button.set(None);
                 }
-                self.dispatch(PlatformInput::MouseUp(MouseUpEvent {
-                    button,
-                    position,
-                    modifiers,
-                    click_count: self.click_state.borrow().current_count(),
-                }));
+                self.release(button, position);
             }
         }
+    }
+
+    /// Dispatches a press and reports whether the application consumed it.
+    fn press(&self, button: MouseButton, position: Point<Pixels>) -> bool {
+        let scale_factor = self.scale_factor.get();
+        let physical = point(
+            DevicePixels((position.x.as_f32() * scale_factor) as i32),
+            DevicePixels((position.y.as_f32() * scale_factor) as i32),
+        );
+        let click_count = self.click_state.borrow_mut().update(
+            button,
+            physical,
+            Instant::now(),
+            DoubleClick::system(),
+        );
+        self.dispatch(PlatformInput::MouseDown(MouseDownEvent {
+            button,
+            position,
+            modifiers: self.modifiers.get(),
+            click_count,
+            first_mouse: false,
+        }))
+        .is_some_and(|result| !result.propagate)
+    }
+
+    /// Dispatches a release and reports whether the application consumed it.
+    fn release(&self, button: MouseButton, position: Point<Pixels>) -> bool {
+        self.dispatch(PlatformInput::MouseUp(MouseUpEvent {
+            button,
+            position,
+            modifiers: self.modifiers.get(),
+            click_count: self.click_state.borrow().current_count(),
+        }))
+        .is_some_and(|result| !result.propagate)
+    }
+
+    pub(crate) fn logical_client_position(&self, point: POINT) -> Point<Pixels> {
+        self.logical_position(PhysicalPosition::new(
+            f64::from(point.x),
+            f64::from(point.y),
+        ))
+    }
+
+    /// Handles the cursor moving over the non-client area. Returns whether the application
+    /// consumed the move.
+    pub(crate) fn nc_mouse_move(&self, position: Point<Pixels>) -> bool {
+        self.set_hovered(true);
+        if !self.cursor.visible.replace(true) {
+            self.window.set_cursor_visible(true);
+        }
+        self.mouse_position.set(position);
+        self.dispatch(PlatformInput::MouseMove(MouseMoveEvent {
+            position,
+            pressed_button: None,
+            modifiers: self.modifiers.get(),
+        }))
+        .is_some_and(|result| !result.propagate)
+    }
+
+    /// Handles a press in the non-client area. The system's modal loops swallow the matching
+    /// release, so the button does not count as held.
+    pub(crate) fn nc_mouse_down(&self, button: MouseButton, position: Point<Pixels>) -> bool {
+        self.mouse_position.set(position);
+        self.press(button, position)
+    }
+
+    pub(crate) fn nc_mouse_up(&self, button: MouseButton, position: Point<Pixels>) -> bool {
+        self.mouse_position.set(position);
+        self.release(button, position)
+    }
+
+    pub(crate) fn hit_test_window_control(&self) -> Option<WindowControlArea> {
+        with_callback(&self.callbacks.hit_test_window_control, |callback| {
+            callback()
+        })
+        .flatten()
+    }
+
+    pub(crate) fn minimize(&self) {
+        self.window.set_minimized(true);
+    }
+
+    pub(crate) fn toggle_maximized(&self) {
+        self.window.set_maximized(!self.is_maximized());
     }
 
     fn handle_mouse_wheel(&self, delta: MouseScrollDelta) {
@@ -691,11 +769,20 @@ impl PlatformWindow for WinitWindow {
     }
 
     fn resize(&mut self, size: Size<Pixels>) {
-        let size = LogicalSize::new(
-            f64::from(size.width.as_f32()),
-            f64::from(size.height.as_f32()),
-        );
-        let _ = self.inner.window.request_inner_size(size);
+        let scale_factor = self.inner.scale_factor.get();
+        let frame_handled = self.inner.frame.get().is_some_and(|frame| {
+            frame.resize_client((
+                physical(size.width, scale_factor) as i32,
+                physical(size.height, scale_factor) as i32,
+            ))
+        });
+        if !frame_handled {
+            let size = LogicalSize::new(
+                f64::from(size.width.as_f32()),
+                f64::from(size.height.as_f32()),
+            );
+            let _ = self.inner.window.request_inner_size(size);
+        }
     }
 
     fn scale_factor(&self) -> f32 {
@@ -812,12 +899,11 @@ impl PlatformWindow for WinitWindow {
     }
 
     fn minimize(&self) {
-        self.inner.window.set_minimized(true);
+        self.inner.minimize();
     }
 
     fn zoom(&self) {
-        let maximized = self.inner.is_maximized();
-        self.inner.window.set_maximized(!maximized);
+        self.inner.toggle_maximized();
     }
 
     fn toggle_fullscreen(&self) {
