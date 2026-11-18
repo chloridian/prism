@@ -6390,6 +6390,7 @@ mod tests {
     }
 
     #[gpui::test]
+    #[allow(clippy::reversed_empty_ranges)]
     fn test_set_selected_text_range(cx: &mut TestAppContext) {
         use gpui::EntityInputHandler as _;
         cx.update(crate::init);
@@ -6611,7 +6612,7 @@ mod tests {
     use crate::theme::Theme;
     use gpui::{TestAppContext, VisualTestContext, size};
 
-    use crate::input::{EditorMode, EditorState, InputMode, LanguageConfig, TabSize, TextareaMode};
+    use crate::input::{EditorMode, EditorState, InputMode, LanguageConfig, TextareaMode};
 
     fn set_test_syntax_provider(
         provider: Rc<dyn crate::input::SyntaxContextProvider>,

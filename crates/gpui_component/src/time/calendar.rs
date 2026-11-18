@@ -180,7 +180,7 @@ impl RenderOnce for Calendar {
                         && !state.is_disabled()
                         && state.kind() != CalendarItemKind::Weekday,
                     |this| {
-                        this.hover(|this| {
+                        this.hover_style(|this| {
                             this.bg(cx.theme().tokens.secondary_hover)
                                 .text_color(cx.theme().foreground)
                         })

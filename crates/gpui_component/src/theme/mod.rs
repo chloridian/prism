@@ -693,7 +693,7 @@ impl Theme {
 
 #[cfg(test)]
 mod semantic_token_tests {
-    use gpui::{Hsla, IsZero as _, px};
+    use gpui::{IsZero as _, px};
     use gpui_base::HslaExt as _;
 
     use super::{RADIUS_FULL, ScrollbarMode, Theme, system_scrollbar_mode};

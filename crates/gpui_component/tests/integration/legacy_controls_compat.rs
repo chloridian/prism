@@ -25,9 +25,9 @@ fn legacy_checkbox_builder_and_traits_remain_available() {
         })
         .child("application child")
         .bg(red())
-        .hover(|style| style.bg(green()))
-        .active(|style| style.bg(blue()))
-        .focus_visible(|style| style.border_1());
+        .hover_style(|style| style.bg(green()))
+        .active_style(|style| style.bg(blue()))
+        .focus_visible_style(|style| style.border_1());
 
     assert!(!checkbox.is_selected());
 }
@@ -47,9 +47,9 @@ fn legacy_radio_and_radio_group_paths_remain_available() {
         })
         .child("application child")
         .bg(red())
-        .hover(|style| style.bg(green()))
-        .active(|style| style.bg(blue()))
-        .focus_visible(|style| style.border_1());
+        .hover_style(|style| style.bg(green()))
+        .active_style(|style| style.bg(blue()))
+        .focus_visible_style(|style| style.border_1());
 
     let second = Radio::new("legacy-radio-b").label("Beta");
     let _vertical = RadioGroup::vertical("legacy-radio-group")

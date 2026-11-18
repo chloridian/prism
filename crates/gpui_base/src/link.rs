@@ -8,7 +8,7 @@ use gpui::{
 };
 use smallvec::SmallVec;
 
-use crate::{StateStyle, StyledExt as _, a11y_disabled::A11yDisabledExt as _};
+use crate::{StateStyle, a11y_disabled::A11yDisabledExt as _};
 
 type ActivationHandler = Rc<dyn Fn(&ClickEvent, &mut Window, &mut App)>;
 type OpenHandler = Rc<dyn Fn(&str, &ClickEvent, &mut Window, &mut App)>;
@@ -386,9 +386,9 @@ mod tests {
     fn visual_state_styles_remain_application_owned() {
         let _ = Link::new("states")
             .styles(|styles| styles.disabled(|style| style.opacity(0.5)))
-            .hover(|style| style.opacity(0.9))
-            .active(|style| style.opacity(0.8))
-            .focus_visible(|style| style.opacity(0.7));
+            .hover_style(|style| style.opacity(0.9))
+            .active_style(|style| style.opacity(0.8))
+            .focus_visible_style(|style| style.opacity(0.7));
     }
 
     #[test]

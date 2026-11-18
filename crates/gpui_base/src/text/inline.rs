@@ -1119,13 +1119,13 @@ impl Inline {
         let line_height = text_layout.line_height();
         for (range, color) in &self.range_backgrounds {
             for (row, left, right) in range_boxes(&glyphs, range.clone()) {
-                window.paint_quad(gpui::fill(
-                    Bounds::from_corners(
+                window.paint_quad(
+                    gpui::PaintQuad::new(Bounds::from_corners(
                         point(origin.x + left, origin.y + line_height * row as f32),
                         point(origin.x + right, origin.y + line_height * (row + 1) as f32),
-                    ),
-                    *color,
-                ));
+                    ))
+                    .background(*color),
+                );
             }
         }
     }
@@ -1330,7 +1330,7 @@ impl Element for Inline {
                 selection.start.min(selection.end)..selection.start.max(selection.end),
                 window.content_mask().bounds,
                 &mut state.selection_rows,
-                |rect| window.paint_quad(gpui::fill(rect, color)),
+                |rect| window.paint_quad(gpui::PaintQuad::new(rect).background(color)),
             );
         } else {
             state.selection_rows = None;
@@ -2101,7 +2101,7 @@ mod row_selection_tests {
                         let y = origin.y + line_height * (row as f32 + 0.5);
                         let before = point(origin.x - px(4.), y);
                         let after = point(origin.x + px(wrap_width + 40.), y);
-                        let expected = text[range.clone()].trim_end_matches('\n');
+                        let expected = text[range].trim_end_matches('\n');
                         for (start, end) in [(before, after), (after, before)] {
                             for selection in [
                                 project_selection(text, &layout, None, start, end),

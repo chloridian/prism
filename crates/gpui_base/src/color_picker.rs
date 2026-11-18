@@ -11,7 +11,7 @@ use gpui::{
 use smallvec::SmallVec;
 
 use crate::{
-    RoleOverride, StyledExt as _,
+    RoleOverride,
     actions::{Cancel, Confirm},
     input::InputEvent,
     slider::{SliderEvent, SliderState},

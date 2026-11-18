@@ -1,4 +1,4 @@
-use crate::{ActiveTheme, Disableable, Icon, Selectable, Sizable as _, StyledExt, h_flex};
+use crate::{ActiveTheme, Disableable, Icon, Selectable, Sizable as _, h_flex};
 use gpui::{
     AnyElement, App, ClickEvent, Div, ElementId, InteractiveElement, Interactivity, IntoElement,
     MouseButton, MouseDownEvent, MouseMoveEvent, ParentElement, RenderOnce, SharedString, Stateful,
@@ -226,7 +226,7 @@ impl RenderOnce for ListItem {
                     })
                     // Register `hover` unconditionally, a conditional registration
                     // leaves a stale hover style behind when the item turns active.
-                    .hover(|this| {
+                    .hover_style(|this| {
                         if is_active {
                             this
                         } else {
@@ -295,7 +295,7 @@ mod tests {
     fn test_list_item_interactivity(_cx: &mut gpui::TestAppContext) {
         let mut item = ListItem::new("item")
             .on_drag(DragPreview, |_, _, _, cx| cx.new(|_| DragPreview))
-            .drag_over::<DragPreview>(|style, _, _, _| style)
+            .on_drag_over::<DragPreview>(|style, _, _, _| style)
             .on_drop(|_: &DragPreview, _, _| {})
             .on_hover(|_, _, _| {});
 

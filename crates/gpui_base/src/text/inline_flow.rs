@@ -854,7 +854,7 @@ impl Element for InlineFlow {
             }
             element.paint(window, cx);
             for (bounds, color) in overlays {
-                window.paint_quad(gpui::fill(*bounds, *color));
+                window.paint_quad(gpui::PaintQuad::new(*bounds).background(*color));
             }
         }
     }

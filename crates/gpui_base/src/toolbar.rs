@@ -6,7 +6,7 @@ use gpui::{
 };
 use smallvec::SmallVec;
 
-use crate::{LayoutDirection, StyledExt as _, TestSupportExt as _};
+use crate::{LayoutDirection, TestSupportExt as _};
 
 /// An unstyled container that groups a set of controls and owns roving
 /// keyboard focus among them.

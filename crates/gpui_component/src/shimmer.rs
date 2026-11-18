@@ -8,7 +8,7 @@ use gpui::{
 use gpui_base::HslaExt as _;
 use web_time::Duration;
 
-use crate::{ActiveTheme as _, Colorize as _, StyledExt as _};
+use crate::{ActiveTheme as _, Colorize as _};
 
 const SHIMMER_LAYER_COUNT: usize = 12;
 const DEFAULT_SHIMMER_SPREAD: f32 = 0.3;

@@ -4,8 +4,7 @@ use crate::input::{
     element::TextElement, layout::LastLayout, mode::LayoutMode,
 };
 use gpui::{
-    Bounds, Context, Hsla, Path, PathBuilder, Pixels, SharedString, TextRun, TextStyle, Window,
-    point, px,
+    Bounds, Context, Path, PathBuilder, Pixels, SharedString, TextRun, TextStyle, Window, point, px,
 };
 use ropey::RopeSlice;
 

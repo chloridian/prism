@@ -127,8 +127,8 @@ impl RenderOnce for StepperTrigger {
                     .justify_center()
                     .bg(cx.theme().tokens.secondary)
                     .when(!self.disabled && !is_checked, |this| {
-                        this.hover(|this| this.bg(cx.theme().tokens.secondary_hover))
-                            .active(|this| this.bg(cx.theme().tokens.secondary_active))
+                        this.hover_style(|this| this.bg(cx.theme().tokens.secondary_hover))
+                            .active_style(|this| this.bg(cx.theme().tokens.secondary_active))
                     })
                     .text_color(cx.theme().secondary_foreground)
                     .when(is_checked, |this| {

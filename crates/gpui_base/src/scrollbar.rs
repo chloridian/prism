@@ -14,8 +14,8 @@ use gpui::{
     Edges, Element, ElementId, EntityId, GlobalElementId, Hitbox, HitboxBehavior, Hsla,
     InspectorElementId, IsZero, LayoutId, ListState, MouseDownEvent, MouseMoveEvent, MouseUpEvent,
     PaintQuad, Pixels, Point, Position, ScrollHandle, ScrollWheelEvent, Size, Style,
-    TouchDragEvent, TouchPhase, UniformListScrollHandle, Window, fill, point,
-    prelude::FluentBuilder, px, relative, size,
+    TouchDragEvent, TouchPhase, UniformListScrollHandle, Window, point, prelude::FluentBuilder, px,
+    relative, size,
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -1638,7 +1638,7 @@ impl Element for Scrollbar {
                     window.set_cursor_style(CursorStyle::default(), &state.bar_hitbox);
 
                     window.paint_layer(hitbox_bounds, |cx| {
-                        cx.paint_quad(fill(painted_bounds, painted_track_bg));
+                        cx.paint_quad(PaintQuad::new(painted_bounds).background(painted_track_bg));
 
                         cx.paint_quad(PaintQuad {
                             bounds: painted_bounds,
@@ -1667,7 +1667,9 @@ impl Element for Scrollbar {
                         });
 
                         cx.paint_quad(
-                            fill(painted_thumb_bounds, painted_thumb_bg).corner_radii(radius),
+                            PaintQuad::new(painted_thumb_bounds)
+                                .background(painted_thumb_bg)
+                                .corner_radii(radius),
                         );
                     });
 

@@ -1597,25 +1597,6 @@ impl WindowSelectionState {
         resolve_copy_items(self.copy_items(cx), cx)
     }
 
-    /// Whether the current endpoints take in at least one character of some
-    /// participant's painted text, as opposed to two points with nothing
-    /// between them.
-    fn selects_text(&self, cx: &App) -> bool {
-        self.snapshot().is_some()
-            && self.participants.borrow().values().any(|registration| {
-                registration
-                    .participant
-                    .upgrade()
-                    .is_some_and(|participant| {
-                        let participant = participant.read(cx);
-                        project_ranges(participant.snapshot, &participant.runs.borrow())
-                            .ranges()
-                            .iter()
-                            .any(|range| range.as_ref().is_some_and(|range| !range.is_empty()))
-                    })
-            })
-    }
-
     /// Returns whether a drag or a participant-local selection is active.
     pub fn has_selection(&self, cx: &App) -> bool {
         self.snapshot().is_some()
@@ -2885,7 +2866,7 @@ fn paint_text_selection(state: &Entity<WindowSelectionState>, window: &mut Windo
     });
 
     let scroll_state = state.downgrade();
-    window.on_mouse_event(move |event: &ScrollWheelEvent, phase, window, cx| {
+    window.on_mouse_event(move |_event: &ScrollWheelEvent, phase, window, cx| {
         let Some(state) = scroll_state.upgrade() else {
             return;
         };

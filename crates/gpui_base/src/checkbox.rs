@@ -8,10 +8,7 @@ use gpui::{
 };
 use smallvec::SmallVec;
 
-use crate::{
-    RoleOverride, StateStyle, StyledExt as _, TestSupportExt as _,
-    a11y_disabled::A11yDisabledExt as _,
-};
+use crate::{RoleOverride, StateStyle, TestSupportExt as _, a11y_disabled::A11yDisabledExt as _};
 
 type ChangeHandler = Rc<dyn Fn(CheckboxState, &ClickEvent, &mut Window, &mut App)>;
 
@@ -577,9 +574,9 @@ mod tests {
                     .indeterminate(|style| style.opacity(0.7))
                     .disabled(|style| style.when(true, |style| style.opacity(0.5)))
             })
-            .hover(|style| style.opacity(0.9))
-            .active(|style| style.opacity(0.8))
-            .focus_visible(|style| style.opacity(0.7));
+            .hover_style(|style| style.opacity(0.9))
+            .active_style(|style| style.opacity(0.8))
+            .focus_visible_style(|style| style.opacity(0.7));
     }
 
     #[test]

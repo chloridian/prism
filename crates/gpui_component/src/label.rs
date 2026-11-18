@@ -6,10 +6,10 @@ use gpui::{
     Window, div, prelude::FluentBuilder, rems,
 };
 
-use gpui_base::{LayoutDirection, LogicalStyledExt as _};
+use gpui_base::LayoutDirection;
 use gpui_base::{TestSupportExt as _, TestTextExt as _};
 
-use crate::{ActiveTheme, StyledExt};
+use crate::ActiveTheme;
 
 const MASKED: &'static str = "•";
 

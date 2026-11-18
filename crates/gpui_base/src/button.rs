@@ -9,8 +9,7 @@ use gpui::{
 use smallvec::SmallVec;
 
 use crate::{
-    RoleOverride, Selectable, StateStyle, StyledExt as _, TestSupportExt as _,
-    a11y_disabled::A11yDisabledExt as _,
+    RoleOverride, Selectable, StateStyle, TestSupportExt as _, a11y_disabled::A11yDisabledExt as _,
 };
 
 type ClickHandler = Rc<dyn Fn(&ClickEvent, &mut Window, &mut App)>;
@@ -316,16 +315,16 @@ impl RenderOnce for Button {
                 },
             )
             .when_some(self.hover_style, |this, style| {
-                this.hover(|_| pointer_style(style))
+                this.hover_style(|_| pointer_style(style))
             })
             .when_some(self.active_style, |this, style| {
-                this.active(|_| pointer_style(style))
+                this.active_style(|_| pointer_style(style))
             })
             .when_some(self.group_hover_style, |this, (group, style)| {
-                this.group_hover(group, |_| pointer_style(style))
+                this.group_hover_style(group, |_| pointer_style(style))
             })
             .when_some(self.group_active_style, |this, (group, style)| {
-                this.group_active(group, |_| pointer_style(style))
+                this.group_active_style(group, |_| pointer_style(style))
             })
             .children(self.children)
             .refine_style(&style)
@@ -622,9 +621,9 @@ mod tests {
                         .when_none(&None::<f32>, |style| style.rounded_sm())
                 })
             })
-            .hover(|style| style.opacity(0.9))
-            .active(|style| style.opacity(0.8))
-            .focus_visible(|style| style.opacity(0.7));
+            .hover_style(|style| style.opacity(0.9))
+            .active_style(|style| style.opacity(0.8))
+            .focus_visible_style(|style| style.opacity(0.7));
     }
 
     #[test]
@@ -659,8 +658,8 @@ mod tests {
                 Button::new("pointer-probe")
                     .size(px(40.))
                     .text_color(gpui::red())
-                    .hover(|style| style.text_color(gpui::green()))
-                    .active(|style| style.text_color(gpui::blue()))
+                    .hover_style(|style| style.text_color(gpui::green()))
+                    .active_style(|style| style.text_color(gpui::blue()))
                     .disabled(self.disabled)
                     .child(
                         canvas(

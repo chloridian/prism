@@ -312,7 +312,7 @@ impl SidebarItem for SidebarMenuItem {
                     .text_sm()
                     .refine_style(&self.style)
                     .when(is_hoverable, |this| {
-                        this.hover(|this| {
+                        this.hover_style(|this| {
                             this.bg(cx.theme().sidebar_accent.opacity(0.8))
                                 .text_color(cx.theme().sidebar_accent_foreground)
                         })

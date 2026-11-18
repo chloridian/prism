@@ -7,7 +7,7 @@ use gpui::{
 
 use super::{EditorState, Input};
 use crate::native_menu::NativeMenu;
-use crate::{ActiveTheme as _, RoleOverride, Sizable, Size, StyledExt as _};
+use crate::{ActiveTheme as _, RoleOverride, Sizable, Size};
 
 /// A code editor takes its rows from the font, so that a smaller or larger
 /// font keeps its leading in proportion.

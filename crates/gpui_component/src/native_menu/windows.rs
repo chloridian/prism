@@ -7,7 +7,7 @@ use std::{
 
 use gpui::{Action, App, AssetRegistry, ImageFormat, Pixels, Point, Window};
 use raw_window_handle::{HasWindowHandle, RawWindowHandle};
-use windows::Win32::Foundation::{GlobalFree, HANDLE, HWND, POINT};
+use windows::Win32::Foundation::{GlobalFree, HWND, POINT};
 use windows::Win32::Graphics::Gdi::{
     BI_RGB, BITMAPINFO, BITMAPINFOHEADER, ClientToScreen, CreateDIBSection, DIB_RGB_COLORS,
     DeleteObject, HBITMAP, HDC, HGDIOBJ,
@@ -102,7 +102,7 @@ fn run_menu(
         // Start GDI+ so item images can be loaded into bitmaps. If it fails, the menu is still
         // built (images are skipped).
         let gdiplus = GdiplusSession::start();
-        let mut actions: Vec<&Box<dyn Action>> = Vec::new();
+        let mut actions: Vec<&dyn Action> = Vec::new();
 
         // Bitmaps attached to menu items must outlive the menu; freed below.
         let mut bitmaps: Vec<HBITMAP> = Vec::new();
@@ -198,7 +198,7 @@ unsafe fn apply_menu_theme(hwnd: HWND, dark_mode: bool) {
 unsafe fn build_menu<'a>(
     items: &'a [NativeMenuItem],
     asset_source: &AssetRegistry,
-    actions: &mut Vec<&'a Box<dyn Action>>,
+    actions: &mut Vec<&'a dyn Action>,
     bitmaps: &mut Vec<HBITMAP>,
     image_px: u32,
 ) -> Option<HMENU> {
@@ -231,7 +231,7 @@ unsafe fn build_menu<'a>(
                 // Actionable, enabled items get an id; others use 0.
                 let id = match action {
                     Some(action) if !*disabled => {
-                        actions.push(action);
+                        actions.push(action.as_ref());
                         actions.len()
                     }
                     _ => 0,

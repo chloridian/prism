@@ -5,7 +5,7 @@ use gpui::{
 };
 use smallvec::SmallVec;
 
-use crate::{StyledExt as _, TestSupportExt as _};
+use crate::TestSupportExt as _;
 
 /// An unstyled linear progress root with controlled value accessibility.
 #[derive(IntoElement)]

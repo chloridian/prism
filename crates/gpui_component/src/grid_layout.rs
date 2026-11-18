@@ -100,7 +100,9 @@ pub fn grid_layout(
                         .border_r_2()
                         .border_b_2()
                         .border_color(color.opacity(0.35))
-                        .group_hover(GRIP_GROUP, |this| this.border_color(color.opacity(0.9))),
+                        .group_hover_style(GRIP_GROUP, |this| {
+                            this.border_color(color.opacity(0.9))
+                        }),
                 )
                 .into_any_element()
         })

@@ -10,7 +10,7 @@ use gpui::{
 use jiff::civil::Time;
 
 use crate::{
-    Decrement, Increment, StyledExt as _,
+    Decrement, Increment,
     a11y_disabled::A11yDisabledExt as _,
     actions::{SelectLeft, SelectNextColumn, SelectPrevColumn, SelectRight},
     input::Delete,

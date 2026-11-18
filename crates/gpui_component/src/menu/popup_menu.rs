@@ -3,7 +3,7 @@ use crate::actions::{Cancel, Confirm, SelectDown, SelectUp};
 use crate::actions::{SelectLeft, SelectRight};
 use crate::menu::menu_item::MenuItemElement;
 use crate::scroll::ScrollableElement;
-use crate::{ActiveTheme, ElementExt, Icon, IconName, Sizable as _, h_flex, v_flex};
+use crate::{ActiveTheme, Icon, IconName, Sizable as _, h_flex, v_flex};
 use crate::{Side, Size, kbd::Kbd};
 use gpui::{
     Action, Anchor, AnyElement, App, AppContext, Bounds, Context, DismissEvent, Edges, Entity,
@@ -902,7 +902,7 @@ impl PopupMenu {
                         if let Some(handler) = handler {
                             handler(event, window, cx);
                         } else if let Some(action) = action.as_ref() {
-                            self.dispatch_confirm_action(action, window, cx);
+                            self.dispatch_confirm_action(action.as_ref(), window, cx);
                         }
 
                         self.dismiss(&Cancel, window, cx)
@@ -913,7 +913,7 @@ impl PopupMenu {
                         if let Some(handler) = handler {
                             handler(event, window, cx);
                         } else if let Some(action) = action.as_ref() {
-                            self.dispatch_confirm_action(action, window, cx);
+                            self.dispatch_confirm_action(action.as_ref(), window, cx);
                         }
                         self.dismiss(&Cancel, window, cx)
                     }
@@ -931,7 +931,7 @@ impl PopupMenu {
 
     fn dispatch_confirm_action(
         &self,
-        action: &Box<dyn Action>,
+        action: &dyn Action,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {

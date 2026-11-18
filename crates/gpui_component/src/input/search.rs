@@ -9,7 +9,7 @@ use gpui::{
 };
 
 use crate::{
-    ActiveTheme, Disableable, ElementExt, IconName, Selectable, Sizable,
+    ActiveTheme, ElementExt, IconName, Selectable, Sizable,
     button::{Button, ButtonVariants},
     h_flex,
     input::{

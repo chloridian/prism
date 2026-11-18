@@ -8,7 +8,7 @@ use gpui::{
 };
 
 use crate::actions::{Cancel, Confirm, SelectDown, SelectUp};
-use crate::{StyledExt as _, TestSupportExt as _, a11y_disabled::A11yDisabledExt as _};
+use crate::{TestSupportExt as _, a11y_disabled::A11yDisabledExt as _};
 
 const CONTEXT: &str = "Select";
 

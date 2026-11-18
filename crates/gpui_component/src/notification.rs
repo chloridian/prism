@@ -470,7 +470,7 @@ impl Render for Notification {
                     .top_1()
                     .inset_e(rems(0.25), cx)
                     .invisible()
-                    .group_hover("", |this| this.visible())
+                    .group_hover_style("", |this| this.visible())
                     .child(
                         Button::new("close")
                             .icon(IconName::Close)

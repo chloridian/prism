@@ -7,7 +7,7 @@ use gpui::{
 };
 use web_time::Duration;
 
-use crate::{Popup, StyledExt as _};
+use crate::Popup;
 
 type ContentBuilder = Box<
     dyn FnOnce(

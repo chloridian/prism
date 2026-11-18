@@ -814,7 +814,7 @@ mod tests {
             cx.update(|window, cx| {
                 let text = ch.to_string();
                 let mut key = gpui::Keystroke::parse(&text).expect("a letter is a keystroke");
-                key.key_char = Some(text.into());
+                key.key_char = Some(text);
                 window.dispatch_keystroke(key, cx);
             });
             cx.update(|window, cx| {

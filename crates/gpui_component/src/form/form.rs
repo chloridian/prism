@@ -5,7 +5,7 @@ use gpui::{
 use gpui_base::LogicalStyledExt as _;
 
 use crate::{
-    Sizable, Size, StyledExt,
+    Sizable, Size,
     form::{Field, FieldProps},
     h_flex, v_flex,
 };

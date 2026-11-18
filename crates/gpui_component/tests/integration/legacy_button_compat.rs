@@ -50,7 +50,7 @@ fn legacy_button_path_and_builder_surface_remain_available() {
         })
         .child("application child")
         .bg(red())
-        .hover(|style| style.bg(green()));
+        .hover_style(|style| style.bg(green()));
 
     assert!(button.is_selected());
 }

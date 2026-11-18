@@ -4,7 +4,7 @@ use gpui::{
     RenderOnce, SharedString, StatefulInteractiveElement, StyleRefinement, Styled, div,
 };
 
-use crate::{ActiveTheme as _, StyledExt};
+use crate::ActiveTheme as _;
 
 /// A Link element like a `<a>` tag in HTML.
 #[derive(IntoElement)]
@@ -77,12 +77,12 @@ impl RenderOnce for Link {
             .text_color(cx.theme().link)
             .text_decoration_1()
             .text_decoration_color(cx.theme().link.opacity(0.5))
-            .hover(|this| {
+            .hover_style(|this| {
                 this.text_color(cx.theme().link.opacity(0.8))
                     .text_decoration_1()
                     .text_decoration_color(cx.theme().link)
             })
-            .active(|this| {
+            .active_style(|this| {
                 this.text_color(cx.theme().link.opacity(0.6))
                     .text_decoration_1()
                     .text_decoration_color(cx.theme().link)

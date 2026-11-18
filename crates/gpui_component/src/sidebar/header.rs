@@ -90,7 +90,7 @@ impl RenderOnce for SidebarHeader {
             .justify_between()
             .rounded(cx.theme().radius)
             .refine_style(&self.style)
-            .hover(|this| {
+            .hover_style(|this| {
                 this.bg(cx.theme().tokens.sidebar_accent)
                     .text_color(cx.theme().sidebar_accent_foreground)
             })

@@ -1,7 +1,7 @@
 use std::ops::Range;
 
 use crate::{
-    Icon, IconName, Sizable, Size, StyledExt,
+    Icon, IconName, Sizable, Size,
     empty::{Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyMediaVariant, EmptyTitle},
     group_box::GroupBoxVariant,
     h_resizable,

@@ -1,7 +1,7 @@
 // From:
 // https://github.com/zed-industries/zed/blob/56daba28d40301ee4c05546fadb691d070b7b2b6/crates/gpui/examples/window_shadow.rs
 use gpui::{
-    AnyElement, App, Corners, CursorStyle, Decorations, Edges, Hsla, InteractiveElement as _,
+    AnyElement, App, Corners, CursorStyle, Decorations, Edges, InteractiveElement as _,
     IntoElement, MouseButton, ParentElement, Pixels, Point, RenderOnce, ResizeEdge, Size,
     Styled as _, Tiling, Window, div, point, prelude::FluentBuilder as _, px,
 };

@@ -9,7 +9,7 @@ use gpui::{
     prelude::FluentBuilder as _,
 };
 
-use crate::{Disableable, Icon, IconName, Sizable, Size, StyleSized as _, StyledExt as _};
+use crate::{Disableable, Icon, IconName, Sizable, Size, StyleSized as _};
 
 use super::{Input, InputState, input::input_style};
 use crate::ThemeStyled as _;
@@ -168,8 +168,8 @@ impl RenderOnce for NumberInput {
                         .items_center()
                         .justify_center()
                         .text_color(button_foreground)
-                        .hover(move |this| this.bg(button_hover))
-                        .active(move |this| this.bg(button_active))
+                        .hover_style(move |this| this.bg(button_hover))
+                        .active_style(move |this| this.bg(button_active))
                         // The frame owns the control height, so the buttons fill it
                         // rather than setting their own and outgrowing the border.
                         .h_full()
@@ -203,8 +203,8 @@ impl RenderOnce for NumberInput {
                         .items_center()
                         .justify_center()
                         .text_color(button_foreground)
-                        .hover(move |this| this.bg(button_hover))
-                        .active(move |this| this.bg(button_active))
+                        .hover_style(move |this| this.bg(button_hover))
+                        .active_style(move |this| this.bg(button_active))
                         .h_full()
                         .map(|this| match button_size {
                             Size::XSmall | Size::Small => this.min_w_6(),

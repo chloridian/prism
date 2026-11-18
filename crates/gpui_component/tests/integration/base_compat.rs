@@ -117,9 +117,9 @@ fn base_button_accepts_application_owned_state_styles() {
         .on_click(|_, _, _| {})
         .child("Save")
         .bg(red())
-        .hover(|style| style.bg(green()))
-        .active(|style| style.bg(blue()))
-        .focus_visible(|style| style.border_1());
+        .hover_style(|style| style.bg(green()))
+        .active_style(|style| style.bg(blue()))
+        .focus_visible_style(|style| style.border_1());
 }
 
 #[test]

@@ -5,7 +5,7 @@ use gpui::{
 use gpui_base::{Avatar as BaseAvatar, AvatarFallback, AvatarImage, TestTextExt as _};
 
 use crate::{
-    ActiveTheme, Icon, IconName, Sizable, Size, StyledExt, ThemeStyled as _,
+    ActiveTheme, Icon, IconName, Sizable, Size, ThemeStyled as _,
     avatar::{AvatarSized as _, avatar_size},
     oklch,
 };
@@ -209,7 +209,6 @@ fn extract_text_initials(text: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use gpui::Rgba;
     use gpui_base::{HslaExt as _, RgbaExt as _};
 
     /// WCAG 2.1 relative luminance.

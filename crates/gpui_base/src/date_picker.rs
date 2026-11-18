@@ -8,7 +8,6 @@ use gpui::{
 };
 
 use crate::{
-    StyledExt as _,
     a11y_disabled::A11yDisabledExt as _,
     actions::{Cancel, Confirm},
 };

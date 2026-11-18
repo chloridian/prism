@@ -324,7 +324,7 @@ impl RenderOnce for AccordionItem {
             )
             .when(!self.disabled, |this| {
                 this.when_some(self.hover_style, |this, hover_style| {
-                    this.hover(move |this| this.refine_style(&hover_style))
+                    this.hover_style(move |this| this.refine_style(&hover_style))
                 })
                 .child(
                     Icon::new(IconName::ChevronDown)

@@ -6,7 +6,7 @@ use gpui::{
 
 use gpui_base::TestTextExt as _;
 
-use crate::{ActiveTheme, StyledExt};
+use crate::ActiveTheme;
 
 /// A tag for displaying keyboard keybindings.
 #[derive(IntoElement, Clone, Debug)]
