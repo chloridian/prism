@@ -20,8 +20,6 @@ struct State {
     radius: Option<f32>,
     #[serde(alias = "scrollbar_show")]
     scrollbar_mode: Option<ScrollbarMode>,
-    #[serde(default)]
-    show_fps_monitor: Option<bool>,
 }
 
 fn apply_theme_config(theme_config: std::rc::Rc<ThemeConfig>, cx: &mut App) {
@@ -34,7 +32,6 @@ impl Default for State {
             theme: "Default Light".into(),
             radius: None,
             scrollbar_mode: None,
-            show_fps_monitor: None,
         }
     }
 }
@@ -49,7 +46,6 @@ fn save_state(cx: &mut App) {
         theme: cx.theme().theme_name().clone(),
         radius: Some(cx.theme().radius.as_f32()),
         scrollbar_mode: Some(cx.theme().scrollbar_mode),
-        show_fps_monitor: Some(AppState::global(cx).show_fps_monitor),
     };
 
     if let Ok(json) = serde_json::to_string_pretty(&state) {
@@ -124,9 +120,6 @@ pub fn init(cx: &mut App) {
         Theme::set_scrollbar_mode(scrollbar_mode, cx);
     }
     apply_persisted_radius(&state, cx);
-    if let Some(show_fps_monitor) = state.show_fps_monitor {
-        AppState::global_mut(cx).show_fps_monitor = show_fps_monitor;
-    }
     cx.refresh_windows();
 
     // Both globals carry persisted settings, so either changing writes the file.
@@ -273,7 +266,6 @@ mod tests {
             theme: "Default Light".into(),
             radius: Some(4.),
             scrollbar_mode: None,
-            show_fps_monitor: None,
         };
 
         let json = serde_json::to_value(state).unwrap();
@@ -297,7 +289,6 @@ mod tests {
             theme: "Rounded Theme".into(),
             radius: Some(4.),
             scrollbar_mode: None,
-            show_fps_monitor: None,
         };
 
         cx.update(|cx| {
