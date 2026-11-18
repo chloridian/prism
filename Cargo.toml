@@ -29,12 +29,7 @@ members = [
   "./crates/gpui_kit_assets/",
   "./crates/gpui_kit/",
   "./crates/gpui_story/",
-  "./examples/hello_world/",
-  "./examples/input/",
-  "./examples/sidebar/",
-  "./examples/text_selection/",
-  "./examples/window_title/",
-  "./examples/table_in_scrollable/",
+  "./examples/",
   "./tooling/perf/",
 ]
 default-members = ["./crates/gpui/"]

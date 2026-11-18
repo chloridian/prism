@@ -1,0 +1,68 @@
+[package]
+name = "examples"
+version = "0.10.0"
+publish = false
+edition.workspace = true
+autoexamples = false
+
+[[example]]
+name = "components_hello_world"
+path = "components/hello_world.rs"
+
+[[example]]
+name = "input"
+path = "components/input.rs"
+
+[[example]]
+name = "editor"
+path = "components/editor.rs"
+
+[[example]]
+name = "dock"
+path = "components/dock.rs"
+
+[[example]]
+name = "markdown"
+path = "components/markdown/main.rs"
+
+[[example]]
+name = "html"
+path = "components/html.rs"
+
+[[example]]
+name = "sidebar"
+path = "components/sidebar.rs"
+
+[[example]]
+name = "text_selection"
+path = "components/text_selection.rs"
+
+[[example]]
+name = "window_title"
+path = "components/window_title.rs"
+
+[[example]]
+name = "table_in_scrollable"
+path = "components/table_in_scrollable.rs"
+
+[features]
+inspector = ["gpui-kit/inspector"]
+
+[dependencies]
+anyhow.workspace = true
+gpui-component-story = { path = "../crates/gpui_story" }
+gpui-kit = { workspace = true, features = ["tree-sitter-languages"] }
+lsp-types.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+smol.workspace = true
+
+autocorrect = "2.14.2"
+color-lsp = "0.2.0"
+jiff = "1.0"
+rand = "0.8"
+regex = "1"
+tree-sitter-navi = "0.2.3"
+
+[lints]
+workspace = true
