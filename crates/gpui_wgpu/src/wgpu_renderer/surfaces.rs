@@ -1,10 +1,10 @@
 use gpui::PaintSurface;
 #[cfg(any(
-    all(target_family = "wasm", feature = "custom-gpu"),
+    target_family = "wasm",
     target_os = "macos",
     target_os = "linux",
     target_os = "freebsd",
-    all(target_os = "windows", feature = "wgpu-surfaces")
+    target_os = "windows"
 ))]
 use gpui_render::shaders::{
     common::SurfaceColorFormat, interface as shader_interface, surface::SurfaceUniforms,
@@ -15,22 +15,18 @@ use super::{WgpuRenderer, frame};
 #[cfg(target_os = "macos")]
 #[path = "surfaces/macos.rs"]
 mod platform;
-#[cfg(any(
-    target_os = "linux",
-    target_os = "freebsd",
-    all(target_family = "wasm", feature = "custom-gpu")
-))]
+#[cfg(any(target_os = "linux", target_os = "freebsd", target_family = "wasm"))]
 #[path = "surfaces/texture.rs"]
 mod platform;
-#[cfg(all(target_os = "windows", feature = "wgpu-surfaces"))]
+#[cfg(target_os = "windows")]
 #[path = "surfaces/windows.rs"]
 mod platform;
 #[cfg(not(any(
     target_os = "macos",
     target_os = "linux",
     target_os = "freebsd",
-    all(target_family = "wasm", feature = "custom-gpu"),
-    all(target_os = "windows", feature = "wgpu-surfaces")
+    target_family = "wasm",
+    target_os = "windows"
 )))]
 #[path = "surfaces/unsupported.rs"]
 mod platform;
@@ -38,11 +34,11 @@ mod platform;
 pub(super) use platform::SurfaceCache;
 
 #[cfg(any(
-    all(target_family = "wasm", feature = "custom-gpu"),
+    target_family = "wasm",
     target_os = "macos",
     target_os = "linux",
     target_os = "freebsd",
-    all(target_os = "windows", feature = "wgpu-surfaces")
+    target_os = "windows"
 ))]
 struct SurfaceBinding {
     color_view: wgpu::TextureView,
@@ -52,11 +48,11 @@ struct SurfaceBinding {
 }
 
 #[cfg(any(
-    all(target_family = "wasm", feature = "custom-gpu"),
+    target_family = "wasm",
     target_os = "macos",
     target_os = "linux",
     target_os = "freebsd",
-    all(target_os = "windows", feature = "wgpu-surfaces")
+    target_os = "windows"
 ))]
 impl SurfaceBinding {
     fn new(
@@ -88,11 +84,11 @@ impl WgpuRenderer {
     }
 
     #[cfg(any(
-        all(target_family = "wasm", feature = "custom-gpu"),
+        target_family = "wasm",
         target_os = "macos",
         target_os = "linux",
         target_os = "freebsd",
-        all(target_os = "windows", feature = "wgpu-surfaces")
+        target_os = "windows"
     ))]
     fn create_surface_bind_group(
         &self,
@@ -114,11 +110,11 @@ impl WgpuRenderer {
     }
 
     #[cfg(any(
-        all(target_family = "wasm", feature = "custom-gpu"),
+        target_family = "wasm",
         target_os = "macos",
         target_os = "linux",
         target_os = "freebsd",
-        all(target_os = "windows", feature = "wgpu-surfaces")
+        target_os = "windows"
     ))]
     fn draw_surface_binding(
         &self,

@@ -25,20 +25,9 @@ gpui = { path = "../gpui", version = "0.4.0", package = "gpui-ce", default-featu
 smallvec.workspace = true
 wgsl-rs.workspace = true
 
-[target.'cfg(windows)'.build-dependencies]
-windows.workspace = true
-
 [build-dependencies]
-naga = { version = "29.0.4", features = [
-  "glsl-out",
-  "hlsl-out",
-  "msl-out",
-  "wgsl-in",
-] }
-naga-old = { package = "naga", version = "24.0.0", features = [
-  "hlsl-out",
-  "wgsl-in",
-] }
+naga = { version = "29.0.4", features = ["wgsl-in"] }
+naga-old = { package = "naga", version = "24.0.0", features = ["wgsl-in"] }
 gpui = { path = "../gpui", version = "0.4.0", package = "gpui-ce", default-features = false }
 wgsl-rs.workspace = true
 

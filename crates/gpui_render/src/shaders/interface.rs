@@ -40,7 +40,6 @@ pub enum DataLayout {
     TexturedInstances,
     MonochromeSprites,
     SubpixelSprites,
-    NativeOnly,
     Surface,
     Blur,
 }
@@ -114,15 +113,6 @@ define_pipelines! {
     SMOOTHED_BLUR_COMPOSITE: "smoothed_blur_composite", vertex_smoothed_blur_composite, fragment_smoothed_blur_composite, TriangleStrip, Blur, Rectangle;
 }
 
-pub const EMOJI_RASTERIZATION: Pipeline = Pipeline {
-    label: "emoji_rasterization",
-    vertex_entry: "vertex_emoji_rasterization",
-    fragment_entry: "fragment_emoji_rasterization",
-    topology: PrimitiveTopology::TriangleStrip,
-    data_layout: DataLayout::NativeOnly,
-    vertex_count: VertexCount::Rectangle,
-};
-
 pub const GLOBAL_BIND_GROUP: u32 = 0;
 pub const DATA_BIND_GROUP: u32 = 1;
 pub const GLOBAL_UNIFORMS_BINDING: u32 = 0;
@@ -134,9 +124,6 @@ pub const PRIMARY_SAMPLER_BINDING: u32 = 2;
 pub const SURFACE_SAMPLER_BINDING: u32 = 3;
 pub const RECTANGLE_VERTEX_COUNT: u32 = 4;
 pub const FULLSCREEN_TRIANGLE_VERTEX_COUNT: u32 = 3;
-/// D3D11 constant-buffer register of the per-draw instance base for instanced pipelines.
-/// Group-0 cbuffers occupy b0 and b1, and the group-1 uniform lands on b2.
-pub const DX11_DRAW_CONSTANTS_REGISTER: u32 = 3;
 
 macro_rules! buffer_data {
         ($($rust:ty => $wgsl:literal),* $(,)?) => {

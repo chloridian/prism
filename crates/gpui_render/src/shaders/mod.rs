@@ -9,7 +9,6 @@ pub mod common;
 pub mod interface;
 
 mod corner_smoothing;
-mod emoji;
 mod filters;
 mod linkage;
 mod paths;
@@ -17,7 +16,6 @@ mod quads;
 mod shadows;
 mod sprites;
 
-pub use emoji::emoji_rasterization;
 pub use filters::{blur, surface};
 pub use linkage::base;
 pub use paths::{path, path_rasterization};

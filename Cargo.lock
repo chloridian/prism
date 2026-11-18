@@ -2540,31 +2540,6 @@ name = "gpui-ce-fonts"
 version = "0.4.0"
 
 [[package]]
-name = "gpui_ce_apple"
-version = "0.4.0"
-dependencies = [
- "anyhow",
- "block",
- "core-foundation",
- "core-graphics",
- "core-video",
- "derive_more",
- "etagere",
- "foreign-types",
- "gpui-ce",
- "gpui_ce_collections",
- "gpui_ce_render",
- "image",
- "log",
- "metal",
- "objc2 0.6.5",
- "objc2-quartz-core 0.3.2",
- "parking_lot",
- "smallvec",
- "wgsl-rs",
-]
-
-[[package]]
 name = "gpui_ce_collections"
 version = "0.4.0"
 dependencies = [
@@ -2667,7 +2642,6 @@ dependencies = [
  "futures",
  "gpui-ce",
  "gpui-ce-fonts",
- "gpui_ce_apple",
  "gpui_ce_collections",
  "gpui_ce_media",
  "gpui_ce_parley",
@@ -2684,6 +2658,7 @@ dependencies = [
  "objc2-app-kit 0.3.2",
  "objc2-core-media",
  "objc2-foundation 0.3.2",
+ "objc2-quartz-core 0.3.2",
  "objc2-screen-capture-kit",
  "objc2-user-notifications",
  "palette",
@@ -2756,7 +2731,6 @@ dependencies = [
  "console_error_panic_hook",
  "gpui-ce",
  "gpui-ce-fonts",
- "gpui_ce_apple",
  "gpui_ce_linux",
  "gpui_ce_macos",
  "gpui_ce_web",
@@ -2789,7 +2763,6 @@ dependencies = [
  "thiserror 2.0.20",
  "unicode-segmentation",
  "wgsl-rs",
- "windows 0.62.2",
 ]
 
 [[package]]
@@ -2920,7 +2893,6 @@ dependencies = [
  "accesskit_windows",
  "anyhow",
  "dunce",
- "etagere",
  "futures",
  "gpui-ce",
  "gpui-ce-fonts",
@@ -2928,6 +2900,7 @@ dependencies = [
  "gpui_ce_parley",
  "gpui_ce_render",
  "gpui_ce_util",
+ "gpui_ce_wgpu",
  "image",
  "itertools 0.14.0",
  "log",
@@ -2936,8 +2909,6 @@ dependencies = [
  "raw-window-handle",
  "smallvec",
  "uuid",
- "wgsl-rs",
- "windows 0.61.3",
  "windows 0.62.2",
  "windows-core 0.62.2",
  "windows-numerics 0.3.1",

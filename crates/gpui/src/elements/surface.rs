@@ -18,8 +18,9 @@ pub enum SurfaceSource {
     #[cfg(any(
         target_os = "linux",
         target_os = "freebsd",
-        all(target_os = "macos", feature = "custom-gpu"),
-        all(target_family = "wasm", feature = "custom-gpu")
+        target_os = "macos",
+        target_os = "windows",
+        target_family = "wasm"
     ))]
     Texture {
         /// The GPU texture, type-erased (expected to be `Arc<wgpu::Texture>`)
@@ -49,8 +50,9 @@ impl std::fmt::Debug for SurfaceSource {
             #[cfg(any(
                 target_os = "linux",
                 target_os = "freebsd",
-                all(target_os = "macos", feature = "custom-gpu"),
-                all(target_family = "wasm", feature = "custom-gpu")
+                target_os = "macos",
+                target_os = "windows",
+                target_family = "wasm"
             ))]
             SurfaceSource::Texture { size, .. } => _f
                 .debug_struct("Texture")
@@ -73,8 +75,9 @@ impl SurfaceSource {
             #[cfg(any(
                 target_os = "linux",
                 target_os = "freebsd",
-                all(target_os = "macos", feature = "custom-gpu"),
-                all(target_family = "wasm", feature = "custom-gpu")
+                target_os = "macos",
+                target_os = "windows",
+                target_family = "wasm"
             ))]
             SurfaceSource::Texture { size, .. } => *size,
             #[cfg(target_os = "windows")]
