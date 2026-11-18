@@ -2,7 +2,8 @@ use std::rc::Rc;
 
 use gpui_kit::base::LayoutDirection;
 use gpui_kit::component::{
-    ActiveTheme as _, IconName, Side, Sizable as _, Theme, TitleBar, WindowExt as _,
+    ActiveTheme as _, IconName, Side, Sizable as _, TITLE_BAR_HEIGHT, Theme, TitleBar,
+    WindowExt as _,
     badge::Badge,
     button::{Button, ButtonVariants as _},
     menu::{AppMenuBar, DropdownMenu as _},
@@ -10,8 +11,8 @@ use gpui_kit::component::{
 };
 use gpui_kit::{
     Anchor, AnyElement, App, AppContext, Context, Entity, FocusHandle, FontWeight,
-    InteractiveElement as _, IntoElement, MouseButton, ParentElement as _, Render, SharedString,
-    Styled as _, Subscription, Window, div, prelude::FluentBuilder as _, px,
+    InteractiveElement as _, IntoElement, MouseButton, ParentElement as _, Pixels, Render,
+    SharedString, Styled as _, Subscription, Window, div, prelude::FluentBuilder as _, px,
 };
 
 use crate::{
@@ -24,6 +25,7 @@ pub struct AppTitleBar {
     app_menu_bar: Entity<AppMenuBar>,
     font_size_selector: Entity<FontSizeSelector>,
     child: Rc<dyn Fn(&mut Window, &mut App) -> AnyElement>,
+    height: Pixels,
     _subscriptions: Vec<Subscription>,
 }
 
@@ -42,8 +44,14 @@ impl AppTitleBar {
             app_menu_bar,
             font_size_selector,
             child: Rc::new(|_, _| div().into_any_element()),
+            height: TITLE_BAR_HEIGHT,
             _subscriptions: vec![],
         }
+    }
+
+    pub fn set_height(&mut self, height: Pixels, cx: &mut Context<Self>) {
+        self.height = height;
+        cx.notify();
     }
 
     pub fn child<F, E>(mut self, f: F) -> Self
@@ -62,6 +70,7 @@ impl Render for AppTitleBar {
         let show_app_menu_bar = AppState::global(cx).show_app_menu_bar;
 
         TitleBar::new()
+            .h(self.height)
             // left side
             .child(div().flex().items_center().map(|this| {
                 if show_app_menu_bar {

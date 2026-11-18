@@ -1,5 +1,5 @@
 use gpui_base::{HslaExt as _, RgbaExt as _};
-use std::rc::Rc;
+use std::{rc::Rc, sync::OnceLock};
 
 use gpui_base::LogicalStyledExt as _;
 
@@ -7,16 +7,21 @@ use crate::{ActiveTheme, Icon, IconName, InteractiveElementExt as _, Sizable as 
 #[cfg(target_os = "linux")]
 use gpui::Subscription;
 use gpui::{
-    AnyElement, App, Background, ClickEvent, Context, Decorations, Hsla, InteractiveElement,
-    IntoElement, MouseButton, ParentElement, Pixels, Render, RenderOnce, Rgba,
+    AnyElement, App, Background, ClickEvent, ColorExt as _, Context, Decorations, Hsla,
+    InteractiveElement, IntoElement, MouseButton, ParentElement, Pixels, Render, RenderOnce, Rgba,
     StatefulInteractiveElement as _, StyleRefinement, Styled, TitlebarOptions, Window,
     WindowButton, WindowButtonLayout, WindowControlArea, WindowOptions, div, linear_color_stop,
-    linear_gradient, prelude::FluentBuilder as _, px, rems,
+    linear_gradient, prelude::FluentBuilder as _, px, relative, rems,
 };
 use gpui_base::TestSupportExt as _;
 use smallvec::SmallVec;
 
 pub const TITLE_BAR_HEIGHT: Pixels = px(34.);
+const WINDOWS_CAPTION_BUTTON_WIDTH: Pixels = px(46.);
+const WINDOWS_CAPTION_BUTTON_GAP: Pixels = px(1.);
+const WINDOWS_CAPTION_GLYPH_SIZE: Pixels = px(10.);
+const WINDOWS_CAPTION_FONT: &str = "Segoe Fluent Icons";
+const WINDOWS_CLOSE_RED: u32 = 0xC42B1C;
 #[cfg(target_os = "macos")]
 const TITLE_BAR_LEFT_PADDING: Pixels = px(80.);
 #[cfg(not(target_os = "macos"))]
@@ -107,11 +112,7 @@ impl TitleBar {
     }
 }
 
-// The Windows control buttons have a fixed width of 35px.
-//
-// We don't need implementation the click event for the control buttons.
-// If user clicked in the bounds, the window event will be triggered.
-#[derive(IntoElement, Clone)]
+#[derive(Clone)]
 enum ControlIcon {
     Minimize,
     Restore,
@@ -139,6 +140,18 @@ fn window_button_layout(_cx: &App) -> WindowButtonLayout {
             ],
         }
     }
+}
+
+fn native_buttons(
+    buttons: [Option<WindowButton>; gpui::MAX_BUTTONS_PER_SIDE],
+    supported: gpui::WindowControls,
+) -> SmallVec<[WindowButton; gpui::MAX_BUTTONS_PER_SIDE]> {
+    let sizing = supported.minimize || supported.maximize;
+    buttons
+        .into_iter()
+        .flatten()
+        .filter(|button| sizing || matches!(button, WindowButton::Close))
+        .collect()
 }
 
 fn supported_buttons(
@@ -191,6 +204,31 @@ impl ControlIcon {
         }
     }
 
+    fn windows_glyph(&self) -> &'static str {
+        match self {
+            Self::Minimize => "\u{E921}",
+            Self::Maximize => "\u{E922}",
+            Self::Restore => "\u{E923}",
+            Self::Close { .. } => "\u{E8BB}",
+        }
+    }
+
+    fn windows_hover_bg(&self, cx: &App) -> Hsla {
+        if self.is_close() {
+            windows_close_red()
+        } else {
+            cx.theme().foreground.opacity(0.1)
+        }
+    }
+
+    fn windows_active_bg(&self, cx: &App) -> Hsla {
+        if self.is_close() {
+            windows_close_red().opacity(0.9)
+        } else {
+            cx.theme().foreground.opacity(0.2)
+        }
+    }
+
     fn window_control_area(&self) -> WindowControlArea {
         match self {
             Self::Minimize => WindowControlArea::Min,
@@ -231,46 +269,87 @@ impl ControlIcon {
     }
 }
 
-impl RenderOnce for ControlIcon {
-    fn render(self, _: &mut Window, cx: &mut App) -> impl IntoElement {
+#[derive(IntoElement)]
+struct ControlButton {
+    icon: ControlIcon,
+    enabled: bool,
+}
+
+impl RenderOnce for ControlButton {
+    fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
+        let Self {
+            icon: control,
+            enabled,
+        } = self;
         let is_linux = cfg!(target_os = "linux");
         let is_windows = cfg!(target_os = "windows");
-        let hover_fg = self.hover_fg(cx);
-        let hover_bg = self.hover_bg(cx);
-        let active_bg = self.active_bg(cx);
-        let icon = self.clone();
-        let on_close_window = match &self {
+        let windows_glyphs = is_windows && windows_caption_font_available(cx);
+        let (hover_fg, hover_bg, active_bg) = if is_windows {
+            let fg = if control.is_close() {
+                gpui::white()
+            } else {
+                cx.theme().foreground
+            };
+            (
+                fg,
+                control.windows_hover_bg(cx),
+                control.windows_active_bg(cx),
+            )
+        } else {
+            (
+                control.hover_fg(cx),
+                control.hover_bg(cx),
+                control.active_bg(cx),
+            )
+        };
+        let foreground = if is_windows && (!enabled || !window.is_window_active()) {
+            cx.theme().foreground.opacity(0.4)
+        } else {
+            cx.theme().foreground
+        };
+        let id = control.id();
+        let glyph = control.windows_glyph();
+        let icon_name = control.icon();
+        let area = control.window_control_area();
+        let on_close_window = match &control {
             ControlIcon::Close { on_close_window } => on_close_window.clone(),
             _ => None,
         };
 
         div()
-            .id(self.id())
+            .id(id)
             .test_support()
+            .debug_selector(|| id.to_string())
             .flex()
-            .w(TITLE_BAR_HEIGHT)
+            .w(if is_windows {
+                WINDOWS_CAPTION_BUTTON_WIDTH
+            } else {
+                TITLE_BAR_HEIGHT
+            })
             .h_full()
             .flex_shrink_0()
             .justify_center()
             .content_center()
             .items_center()
-            .text_color(cx.theme().foreground)
-            .hover_style(|style| style.bg(hover_bg).text_color(hover_fg))
-            .active_style(|style| style.bg(active_bg).text_color(hover_fg))
-            .when(is_windows, |this| {
-                this.window_control_area(self.window_control_area())
+            .text_color(foreground)
+            .when(enabled, |this| {
+                this.hover_style(|style| style.bg(hover_bg).text_color(hover_fg))
+                    .active_style(|style| style.bg(active_bg).text_color(hover_fg))
             })
-            .when(is_linux, |this| {
+            .when(is_windows && enabled, |this| this.window_control_area(area))
+            .when(is_linux || !enabled, |this| {
                 this.on_mouse_down(MouseButton::Left, move |_, window, cx| {
                     window.prevent_default();
                     cx.stop_propagation();
                 })
-                .on_click(move |_, window, cx| {
+            })
+            .when(is_linux && enabled, |this| {
+                this.on_click(move |_, window, cx| {
                     cx.stop_propagation();
-                    match icon {
-                        Self::Minimize => window.minimize_window(),
-                        Self::Restore | Self::Maximize => window.zoom_window(),
-                        Self::Close { .. } => {
+                    match &control {
+                        ControlIcon::Minimize => window.minimize_window(),
+                        ControlIcon::Restore | ControlIcon::Maximize => window.zoom_window(),
+                        ControlIcon::Close { .. } => {
                             if let Some(f) = on_close_window.clone() {
                                 f(&ClickEvent::default(), window, cx);
                             } else {
@@ -280,8 +359,34 @@ impl RenderOnce for ControlIcon {
                     }
                 })
             })
-            .child(Icon::new(self.icon()).small())
+            .map(|this| {
+                if windows_glyphs {
+                    this.child(
+                        div()
+                            .font_family(WINDOWS_CAPTION_FONT)
+                            .text_size(WINDOWS_CAPTION_GLYPH_SIZE)
+                            .line_height(relative(1.))
+                            .child(glyph),
+                    )
+                } else {
+                    this.child(Icon::new(icon_name).small())
+                }
+            })
     }
+}
+
+fn windows_close_red() -> Hsla {
+    gpui::rgb_to_hsla(gpui::rgb(WINDOWS_CLOSE_RED))
+}
+
+fn windows_caption_font_available(cx: &App) -> bool {
+    static AVAILABLE: OnceLock<bool> = OnceLock::new();
+    *AVAILABLE.get_or_init(|| {
+        cx.text_system()
+            .all_font_names()
+            .iter()
+            .any(|name| name == WINDOWS_CAPTION_FONT)
+    })
 }
 
 #[derive(IntoElement)]
@@ -297,25 +402,39 @@ impl RenderOnce for WindowControls {
             return div().id(self.id).test_support();
         }
 
-        // Under server-side decorations the window manager already renders
-        // its own title bar, complete with min/max/close; drawing ours as
-        // well stacks a duplicate set of controls on top of it (most
-        // visibly two close buttons). gpui falls back to server-side
-        // decorations on X11 sessions without a compositor, and a Wayland
-        // compositor may grant server mode even when client mode was
-        // requested. Skip ours unless this window is actually client-side
-        // decorated, mirroring the `is_client_decorated` gating of the
-        // title bar's window-menu overlay.
         #[cfg(target_os = "linux")]
         if !matches!(window.window_decorations(), Decorations::Client { .. }) {
             return div().id(self.id).test_support();
         }
 
-        // The window manager declares which controls it can honor; a tiling
-        // compositor may support neither minimize nor maximize.
         let supported = window.window_controls();
+        let shown = if cfg!(target_os = "linux") {
+            supported_buttons(self.buttons, supported)
+        } else {
+            native_buttons(self.buttons, supported)
+        };
+        let controls: Vec<ControlButton> = shown
+            .into_iter()
+            .map(|button| match button {
+                WindowButton::Minimize => ControlButton {
+                    icon: ControlIcon::minimize(),
+                    enabled: supported.minimize,
+                },
+                WindowButton::Maximize => ControlButton {
+                    icon: if window.is_maximized() {
+                        ControlIcon::restore()
+                    } else {
+                        ControlIcon::maximize()
+                    },
+                    enabled: supported.maximize,
+                },
+                WindowButton::Close => ControlButton {
+                    icon: ControlIcon::close(self.on_close_window.clone()),
+                    enabled: true,
+                },
+            })
+            .collect();
 
-        // In RTL the controls sit on the start (left) edge, close outermost.
         h_flex()
             .flex_row_dir(cx)
             .id(self.id)
@@ -323,17 +442,25 @@ impl RenderOnce for WindowControls {
             .items_center()
             .flex_shrink_0()
             .h_full()
-            .children(
-                supported_buttons(self.buttons, supported)
-                    .into_iter()
-                    .map(|button| match button {
-                        WindowButton::Minimize => ControlIcon::minimize(),
-                        WindowButton::Maximize if window.is_maximized() => ControlIcon::restore(),
-                        WindowButton::Maximize => ControlIcon::maximize(),
-                        WindowButton::Close => ControlIcon::close(self.on_close_window.clone()),
-                    }),
-            )
+            .when(cfg!(target_os = "windows"), |this| this.pb(px(1.)))
+            .children(controls.into_iter().enumerate().flat_map(|(ix, control)| {
+                let gap = (cfg!(target_os = "windows") && ix > 0).then(caption_gap);
+                gap.into_iter()
+                    .map(IntoElement::into_any_element)
+                    .chain([control.into_any_element()])
+            }))
     }
+}
+
+fn caption_gap() -> impl IntoElement {
+    div()
+        .w(WINDOWS_CAPTION_BUTTON_GAP)
+        .h_full()
+        .flex_shrink_0()
+        .on_mouse_down(MouseButton::Left, |_, window, cx| {
+            window.prevent_default();
+            cx.stop_propagation();
+        })
 }
 
 impl Styled for TitleBar {
@@ -538,6 +665,27 @@ mod tests {
         );
     }
 
+    #[test]
+    fn native_window_controls_dim_one_unsupported_button_and_hide_both() {
+        let layout = [
+            Some(WindowButton::Minimize),
+            Some(WindowButton::Maximize),
+            Some(WindowButton::Close),
+        ];
+        let controls = |minimize, maximize| gpui::WindowControls {
+            minimize,
+            maximize,
+            ..Default::default()
+        };
+
+        assert_eq!(native_buttons(layout, controls(false, true)).len(), 3);
+        assert_eq!(native_buttons(layout, controls(true, false)).len(), 3);
+        assert_eq!(
+            native_buttons(layout, controls(false, false)).as_slice(),
+            [WindowButton::Close]
+        );
+    }
+
     const BUTTON: &str = "title-bar-button";
 
     struct BarWithButton {
@@ -609,6 +757,59 @@ mod tests {
         let (mut cx, _) = open(cx);
         let button = cx.debug_bounds(BUTTON).expect("the button is drawn");
         click_with_drift(&mut cx, point(button.left() - px(100.), button.center().y));
+    }
+
+    #[cfg(target_os = "windows")]
+    #[gpui::test]
+    fn a_press_on_a_caption_button_is_left_to_the_window_frame(cx: &mut TestAppContext) {
+        let (mut cx, _) = open(cx);
+        for id in ["minimize", "maximize", "close"] {
+            let at = cx
+                .debug_bounds(id)
+                .unwrap_or_else(|| panic!("the {id} button is drawn"))
+                .center();
+            let result = cx.update(|window, cx| {
+                window.dispatch_event(
+                    gpui::PlatformInput::MouseDown(gpui::MouseDownEvent {
+                        position: at,
+                        modifiers: Modifiers::default(),
+                        button: MouseButton::Left,
+                        click_count: 1,
+                        first_mouse: false,
+                    }),
+                    cx,
+                )
+            });
+            assert!(result.propagate, "the {id} press was consumed");
+        }
+    }
+
+    struct TallBar;
+
+    impl Render for TallBar {
+        fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+            TitleBar::new()
+                .h(px(64.))
+                .child(div().h_full().debug_selector(|| "content".to_string()))
+        }
+    }
+
+    #[gpui::test]
+    fn the_bar_content_follows_the_configured_height(cx: &mut TestAppContext) {
+        cx.update(crate::init);
+        let view = cx.new(|_| TallBar);
+        let window = cx.update(|cx| {
+            cx.open_window(Default::default(), |window, cx| {
+                cx.new(|cx| crate::Root::new(view.clone(), window, cx))
+            })
+            .unwrap()
+        });
+        let mut cx = VisualTestContext::from_window(window.into(), cx);
+        cx.update(|window, cx| window.draw(cx).clear(cx));
+
+        let content = cx.debug_bounds("content").expect("the content is drawn");
+        assert!(content.size.height > TITLE_BAR_HEIGHT);
+        assert!(content.size.height <= px(64.));
     }
 
     #[test]
