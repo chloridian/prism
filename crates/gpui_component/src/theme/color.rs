@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt::Display};
+use std::{collections::HashMap, fmt::Display, sync::LazyLock};
 
 use gpui::{
     Background, Hsla, LinearColorStop, SharedString, hsla, linear_color_stop, linear_gradient,
@@ -345,8 +345,8 @@ impl Colorize for Hsla {
     }
 }
 
-pub(crate) static DEFAULT_COLORS: once_cell::sync::Lazy<ShadcnColors> =
-    once_cell::sync::Lazy::new(|| {
+pub(crate) static DEFAULT_COLORS: LazyLock<ShadcnColors> =
+    LazyLock::new(|| {
         serde_json::from_str(include_str!("./default-colors.json"))
             .expect("failed to parse default-colors.json")
     });
@@ -598,52 +598,34 @@ where
     Ok(hsl(h, s, l))
 }
 
-macro_rules! color_method {
-    ($color:tt, $scale:tt) => {
-        paste::paste! {
+macro_rules! color_methods {
+    ($color:ident, $($name:ident = $scale:literal),+ $(,)?) => {
+        /// Get color by scale number.
+        ///
+        /// The possible scale numbers are:
+        /// 50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950
+        ///
+        /// If the scale number is not found, it will return black color.
+        #[inline]
+        pub fn $color(scale: usize) -> Hsla {
+            if let Some(color) = DEFAULT_COLORS.$color.get(&scale) {
+                return color.hsla;
+            }
+
+            black()
+        }
+
+        $(
             #[inline]
             #[allow(unused)]
-            pub fn [<$color _ $scale>]() -> Hsla {
+            pub fn $name() -> Hsla {
                 if let Some(color) = DEFAULT_COLORS.$color.get(&($scale as usize)) {
                     return color.hsla;
                 }
 
                 black()
             }
-        }
-    };
-}
-
-macro_rules! color_methods {
-    ($color:tt) => {
-        paste::paste! {
-            /// Get color by scale number.
-            ///
-            /// The possible scale numbers are:
-            /// 50, 100, 200, 300, 400, 500, 600, 700, 800, 900, 950
-            ///
-            /// If the scale number is not found, it will return black color.
-            #[inline]
-            pub fn [<$color>](scale: usize) -> Hsla {
-                if let Some(color) = DEFAULT_COLORS.$color.get(&scale) {
-                    return color.hsla;
-                }
-
-                black()
-            }
-        }
-
-        color_method!($color, 50);
-        color_method!($color, 100);
-        color_method!($color, 200);
-        color_method!($color, 300);
-        color_method!($color, 400);
-        color_method!($color, 500);
-        color_method!($color, 600);
-        color_method!($color, 700);
-        color_method!($color, 800);
-        color_method!($color, 900);
-        color_method!($color, 950);
+        )+
     };
 }
 
@@ -655,28 +637,314 @@ pub fn white() -> Hsla {
     DEFAULT_COLORS.white.hsla
 }
 
-color_methods!(slate);
-color_methods!(gray);
-color_methods!(zinc);
-color_methods!(neutral);
-color_methods!(stone);
-color_methods!(red);
-color_methods!(orange);
-color_methods!(amber);
-color_methods!(yellow);
-color_methods!(lime);
-color_methods!(green);
-color_methods!(emerald);
-color_methods!(teal);
-color_methods!(cyan);
-color_methods!(sky);
-color_methods!(blue);
-color_methods!(indigo);
-color_methods!(violet);
-color_methods!(purple);
-color_methods!(fuchsia);
-color_methods!(pink);
-color_methods!(rose);
+color_methods!(
+    slate,
+    slate_50 = 50,
+    slate_100 = 100,
+    slate_200 = 200,
+    slate_300 = 300,
+    slate_400 = 400,
+    slate_500 = 500,
+    slate_600 = 600,
+    slate_700 = 700,
+    slate_800 = 800,
+    slate_900 = 900,
+    slate_950 = 950,
+);
+color_methods!(
+    gray,
+    gray_50 = 50,
+    gray_100 = 100,
+    gray_200 = 200,
+    gray_300 = 300,
+    gray_400 = 400,
+    gray_500 = 500,
+    gray_600 = 600,
+    gray_700 = 700,
+    gray_800 = 800,
+    gray_900 = 900,
+    gray_950 = 950,
+);
+color_methods!(
+    zinc,
+    zinc_50 = 50,
+    zinc_100 = 100,
+    zinc_200 = 200,
+    zinc_300 = 300,
+    zinc_400 = 400,
+    zinc_500 = 500,
+    zinc_600 = 600,
+    zinc_700 = 700,
+    zinc_800 = 800,
+    zinc_900 = 900,
+    zinc_950 = 950,
+);
+color_methods!(
+    neutral,
+    neutral_50 = 50,
+    neutral_100 = 100,
+    neutral_200 = 200,
+    neutral_300 = 300,
+    neutral_400 = 400,
+    neutral_500 = 500,
+    neutral_600 = 600,
+    neutral_700 = 700,
+    neutral_800 = 800,
+    neutral_900 = 900,
+    neutral_950 = 950,
+);
+color_methods!(
+    stone,
+    stone_50 = 50,
+    stone_100 = 100,
+    stone_200 = 200,
+    stone_300 = 300,
+    stone_400 = 400,
+    stone_500 = 500,
+    stone_600 = 600,
+    stone_700 = 700,
+    stone_800 = 800,
+    stone_900 = 900,
+    stone_950 = 950,
+);
+color_methods!(
+    red,
+    red_50 = 50,
+    red_100 = 100,
+    red_200 = 200,
+    red_300 = 300,
+    red_400 = 400,
+    red_500 = 500,
+    red_600 = 600,
+    red_700 = 700,
+    red_800 = 800,
+    red_900 = 900,
+    red_950 = 950,
+);
+color_methods!(
+    orange,
+    orange_50 = 50,
+    orange_100 = 100,
+    orange_200 = 200,
+    orange_300 = 300,
+    orange_400 = 400,
+    orange_500 = 500,
+    orange_600 = 600,
+    orange_700 = 700,
+    orange_800 = 800,
+    orange_900 = 900,
+    orange_950 = 950,
+);
+color_methods!(
+    amber,
+    amber_50 = 50,
+    amber_100 = 100,
+    amber_200 = 200,
+    amber_300 = 300,
+    amber_400 = 400,
+    amber_500 = 500,
+    amber_600 = 600,
+    amber_700 = 700,
+    amber_800 = 800,
+    amber_900 = 900,
+    amber_950 = 950,
+);
+color_methods!(
+    yellow,
+    yellow_50 = 50,
+    yellow_100 = 100,
+    yellow_200 = 200,
+    yellow_300 = 300,
+    yellow_400 = 400,
+    yellow_500 = 500,
+    yellow_600 = 600,
+    yellow_700 = 700,
+    yellow_800 = 800,
+    yellow_900 = 900,
+    yellow_950 = 950,
+);
+color_methods!(
+    lime,
+    lime_50 = 50,
+    lime_100 = 100,
+    lime_200 = 200,
+    lime_300 = 300,
+    lime_400 = 400,
+    lime_500 = 500,
+    lime_600 = 600,
+    lime_700 = 700,
+    lime_800 = 800,
+    lime_900 = 900,
+    lime_950 = 950,
+);
+color_methods!(
+    green,
+    green_50 = 50,
+    green_100 = 100,
+    green_200 = 200,
+    green_300 = 300,
+    green_400 = 400,
+    green_500 = 500,
+    green_600 = 600,
+    green_700 = 700,
+    green_800 = 800,
+    green_900 = 900,
+    green_950 = 950,
+);
+color_methods!(
+    emerald,
+    emerald_50 = 50,
+    emerald_100 = 100,
+    emerald_200 = 200,
+    emerald_300 = 300,
+    emerald_400 = 400,
+    emerald_500 = 500,
+    emerald_600 = 600,
+    emerald_700 = 700,
+    emerald_800 = 800,
+    emerald_900 = 900,
+    emerald_950 = 950,
+);
+color_methods!(
+    teal,
+    teal_50 = 50,
+    teal_100 = 100,
+    teal_200 = 200,
+    teal_300 = 300,
+    teal_400 = 400,
+    teal_500 = 500,
+    teal_600 = 600,
+    teal_700 = 700,
+    teal_800 = 800,
+    teal_900 = 900,
+    teal_950 = 950,
+);
+color_methods!(
+    cyan,
+    cyan_50 = 50,
+    cyan_100 = 100,
+    cyan_200 = 200,
+    cyan_300 = 300,
+    cyan_400 = 400,
+    cyan_500 = 500,
+    cyan_600 = 600,
+    cyan_700 = 700,
+    cyan_800 = 800,
+    cyan_900 = 900,
+    cyan_950 = 950,
+);
+color_methods!(
+    sky,
+    sky_50 = 50,
+    sky_100 = 100,
+    sky_200 = 200,
+    sky_300 = 300,
+    sky_400 = 400,
+    sky_500 = 500,
+    sky_600 = 600,
+    sky_700 = 700,
+    sky_800 = 800,
+    sky_900 = 900,
+    sky_950 = 950,
+);
+color_methods!(
+    blue,
+    blue_50 = 50,
+    blue_100 = 100,
+    blue_200 = 200,
+    blue_300 = 300,
+    blue_400 = 400,
+    blue_500 = 500,
+    blue_600 = 600,
+    blue_700 = 700,
+    blue_800 = 800,
+    blue_900 = 900,
+    blue_950 = 950,
+);
+color_methods!(
+    indigo,
+    indigo_50 = 50,
+    indigo_100 = 100,
+    indigo_200 = 200,
+    indigo_300 = 300,
+    indigo_400 = 400,
+    indigo_500 = 500,
+    indigo_600 = 600,
+    indigo_700 = 700,
+    indigo_800 = 800,
+    indigo_900 = 900,
+    indigo_950 = 950,
+);
+color_methods!(
+    violet,
+    violet_50 = 50,
+    violet_100 = 100,
+    violet_200 = 200,
+    violet_300 = 300,
+    violet_400 = 400,
+    violet_500 = 500,
+    violet_600 = 600,
+    violet_700 = 700,
+    violet_800 = 800,
+    violet_900 = 900,
+    violet_950 = 950,
+);
+color_methods!(
+    purple,
+    purple_50 = 50,
+    purple_100 = 100,
+    purple_200 = 200,
+    purple_300 = 300,
+    purple_400 = 400,
+    purple_500 = 500,
+    purple_600 = 600,
+    purple_700 = 700,
+    purple_800 = 800,
+    purple_900 = 900,
+    purple_950 = 950,
+);
+color_methods!(
+    fuchsia,
+    fuchsia_50 = 50,
+    fuchsia_100 = 100,
+    fuchsia_200 = 200,
+    fuchsia_300 = 300,
+    fuchsia_400 = 400,
+    fuchsia_500 = 500,
+    fuchsia_600 = 600,
+    fuchsia_700 = 700,
+    fuchsia_800 = 800,
+    fuchsia_900 = 900,
+    fuchsia_950 = 950,
+);
+color_methods!(
+    pink,
+    pink_50 = 50,
+    pink_100 = 100,
+    pink_200 = 200,
+    pink_300 = 300,
+    pink_400 = 400,
+    pink_500 = 500,
+    pink_600 = 600,
+    pink_700 = 700,
+    pink_800 = 800,
+    pink_900 = 900,
+    pink_950 = 950,
+);
+color_methods!(
+    rose,
+    rose_50 = 50,
+    rose_100 = 100,
+    rose_200 = 200,
+    rose_300 = 300,
+    rose_400 = 400,
+    rose_500 = 500,
+    rose_600 = 600,
+    rose_700 = 700,
+    rose_800 = 800,
+    rose_900 = 900,
+    rose_950 = 950,
+);
 
 /// Try to parse the color, HEX or [Tailwind Color](https://tailwindcss.com/docs/colors) expression.
 ///

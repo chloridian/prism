@@ -1,7 +1,5 @@
 // @reference: https://d3js.org/d3-scale/linear
 
-use itertools::Itertools;
-
 use super::{PlotValue, Scale};
 
 #[derive(Clone)]
@@ -17,11 +15,15 @@ impl<T: PlotValue> ScaleLinear<T> {
     /// `range[0]` and the largest to `range[1]`, so a reversed range such as
     /// `[height, 0.]` puts larger values higher.
     pub fn new(domain: impl IntoIterator<Item = T>, range: [f32; 2]) -> Self {
-        let (domain_start, domain_end) = domain
-            .into_iter()
-            .minmax_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
-            .into_option()
-            .unwrap_or((T::zero(), T::zero()));
+        let mut domain = domain.into_iter();
+        let (domain_start, domain_end) = match domain.next() {
+            Some(first) => domain.fold((first, first), |(min, max), value| {
+                let min = if value < min { value } else { min };
+                let max = if value < max { max } else { value };
+                (min, max)
+            }),
+            None => (T::zero(), T::zero()),
+        };
 
         Self {
             domain_start,

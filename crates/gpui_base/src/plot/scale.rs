@@ -9,19 +9,58 @@ pub use linear::ScaleLinear;
 pub use ordinal::ScaleOrdinal;
 pub use point::ScalePoint;
 
-use num_traits::{Num, ToPrimitive};
+use std::ops::{Add, Div, Mul, Rem, Sub};
 
-/// A number a [`ScaleLinear`] and the charts built on it can place: `f32`,
-/// `f64`, and `rust_decimal::Decimal` with the `decimal` feature.
+/// A number a [`ScaleLinear`] and the charts built on it can place: `f32`
+/// and `f64`.
 ///
 /// Sealed: integer types are left out on purpose, because a linear scale
 /// divides values and integer division would truncate every position.
-pub trait PlotValue: sealed::Sealed + Copy + PartialOrd + Num + ToPrimitive + 'static {}
+pub trait PlotValue:
+    sealed::Sealed
+    + Copy
+    + PartialOrd
+    + Add<Output = Self>
+    + Sub<Output = Self>
+    + Mul<Output = Self>
+    + Div<Output = Self>
+    + Rem<Output = Self>
+    + 'static
+{
+    fn zero() -> Self;
 
-impl PlotValue for f32 {}
-impl PlotValue for f64 {}
-#[cfg(feature = "decimal")]
-impl PlotValue for rust_decimal::Decimal {}
+    fn is_zero(&self) -> bool;
+
+    fn to_f32(&self) -> Option<f32>;
+}
+
+impl PlotValue for f32 {
+    fn zero() -> Self {
+        0.
+    }
+
+    fn is_zero(&self) -> bool {
+        *self == 0.
+    }
+
+    fn to_f32(&self) -> Option<f32> {
+        Some(*self)
+    }
+}
+
+impl PlotValue for f64 {
+    fn zero() -> Self {
+        0.
+    }
+
+    fn is_zero(&self) -> bool {
+        *self == 0.
+    }
+
+    fn to_f32(&self) -> Option<f32> {
+        Some(*self as f32)
+    }
+}
 
 pub trait Scale<T> {
     /// Get the tick of the scale.

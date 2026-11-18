@@ -1,7 +1,6 @@
 use gpui::{App, FontWeight, HighlightStyle, Hsla, SharedString};
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
-use serde_repr::{Deserialize_repr, Serialize_repr};
 use std::{
     collections::HashMap,
     ops::Deref,
@@ -193,7 +192,7 @@ impl From<FontStyle> for gpui::FontStyle {
     }
 }
 
-#[derive(Debug, Clone, Copy, Hash, Eq, PartialEq, Serialize_repr, Deserialize_repr, JsonSchema)]
+#[derive(Debug, Clone, Copy, Hash, Eq, PartialEq, JsonSchema)]
 #[repr(u16)]
 pub enum FontWeightContent {
     Thin = 100,

@@ -24,16 +24,16 @@ use crate::{
 
 fn color_palettes() -> Vec<Vec<Hsla>> {
     use crate::theme::DEFAULT_COLORS;
-    use itertools::Itertools as _;
 
     macro_rules! c {
         ($color:tt) => {
-            DEFAULT_COLORS
-                .$color
-                .keys()
-                .sorted()
-                .map(|k| DEFAULT_COLORS.$color.get(k).map(|c| c.hsla).unwrap())
-                .collect::<Vec<_>>()
+            {
+                let mut keys = DEFAULT_COLORS.$color.keys().collect::<Vec<_>>();
+                keys.sort();
+                keys.into_iter()
+                    .map(|k| DEFAULT_COLORS.$color.get(k).map(|c| c.hsla).unwrap())
+                    .collect::<Vec<_>>()
+            }
         };
     }
 

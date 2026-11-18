@@ -4,7 +4,7 @@ use gpui::{
     RenderOnce, SharedString, StyleRefinement, Styled, StyledText, TextAlign, Window, WrapBoundary,
     div, point, px, size,
 };
-use instant::Duration;
+use web_time::Duration;
 
 use crate::{ActiveTheme as _, Colorize as _, StyledExt as _};
 

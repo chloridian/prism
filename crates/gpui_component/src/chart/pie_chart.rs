@@ -6,7 +6,6 @@ use gpui::{
 };
 use gpui_base::motion::spring;
 use gpui_component_macros::IntoPlot;
-use num_traits::Zero;
 
 use super::{ChartAppear, caller_id};
 use crate::{
@@ -300,7 +299,7 @@ impl<T> PieChart<T> {
     /// The outer radius the ring is laid out with: the set one, or 40% of the
     /// bounds height.
     fn resolve_outer_radius(&self, bounds: &Bounds<Pixels>) -> f32 {
-        if self.outer_radius.is_zero() {
+        if self.outer_radius == 0. {
             bounds.size.height.as_f32() * 0.4
         } else {
             self.outer_radius

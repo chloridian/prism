@@ -3,6 +3,7 @@ use std::{
     borrow::Cow,
     collections::{HashMap, HashSet},
     rc::Rc,
+    sync::atomic::{AtomicU64, Ordering},
     time::Duration,
 };
 
@@ -27,6 +28,7 @@ use crate::{
     v_flex,
 };
 
+static NEXT_DEFAULT_ID: AtomicU64 = AtomicU64::new(0);
 const NOTIFICATION_TRANSITION_DURATION: Duration = Duration::from_millis(400);
 const NOTIFICATION_EXIT_DURATION: Duration = Duration::from_millis(200);
 const NOTIFICATION_TRANSITION_OFFSET: Pixels = px(96.);
@@ -170,9 +172,12 @@ struct DefaultIdType;
 impl Notification {
     /// Create a new notification.
     ///
-    /// The default id is a random UUID.
+    /// The default id is a process-unique counter value.
     pub fn new() -> Self {
-        let id: SharedString = uuid::Uuid::new_v4().to_string().into();
+        let id: SharedString = NEXT_DEFAULT_ID
+            .fetch_add(1, Ordering::Relaxed)
+            .to_string()
+            .into();
         let id = (TypeId::of::<DefaultIdType>(), id.into());
 
         Self {
@@ -1176,7 +1181,7 @@ mod tests {
         assert_ne!(key1.system_tag(), key2.system_tag());
         assert_ne!(by_type.system_tag(), key1.system_tag());
 
-        // Default (uuid) ids never collide, so they never replace each other.
+        // Default ids never collide, so they never replace each other.
         assert_ne!(
             Notification::new().id.system_tag(),
             Notification::new().id.system_tag()
