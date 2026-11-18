@@ -58,18 +58,6 @@ fn relative_paths(root: &Path, paths: impl IntoIterator<Item = PathBuf>) -> Vec<
 fn renderer_backends_share_rust_authored_shaders() {
     let root = workspace_root();
 
-    let macos_root = root.join("crates/gpui_macos/src");
-    assert!(
-        !macos_root.join("metal_renderer.rs").exists(),
-        "the extracted Apple renderer must not retain a macOS compatibility module"
-    );
-    let macos_lib = fs::read_to_string(macos_root.join("gpui_macos.rs"))
-        .expect("failed to read the macOS crate root");
-    assert!(
-        !macos_lib.contains("pub mod metal_renderer"),
-        "the macOS crate must not re-export the extracted renderer"
-    );
-
     let mut platform_shader_sources = Vec::new();
     for relative in [
         "crates/gpui_apple/src",

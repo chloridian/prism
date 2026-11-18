@@ -20,7 +20,6 @@ screen-capture = ["gpui/screen-capture"]
 [dependencies]
 gpui = { path = "../gpui", version = "0.4.0", package = "gpui-ce", default-features = false }
 gpui_render = { workspace = true, features = ["swash"] }
-wgsl-rs.workspace = true
 
 [target.'cfg(target_os = "windows")'.dependencies]
 accesskit.workspace = true
@@ -28,7 +27,6 @@ accesskit_windows.workspace = true
 anyhow.workspace = true
 collections.workspace = true
 dunce.workspace = true
-etagere.workspace = true
 futures.workspace = true
 gpui_util.workspace = true
 gpui_parley = { workspace = true, features = ["system-fonts"] }
@@ -42,7 +40,6 @@ raw-window-handle.workspace = true
 smallvec.workspace = true
 uuid.workspace = true
 windows.workspace = true
-windows-061 = { workspace = true, features = ["Win32_Graphics_Direct3D11"] }
 windows-core.workspace = true
 windows-numerics = "0.3"
 windows-registry = "0.6.1"
