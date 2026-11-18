@@ -54,7 +54,7 @@ identical paths here. The script uses a **vendor-branch 3-way merge** (a general
 ### Tracked crates (fork dir ← upstream dir; dirs, not package names)
 
 Synced 1:1 (same dir): `gpui`, `gpui_linux`, `gpui_macos`, `gpui_macros`, `gpui_platform`,
-`gpui_shared_string`, `gpui_tokio`, `gpui_web`, `gpui_wgpu`, `gpui_windows`.
+`gpui_shared_string`, `gpui_tokio`, `gpui_web`, `gpui_wgpu`.
 
 Synced with **path remapping** — vendored + renamed by the fork (PR #91 removed the git sources):
 `gpui_collections`←`collections`, `gpui_sum_tree`←`sum_tree`, `gpui_refineable`←`refineable`,

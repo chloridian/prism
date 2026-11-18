@@ -1,14 +1,17 @@
-//! The WGPU renderer behind the interface the Windows window draws through.
+//! The wgpu renderer behind a window, built on the device every window shares.
 
-use std::{num::NonZeroIsize, sync::Arc};
+use std::{ffi::c_void, sync::Arc};
 
-use anyhow::Result;
+use anyhow::{Result, bail};
 use gpui::{DevicePixels, GpuSpecs, Scene, Size};
 use gpui_wgpu::{
     FontRasterizationSettings, GpuContext, SubpixelOrder, WgpuAtlas, WgpuContextHandle,
     WgpuDeviceRequirements, WgpuRenderer, WgpuSurfaceConfig, wgpu,
 };
-use raw_window_handle as rwh;
+use raw_window_handle::{
+    DisplayHandle, HandleError, HasDisplayHandle, HasWindowHandle, RawWindowHandle,
+    Win32WindowHandle, WindowHandle,
+};
 use windows::{
     Win32::{
         Foundation::HWND,
@@ -16,12 +19,10 @@ use windows::{
             DWRITE_FACTORY_TYPE_SHARED, DWRITE_PIXEL_GEOMETRY_BGR, DWriteCreateFactory,
             IDWriteFactory5, IDWriteRenderingParams1,
         },
-        UI::WindowsAndMessaging::GWLP_HINSTANCE,
     },
     core::Interface as _,
 };
-
-use crate::util::get_window_long;
+use winit::window::Window;
 
 /// The device every window shares, and what the application requires of it.
 #[derive(Clone, Default)]
@@ -36,43 +37,53 @@ impl RendererContext {
     }
 }
 
+/// The handle of a window, without owning it.
+///
+/// The first renderer hands its window to the shared wgpu instance as the display handle source.
+/// The instance outlives every window, so a handle that owned the window would keep it alive
+/// after it closed.
 #[derive(Clone, Copy, Debug)]
-struct WindowHandle {
-    hwnd: NonZeroIsize,
-    hinstance: Option<NonZeroIsize>,
+pub(crate) struct WindowHandles {
+    window: Win32WindowHandle,
 }
 
-impl rwh::HasWindowHandle for WindowHandle {
-    fn window_handle(&self) -> Result<rwh::WindowHandle<'_>, rwh::HandleError> {
-        let mut handle = rwh::Win32WindowHandle::new(self.hwnd);
-        handle.hinstance = self.hinstance;
-        let raw = rwh::RawWindowHandle::Win32(handle);
-        Ok(unsafe { rwh::WindowHandle::borrow_raw(raw) })
+impl WindowHandles {
+    pub(crate) fn new(window: &Window) -> Result<Self> {
+        match window.window_handle()?.as_raw() {
+            RawWindowHandle::Win32(window) => Ok(Self { window }),
+            other => bail!("unexpected window handle {other:?}"),
+        }
+    }
+
+    pub(crate) fn hwnd(&self) -> HWND {
+        HWND(self.window.hwnd.get() as *mut c_void)
     }
 }
 
-impl rwh::HasDisplayHandle for WindowHandle {
-    fn display_handle(&self) -> Result<rwh::DisplayHandle<'_>, rwh::HandleError> {
-        Ok(rwh::DisplayHandle::windows())
+impl HasWindowHandle for WindowHandles {
+    fn window_handle(&self) -> Result<WindowHandle<'_>, HandleError> {
+        // SAFETY: the renderer drops before the window the handle names.
+        Ok(unsafe { WindowHandle::borrow_raw(RawWindowHandle::Win32(self.window)) })
+    }
+}
+
+impl HasDisplayHandle for WindowHandles {
+    fn display_handle(&self) -> Result<DisplayHandle<'_>, HandleError> {
+        Ok(DisplayHandle::windows())
     }
 }
 
 pub(crate) struct Renderer {
     renderer: WgpuRenderer,
-    window: WindowHandle,
+    handles: WindowHandles,
 }
 
 impl Renderer {
     pub(crate) fn new(
         context: RendererContext,
-        hwnd: HWND,
+        handles: WindowHandles,
         size: Size<DevicePixels>,
     ) -> Result<Self> {
-        let window = WindowHandle {
-            hwnd: NonZeroIsize::new(hwnd.0 as isize)
-                .ok_or_else(|| anyhow::anyhow!("window handle is null"))?,
-            hinstance: NonZeroIsize::new(unsafe { get_window_long(hwnd, GWLP_HINSTANCE) }),
-        };
         let config = WgpuSurfaceConfig {
             size: Size {
                 width: DevicePixels(size.width.0.max(1)),
@@ -82,9 +93,9 @@ impl Renderer {
             preferred_present_mode: None,
         };
         let mut renderer =
-            WgpuRenderer::new(context.gpu, &window, config, None, context.requirements)?;
+            WgpuRenderer::new(context.gpu, &handles, config, None, context.requirements)?;
         renderer.set_font_rasterization_settings(font_rasterization_settings()?);
-        Ok(Self { renderer, window })
+        Ok(Self { renderer, handles })
     }
 
     pub(crate) fn sprite_atlas(&self) -> &Arc<WgpuAtlas> {
@@ -103,7 +114,7 @@ impl Renderer {
     /// whether the next frame must render the scene again, uncached.
     pub(crate) fn draw(&mut self, scene: &Scene) -> bool {
         if self.renderer.device_lost() {
-            if let Err(error) = self.renderer.recover(&self.window) {
+            if let Err(error) = self.renderer.recover(&self.handles) {
                 log::warn!("GPU recovery failed, will retry on next frame: {error}");
             }
             return true;
@@ -126,16 +137,6 @@ impl Renderer {
 
     pub(crate) fn device_lost(&self) -> bool {
         self.renderer.device_lost()
-    }
-
-    #[cfg(feature = "test-support")]
-    pub(crate) fn render_to_image(&mut self, scene: &Scene) -> Result<image::RgbaImage> {
-        self.renderer.render_to_image(scene)
-    }
-
-    #[cfg(all(test, not(feature = "test-support")))]
-    pub(crate) fn render_to_image(&mut self, _scene: &Scene) -> Result<image::RgbaImage> {
-        anyhow::bail!("rendering to an image needs the test-support feature")
     }
 }
 

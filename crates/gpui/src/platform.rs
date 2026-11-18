@@ -1005,6 +1005,10 @@ pub trait PlatformWindow: HasWindowHandle + HasDisplayHandle {
         false
     }
     fn start_window_resize(&self, _edge: ResizeEdge) {}
+    /// Hides and grabs the cursor and starts delivering [`PlatformInput::RawMouseMotion`].
+    fn capture_cursor(&self) {}
+    /// Undoes [`PlatformWindow::capture_cursor`] and puts the cursor back where it was.
+    fn release_cursor(&self) {}
     fn set_exclusive_zone(&self, _zone: Pixels) {}
     #[cfg(all(target_os = "linux", feature = "wayland"))]
     fn set_exclusive_edge(&self, _edge: layer_shell::Anchor) {}
