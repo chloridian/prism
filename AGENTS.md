@@ -18,6 +18,7 @@ Prism is Radia's fork of gpui-ce (`gpui-ce/gpui-ce`). Radia is a Second Life vie
 - Leave alone upstream code that Prism doesn't replace.
 - Put new behavior in new modules where practical, and match upstream's code style in files you touch. Radia's `AGENTS.md` rules apply only to Radia.
 - Borrow ideas from WGPUI (`Far-Beyond-Pulsar/WGPUI`), another wgpu-only GPUI fork, when they fit Radia's needs.
+- When gpui-ce, gpui-kit and WGPUI offer conflicting versions of a feature, keep the better one and say why in the pull request. If one side is Prism's own work, meaning code the owner built or changed from its source, ask the owner before replacing it. Update the docs that describe the feature in the same change.
 
 ## Commits and pull requests
 

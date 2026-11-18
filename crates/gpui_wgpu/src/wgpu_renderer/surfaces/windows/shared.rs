@@ -100,6 +100,7 @@ impl SharedTexture {
             device.create_texture_from_hal::<wgpu::hal::api::Dx12>(
                 hal_texture,
                 &capture_texture_descriptor("windows_capture_shared", size),
+                wgpu::TextureUses::UNINITIALIZED,
             )
         };
         Ok((

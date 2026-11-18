@@ -83,12 +83,35 @@ impl NativeBackend {
         }
     }
 
+    /// The preferred backends the application allows, in preference order.
+    ///
+    /// `None` allows every backend. A set that excludes every backend this
+    /// platform can initialize is an error.
+    fn allowed(allowed: Option<wgpu::Backends>) -> anyhow::Result<SmallVec<[Self; 3]>> {
+        let Some(set) = allowed else {
+            return Ok(Self::PREFERENCE.iter().copied().collect());
+        };
+        let backends: SmallVec<[Self; 3]> = Self::PREFERENCE
+            .iter()
+            .copied()
+            .filter(|&backend| set.contains(backend.into()))
+            .collect();
+        if backends.is_empty() {
+            anyhow::bail!(
+                "none of the requested GPU backends {set:?} can be used on this platform; available backends: {:?}",
+                Self::PREFERENCE
+            );
+        }
+        Ok(backends)
+    }
+
     pub(crate) fn try_in_preference_order<T>(
         operation: &'static str,
+        allowed: Option<wgpu::Backends>,
         mut attempt: impl FnMut(Self) -> anyhow::Result<T>,
     ) -> anyhow::Result<T> {
         let mut failures = SmallVec::<[NativeBackendFailure; 3]>::new();
-        for &backend in Self::PREFERENCE {
+        for backend in Self::allowed(allowed)? {
             match attempt(backend) {
                 Ok(value) => return Ok(value),
                 Err(source) => failures.push(NativeBackendFailure { backend, source }),
@@ -152,6 +175,43 @@ impl std::fmt::Display for NativeBackendFallbackError {
 
 #[cfg(not(target_family = "wasm"))]
 impl std::error::Error for NativeBackendFallbackError {}
+
+#[cfg(not(target_family = "wasm"))]
+#[derive(Debug)]
+struct AdapterFailure {
+    name: String,
+    backend: wgpu::Backend,
+    source: anyhow::Error,
+}
+
+#[cfg(not(target_family = "wasm"))]
+#[derive(Debug)]
+struct AdapterSelectionError {
+    failures: Vec<AdapterFailure>,
+}
+
+#[cfg(not(target_family = "wasm"))]
+impl std::fmt::Display for AdapterSelectionError {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter.write_str("No GPU adapter found that can configure the display surface")?;
+        for (index, failure) in self.failures.iter().enumerate() {
+            formatter.write_str(if index == 0 {
+                "; adapters tested in order: "
+            } else {
+                "; "
+            })?;
+            write!(
+                formatter,
+                "adapter {} ({:?}): {:#}",
+                failure.name, failure.backend, failure.source
+            )?;
+        }
+        Ok(())
+    }
+}
+
+#[cfg(not(target_family = "wasm"))]
+impl std::error::Error for AdapterSelectionError {}
 
 #[cfg(not(target_family = "wasm"))]
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -472,6 +532,11 @@ pub struct WgpuDeviceRequirements {
     /// `max(gpui_limit, app_limit)` for upper-bound limits and
     /// `min(gpui_limit, app_limit)` for alignment/lower-bound limits.
     pub limits: Option<wgpu::Limits>,
+    /// The [`wgpu::Backends`] the application accepts.  `None` keeps gpui's
+    /// platform preference order.  `Some(set)` keeps only the preferred
+    /// backends contained in `set`, in preference order, and fails when none
+    /// of them remain.
+    pub backends: Option<wgpu::Backends>,
 }
 
 impl WgpuContext {
@@ -491,7 +556,8 @@ impl WgpuContext {
     pub fn new_headless(
         extra_requirements: Option<&WgpuDeviceRequirements>,
     ) -> anyhow::Result<Self> {
-        NativeBackend::try_in_preference_order("a headless GPU context", |backend| {
+        let backends = extra_requirements.and_then(|reqs| reqs.backends);
+        NativeBackend::try_in_preference_order("a headless GPU context", backends, |backend| {
             let instance = backend.instance(None);
             let adapter =
                 gpui::block_on(instance.raw.request_adapter(&wgpu::RequestAdapterOptions {
@@ -500,11 +566,16 @@ impl WgpuContext {
                     power_preference: wgpu::PowerPreference::LowPower,
                     compatible_surface: None,
                     force_fallback_adapter: false,
+                    apply_limit_buckets: false,
                 }))
                 .map_err(|error| {
                     anyhow::anyhow!("failed to request headless GPU adapter: {error}")
                 })?;
-            let device = gpui::block_on(Self::create_device(&adapter, extra_requirements))?;
+            let device = gpui::block_on(Self::create_device(&adapter, extra_requirements))
+                .with_context(|| {
+                    let info = adapter.get_info();
+                    format!("adapter {} ({:?})", info.name, info.backend)
+                })?;
             Self::from_created_device(instance.raw, adapter, device)
         })
     }
@@ -586,6 +657,7 @@ impl WgpuContext {
                 power_preference: wgpu::PowerPreference::HighPerformance,
                 compatible_surface: Some(&surface),
                 force_fallback_adapter: false,
+                apply_limit_buckets: false,
             })
             .await
             .map_err(|error| {
@@ -677,6 +749,11 @@ impl WgpuContext {
             if let Some(limits) = &reqs.limits {
                 required_limits = required_limits.or_better_values_from(limits);
             }
+        }
+
+        let missing = missing_features(required_features, adapter.features());
+        if !missing.is_empty() {
+            anyhow::bail!("missing required features {}", feature_names(missing));
         }
 
         let (device, queue) = adapter
@@ -820,6 +897,7 @@ impl WgpuContext {
         }
 
         // Test each adapter by creating a device and configuring the surface
+        let mut failures = Vec::new();
         for adapter in adapters {
             let info = adapter.get_info();
 
@@ -845,16 +923,21 @@ impl WgpuContext {
                 }
                 Err(e) => {
                     log::info!(
-                        "  Adapter {} ({:?}) failed: {}, trying next...",
+                        "  Adapter {} ({:?}) failed: {:#}, trying next...",
                         info.name,
                         info.backend,
                         e
                     );
+                    failures.push(AdapterFailure {
+                        name: info.name,
+                        backend: info.backend,
+                        source: e,
+                    });
                 }
             }
         }
 
-        anyhow::bail!("No GPU adapter found that can configure the display surface")
+        Err(AdapterSelectionError { failures }.into())
     }
 
     /// Try to use an adapter with a surface by creating a device and testing configuration.
@@ -887,6 +970,7 @@ impl WgpuContext {
             desired_maximum_frame_latency: 2,
             alpha_mode: caps.alpha_modes[0],
             view_formats: vec![],
+            color_space: wgpu::SurfaceColorSpace::Auto,
         };
 
         surface.configure(&device.device, &test_config);
@@ -973,6 +1057,18 @@ impl WgpuContext {
     }
 }
 
+fn missing_features(required: wgpu::Features, available: wgpu::Features) -> wgpu::Features {
+    required.difference(available)
+}
+
+fn feature_names(features: wgpu::Features) -> String {
+    features
+        .iter_names()
+        .map(|(name, _)| name)
+        .collect::<Vec<_>>()
+        .join(" | ")
+}
+
 fn renderer_tier(adapter: &wgpu::Adapter) -> RendererTier {
     let limits = adapter.limits();
     let flags = adapter.get_downlevel_capabilities().flags;
@@ -1030,7 +1126,10 @@ fn parse_pci_id(id: &str) -> anyhow::Result<u32> {
 
 #[cfg(all(test, not(target_family = "wasm")))]
 mod tests {
-    use super::{NativeBackend, SoftwareAdapterPolicy, parse_pci_id};
+    use super::{
+        AdapterFailure, AdapterSelectionError, NativeBackend, SoftwareAdapterPolicy, feature_names,
+        missing_features, parse_pci_id,
+    };
 
     #[test]
     fn native_backend_fallbacks_are_individually_initialized() {
@@ -1061,7 +1160,7 @@ mod tests {
     #[test]
     fn native_backend_fallback_preserves_ordered_failures() {
         let mut attempted = Vec::new();
-        let error = NativeBackend::try_in_preference_order::<()>("test context", |backend| {
+        let error = NativeBackend::try_in_preference_order::<()>("test context", None, |backend| {
             attempted.push(backend);
             anyhow::bail!("unavailable")
         })
@@ -1076,6 +1175,140 @@ mod tests {
                 .expect("each backend failure should be reported in preference order");
             previous += index;
         }
+    }
+
+    #[test]
+    fn allowed_backends_default_to_the_full_preference_order() {
+        assert_eq!(
+            NativeBackend::allowed(None).unwrap().as_slice(),
+            NativeBackend::PREFERENCE
+        );
+    }
+
+    #[test]
+    #[cfg(target_os = "windows")]
+    fn allowed_backends_keep_preference_order() {
+        assert_eq!(
+            NativeBackend::allowed(Some(wgpu::Backends::VULKAN))
+                .unwrap()
+                .as_slice(),
+            &[NativeBackend::Vulkan]
+        );
+        assert_eq!(
+            NativeBackend::allowed(Some(wgpu::Backends::VULKAN | wgpu::Backends::DX12))
+                .unwrap()
+                .as_slice(),
+            &[NativeBackend::Dx12, NativeBackend::Vulkan]
+        );
+    }
+
+    #[test]
+    #[cfg(target_os = "linux")]
+    fn allowed_backends_keep_preference_order() {
+        assert_eq!(
+            NativeBackend::allowed(Some(wgpu::Backends::GL | wgpu::Backends::VULKAN))
+                .unwrap()
+                .as_slice(),
+            &[NativeBackend::Vulkan, NativeBackend::Gl]
+        );
+        assert_eq!(
+            NativeBackend::allowed(Some(wgpu::Backends::GL))
+                .unwrap()
+                .as_slice(),
+            &[NativeBackend::Gl]
+        );
+    }
+
+    #[test]
+    fn allowed_backends_reject_a_set_with_no_usable_backend() {
+        #[cfg(target_vendor = "apple")]
+        let unusable = wgpu::Backends::VULKAN;
+        #[cfg(not(target_vendor = "apple"))]
+        let unusable = wgpu::Backends::METAL;
+
+        let message = NativeBackend::allowed(Some(unusable))
+            .unwrap_err()
+            .to_string();
+        assert!(message.contains(&format!("{unusable:?}")), "{message}");
+        assert!(
+            message.contains(&format!("{:?}", NativeBackend::PREFERENCE)),
+            "{message}"
+        );
+    }
+
+    #[test]
+    fn fallback_attempts_only_allowed_backends_in_preference_order() {
+        let mut attempted = Vec::new();
+        #[cfg(target_vendor = "apple")]
+        let allowed = wgpu::Backends::METAL;
+        #[cfg(not(target_vendor = "apple"))]
+        let allowed = wgpu::Backends::VULKAN;
+
+        NativeBackend::try_in_preference_order::<()>("test context", Some(allowed), |backend| {
+            attempted.push(backend);
+            anyhow::bail!("unavailable")
+        })
+        .unwrap_err();
+
+        assert_eq!(attempted.len(), 1);
+        assert_eq!(wgpu::Backends::from(attempted[0]), allowed);
+    }
+
+    #[test]
+    fn missing_features_reports_exactly_the_unavailable_flags() {
+        let available =
+            wgpu::Features::TEXTURE_COMPRESSION_BC | wgpu::Features::DUAL_SOURCE_BLENDING;
+        let required = wgpu::Features::TEXTURE_COMPRESSION_BC | wgpu::Features::TIMESTAMP_QUERY;
+
+        assert_eq!(
+            missing_features(required, available),
+            wgpu::Features::TIMESTAMP_QUERY
+        );
+        assert_eq!(
+            missing_features(wgpu::Features::empty(), available),
+            wgpu::Features::empty()
+        );
+        assert_eq!(
+            missing_features(available, available),
+            wgpu::Features::empty()
+        );
+    }
+
+    #[test]
+    fn feature_names_lists_flag_names() {
+        let names = feature_names(
+            wgpu::Features::TEXTURE_COMPRESSION_ASTC | wgpu::Features::TIMESTAMP_QUERY,
+        );
+        assert!(names.contains("TEXTURE_COMPRESSION_ASTC"), "{names}");
+        assert!(names.contains("TIMESTAMP_QUERY"), "{names}");
+        assert!(!names.contains("Features"), "{names}");
+    }
+
+    #[test]
+    fn adapter_selection_error_reports_each_failure_in_order() {
+        let error = AdapterSelectionError {
+            failures: vec![
+                AdapterFailure {
+                    name: "First".into(),
+                    backend: wgpu::Backend::Vulkan,
+                    source: anyhow::anyhow!("missing required features TIMESTAMP_QUERY"),
+                },
+                AdapterFailure {
+                    name: "Second".into(),
+                    backend: wgpu::Backend::Gl,
+                    source: anyhow::anyhow!("no compatible surface formats"),
+                },
+            ],
+        };
+
+        let message = error.to_string();
+        let first = message
+            .find("adapter First (Vulkan): missing required features TIMESTAMP_QUERY")
+            .unwrap();
+        let second = message
+            .find("adapter Second (Gl): no compatible surface formats")
+            .unwrap();
+        assert!(first < second, "{message}");
     }
 
     #[test]

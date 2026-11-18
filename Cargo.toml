@@ -179,7 +179,7 @@ ashpd = { version = "0.14", default-features = false, features = [
 libc = "0.2"
 smol = "2.0"
 util = { path = "crates/gpui_zed_util", version = "0.4.0", package = "gpui_ce_zed_util" }
-wgpu = "29.0.3"
+wgpu = "30.0.1"
 wgsl-rs = { version = "0.1.0-beta.6", default-features = false, features = [
   "validation",
 ] }
