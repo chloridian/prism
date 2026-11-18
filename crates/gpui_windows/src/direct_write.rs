@@ -75,8 +75,10 @@ struct FontDataOwner {
 impl DirectWriteTextSystem {
     pub(crate) fn new() -> Result<Self> {
         let renderer = Arc::new(RwLock::new(DirectWriteGlyphRenderer::new()?));
+        #[cfg(test)]
+        let test_renderer = renderer.clone();
         let parley = ParleyTextSystem::new(BitmapFallbackGlyphRasterizer::new(
-            SharedDirectWriteRenderer(renderer.clone()),
+            SharedDirectWriteRenderer(renderer),
         ))
         .with_system_fallback_family("Segoe UI")
         .with_fallback_families(["Segoe UI", "Lilex", "IBM Plex Sans", "Arial"])
@@ -85,7 +87,7 @@ impl DirectWriteTextSystem {
         Ok(Self {
             parley,
             #[cfg(test)]
-            renderer,
+            renderer: test_renderer,
         })
     }
 }
