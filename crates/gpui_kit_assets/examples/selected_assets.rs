@@ -1,4 +1,3 @@
-
 use gpui::AssetSource;
 gpui_kit_assets::icon_assets!(AppAssets, [Search, Check]);
 fn main() {

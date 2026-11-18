@@ -4,7 +4,6 @@
 //! [`Assets`] for the default component bundle, or [`AllAssets`] for the full
 //! catalog. Applications can provide their own source for additional icons.
 
-
 mod icon;
 pub use icon::{IconName, IconNamed};
 

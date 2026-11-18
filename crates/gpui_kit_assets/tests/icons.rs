@@ -1,6 +1,5 @@
 #![cfg(not(target_family = "wasm"))]
 
-
 use gpui::{AssetSource, IntoElement};
 use gpui_kit_assets::{AllAssets, Assets, IconName};
 use std::collections::BTreeSet;
