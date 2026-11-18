@@ -1,46 +1,18 @@
 #![cfg_attr(target_family = "wasm", no_main)]
 
-#[path = "../../example_support/fonts.rs"]
+#[path = "../example_support/assets.rs"]
+mod assets;
+#[path = "../example_support/fonts.rs"]
 mod example_support;
 
-use std::fs;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use anyhow::Result;
 use gpui::{
-    actions, div, img, prelude::*, px, rgb, size, App, AppContext, AssetSource,
-    Bounds, Context, ImageSource, KeyBinding, Menu, MenuItem, Point, SharedString, SharedUri,
-    TitlebarOptions, Window, WindowBounds, WindowOptions,
+    App, AppContext, Bounds, Context, ImageSource, KeyBinding, Menu, MenuItem, Point, SharedString,
+    SharedUri, TitlebarOptions, Window, WindowBounds, WindowOptions, actions, div, img, prelude::*,
+    px, rgb, size,
 };
-use std::sync::Arc;
-
-struct Assets {
-    base: PathBuf,
-}
-
-impl AssetSource for Assets {
-    fn load(&self, path: &str) -> Result<Option<std::borrow::Cow<'static, [u8]>>> {
-        fs::read(self.base.join(path))
-            .map(|data| Some(std::borrow::Cow::Owned(data)))
-            .map_err(|e| e.into())
-    }
-
-    fn list(&self, path: &str) -> Result<Vec<SharedString>> {
-        fs::read_dir(self.base.join(path))
-            .map(|entries| {
-                entries
-                    .filter_map(|entry| {
-                        entry
-                            .ok()
-                            .and_then(|entry| entry.file_name().into_string().ok())
-                            .map(SharedString::from)
-                    })
-                    .collect()
-            })
-            .map_err(|e| e.into())
-    }
-}
 
 #[derive(IntoElement)]
 struct ImageContainer {
@@ -157,48 +129,49 @@ fn run_example() {
     let app = gpui_platform::application();
     #[cfg(target_family = "wasm")]
     let app = gpui_platform::application();
-    app.with_assets(Assets {
-        base: manifest_dir.join("examples/legacy"),
-    })
-    .run(move |cx: &mut App| {
-        if !example_support::load_fonts(cx) {
-            return;
-        }
-        #[cfg(not(target_family = "wasm"))]
-        cx.set_http_client(Arc::new(gpui::http_client::BlockedHttpClient::new()));
+    app.with_assets(assets::DirAssets::new(manifest_dir.join("gpui/assets")))
+        .run(move |cx: &mut App| {
+            if !example_support::load_fonts(cx) {
+                return;
+            }
+            #[cfg(not(target_family = "wasm"))]
+            match gpui_component_story::http_client::ReqwestClient::new("gpui-examples") {
+                Ok(client) => cx.set_http_client(Arc::new(client)),
+                Err(error) => log::warn!("remote images are unavailable: {error:#}"),
+            }
 
-        cx.activate(true);
-        cx.on_action(|_: &Quit, cx| cx.quit());
-        cx.bind_keys([KeyBinding::new("cmd-q", Quit, None)]);
-        cx.set_menus(vec![Menu {
-            name: "Image".into(),
-            items: vec![MenuItem::action("Quit", Quit)],
-            disabled: false,
-        }]);
+            cx.activate(true);
+            cx.on_action(|_: &Quit, cx| cx.quit());
+            cx.bind_keys([KeyBinding::new("cmd-q", Quit, None)]);
+            cx.set_menus(vec![Menu {
+                name: "Image".into(),
+                items: vec![MenuItem::action("Quit", Quit)],
+                disabled: false,
+            }]);
 
-        let window_options = WindowOptions::new()
-            .titlebar(Some(TitlebarOptions {
-                title: Some(SharedString::from("Image Example")),
-                appears_transparent: false,
-                ..Default::default()
-            }))
-            .window_bounds(Some(WindowBounds::Windowed(Bounds {
-                size: size(px(1100.), px(600.)),
-                origin: Point::new(px(200.), px(200.)),
-            })));
+            let window_options = WindowOptions::new()
+                .titlebar(Some(TitlebarOptions {
+                    title: Some(SharedString::from("Image Example")),
+                    appears_transparent: false,
+                    ..Default::default()
+                }))
+                .window_bounds(Some(WindowBounds::Windowed(Bounds {
+                    size: size(px(1100.), px(600.)),
+                    origin: Point::new(px(200.), px(200.)),
+                })));
 
-        cx.open_window(window_options, |_, cx| {
-            cx.new(|_| ImageShowcase {
-                // Relative path to your root project path
-                local_resource: manifest_dir
-                    .join("examples/legacy/image/exif-orientation-rotate-180.jpg")
-                    .into(),
-                remote_resource: "https://picsum.photos/800/400".into(),
-                asset_resource: "image/color.svg".into(),
+            cx.open_window(window_options, |_, cx| {
+                cx.new(|_| ImageShowcase {
+                    // Relative path to your root project path
+                    local_resource: manifest_dir
+                        .join("gpui/assets/image/exif-orientation-rotate-180.jpg")
+                        .into(),
+                    remote_resource: "https://picsum.photos/800/400".into(),
+                    asset_resource: "image/color.svg".into(),
+                })
             })
-        })
-        .unwrap();
-    });
+            .unwrap();
+        });
 }
 
 #[cfg(not(target_family = "wasm"))]

@@ -1,44 +1,16 @@
 #![cfg_attr(target_family = "wasm", no_main)]
 
-#[path = "../../example_support/fonts.rs"]
+#[path = "../example_support/assets.rs"]
+mod assets;
+#[path = "../example_support/fonts.rs"]
 mod example_support;
 
-use std::fs;
 use std::path::PathBuf;
 
-use anyhow::Result;
 use gpui::{
-    App, AssetSource, Bounds, Context, SharedString, Window, WindowBounds, WindowOptions, div,
-    prelude::*, px, rgb, size, svg,
+    App, Bounds, Context, Window, WindowBounds, WindowOptions, div, prelude::*, px, rgb, size, svg,
 };
 use gpui_platform::application;
-
-struct Assets {
-    base: PathBuf,
-}
-
-impl AssetSource for Assets {
-    fn load(&self, path: &str) -> Result<Option<std::borrow::Cow<'static, [u8]>>> {
-        fs::read(self.base.join(path))
-            .map(|data| Some(std::borrow::Cow::Owned(data)))
-            .map_err(|err| err.into())
-    }
-
-    fn list(&self, path: &str) -> Result<Vec<SharedString>> {
-        fs::read_dir(self.base.join(path))
-            .map(|entries| {
-                entries
-                    .filter_map(|entry| {
-                        entry
-                            .ok()
-                            .and_then(|entry| entry.file_name().into_string().ok())
-                            .map(SharedString::from)
-                    })
-                    .collect()
-            })
-            .map_err(|err| err.into())
-    }
-}
 
 struct SvgExample;
 
@@ -75,9 +47,9 @@ impl Render for SvgExample {
 
 fn run_example() {
     application()
-        .with_assets(Assets {
-            base: PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("examples/legacy"),
-        })
+        .with_assets(assets::DirAssets::new(
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("gpui/assets"),
+        ))
         .run(|cx: &mut App| {
             if !example_support::load_fonts(cx) {
                 return;

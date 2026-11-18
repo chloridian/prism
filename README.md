@@ -1,7 +1,7 @@
 <img src="assets/readme/banner.png" alt="GPUI Community Edition banner" width="100%">
 
 <p align="center">
-  <a href="https://gpui-ce.github.io">Website</a> ​ · ​ <a href="crates/gpui/examples/learn">Examples</a> ​ · ​ <a href="https://discord.gg/ENGHGjrYEn">Discord</a>
+  <a href="https://gpui-ce.github.io">Website</a> ​ · ​ <a href="examples">Examples</a> ​ · ​ <a href="https://discord.gg/ENGHGjrYEn">Discord</a>
 </p>
 
 # GPUI - Community Edition
@@ -31,7 +31,7 @@ It's mostly API compatible with upstream, but that is changing!
       .child("Hello, GPUI")
   ```
 
-  [Layout example](crates/gpui/examples/learn/layout.rs) ​ · ​ [Styling example](crates/gpui/examples/learn/styling.rs)
+  [Layout example](examples/gpui/layout_and_style/layout.rs) ​ · ​ [Styling example](examples/gpui/layout_and_style/styling.rs)
 
 - State and events
 
@@ -47,7 +47,7 @@ It's mostly API compatible with upstream, but that is changing!
       }))
   ```
 
-  [Interaction example](crates/gpui/examples/learn/interactive_elements.rs)
+  [Interaction example](examples/gpui/basics/interactive_elements.rs)
 
 - Actions and keybinds
 
@@ -77,7 +77,7 @@ It's mostly API compatible with upstream, but that is changing!
       .child(format!("Count: {}", self.count))
   ```
 
-  [Keybind example](crates/gpui/examples/learn/actions_and_keybinds.rs)
+  [Keybind example](examples/gpui/basics/actions_and_keybinds.rs)
 
 - Virtualized lists
 
@@ -96,7 +96,7 @@ It's mostly API compatible with upstream, but that is changing!
   .h(px(300.0))
   ```
 
-  [List example](crates/gpui/examples/learn/uniform_list.rs)
+  [List example](examples/gpui/basics/uniform_list.rs)
 
 - Custom drawing
 
@@ -112,7 +112,7 @@ It's mostly API compatible with upstream, but that is changing!
   .size(px(80.0))
   ```
 
-  [Drawing example](crates/gpui/examples/learn/custom_drawing.rs)
+  [Drawing example](examples/gpui/graphics/custom_drawing.rs)
 
 ## FAQ
 

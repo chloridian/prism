@@ -1,6 +1,6 @@
 //! Text system example.
 
-#[path = "shared/prelude.rs"]
+#[path = "../shared/prelude.rs"]
 mod example_prelude;
 
 use std::borrow::Cow;

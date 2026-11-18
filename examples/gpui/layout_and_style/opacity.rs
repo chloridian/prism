@@ -1,43 +1,17 @@
 #![cfg_attr(target_family = "wasm", no_main)]
 
+#[path = "../example_support/assets.rs"]
+mod assets;
 #[path = "../example_support/fonts.rs"]
 mod example_support;
 
-use std::{fs, path::PathBuf};
+use std::path::PathBuf;
 
-use anyhow::Result;
 use gpui::{
-    App, AssetSource, Bounds, BoxShadow, ClickEvent, Context, SharedString, Task, Window,
-    WindowBounds, WindowOptions, div, hsla, img, prelude::*, px, rgb, size, svg,
+    App, Bounds, BoxShadow, ClickEvent, Context, Task, Window, WindowBounds, WindowOptions, div,
+    hsla, img, prelude::*, px, rgb, size, svg,
 };
 use gpui_platform::application;
-
-struct Assets {
-    base: PathBuf,
-}
-
-impl AssetSource for Assets {
-    fn load(&self, path: &str) -> Result<Option<std::borrow::Cow<'static, [u8]>>> {
-        fs::read(self.base.join(path))
-            .map(|data| Some(std::borrow::Cow::Owned(data)))
-            .map_err(|e| e.into())
-    }
-
-    fn list(&self, path: &str) -> Result<Vec<SharedString>> {
-        fs::read_dir(self.base.join(path))
-            .map(|entries| {
-                entries
-                    .filter_map(|entry| {
-                        entry
-                            .ok()
-                            .and_then(|entry| entry.file_name().into_string().ok())
-                            .map(SharedString::from)
-                    })
-                    .collect()
-            })
-            .map_err(|e| e.into())
-    }
-}
 
 struct HelloWorld {
     _task: Option<Task<()>>,
@@ -162,9 +136,9 @@ impl Render for HelloWorld {
 
 fn run_example() {
     application()
-        .with_assets(Assets {
-            base: PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("examples"),
-        })
+        .with_assets(assets::DirAssets::new(
+            PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("gpui/assets"),
+        ))
         .run(|cx: &mut App| {
             if !example_support::load_fonts(cx) {
                 return;

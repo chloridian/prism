@@ -1,3 +1,5 @@
+extern crate gpui_kit as gpui;
+
 use anyhow::{Context as _, Result};
 use gpui_kit::component::{
     IconName, Root, Sizable,
@@ -468,7 +470,7 @@ impl StoryWorkspace {
         cx: &mut Context<Self>,
     ) {
         // Random pick up a panel to add
-        let panel = match rand::random::<usize>() % 18 {
+        let panel = match rand::random::<u32>() as usize % 18 {
             0 => panel_handle(StoryContainer::panel::<ButtonStory>(window, cx)),
             1 => panel_handle(StoryContainer::panel::<InputStory>(window, cx)),
             2 => panel_handle(StoryContainer::panel::<SelectStory>(window, cx)),

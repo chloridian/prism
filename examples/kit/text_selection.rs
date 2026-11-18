@@ -7,7 +7,7 @@
 //! - Clicking the `Button` does NOT start a selection.
 //! - Dragging inside the `Input` only drives the `Input`'s own selection.
 //!
-//! Run: `cargo run -p text_selection`
+//! Run: `cargo run --release --example text_selection`
 
 use gpui_kit::assets::Assets;
 use gpui_kit::component::{

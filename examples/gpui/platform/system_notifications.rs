@@ -2,7 +2,7 @@
 
 //! Demonstrates posting, replacing, dismissing, and responding to system notifications.
 
-#[path = "example_support/fonts.rs"]
+#[path = "../example_support/fonts.rs"]
 mod example_support;
 
 use gpui::{
