@@ -5,6 +5,7 @@
 
 #![cfg(target_os = "windows")]
 
+mod accessibility;
 mod app;
 mod capture;
 mod clipboard;
