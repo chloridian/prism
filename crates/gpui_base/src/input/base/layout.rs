@@ -4,7 +4,7 @@ use gpui::{Bounds, Pixels, ShapedLine, TextAlign};
 
 use super::{WrappingIndent, display_map::LineLayout};
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub(crate) struct WhitespaceIndicators {
     pub(crate) space: ShapedLine,
     pub(crate) tab: ShapedLine,

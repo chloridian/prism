@@ -1,11 +1,11 @@
 //! Paint a selection using the same glyph extents as text range highlights.
 use super::{GlyphBox, aligned_row_left, glyph_boxes, range_boxes};
-use gpui::{Bounds, Pixels, TextAlign, TextLayout, WrappedLineLayout, point, size};
+use gpui::{Bounds, Pixels, ShapedTextLayout, TextAlign, TextLayout, point, size};
 use std::{ops::Range, sync::Arc};
 
 #[derive(Debug)]
 pub(in crate::text) struct Rows {
-    lines: Vec<Arc<WrappedLineLayout>>,
+    lines: Vec<Arc<ShapedTextLayout>>,
     width: Pixels,
     align: TextAlign,
     rows: Vec<Row>,
@@ -100,23 +100,19 @@ pub(super) fn visit(
         return;
     }
 
-    // Whole paragraphs need only the existing wrap boundaries, even for bidi text.
+    // Whole paragraphs need only the existing visual lines, even for bidi text.
     let mut base = 0;
     for line in lines {
         if base >= limit {
             break;
         }
-        let shaped = &line.unwrapped_layout;
-        let breaks = &line.wrap_boundaries;
-        let x = |b: &gpui::WrapBoundary| shaped.runs[b.run_ix].glyphs[b.glyph_ix].position.x;
-        for row in first.saturating_sub(base)..limit.saturating_sub(base).min(breaks.len() + 1) {
-            let start = row
-                .checked_sub(1)
-                .map_or(Pixels::ZERO, |prev| x(&breaks[prev]));
-            let width = breaks.get(row).map_or(shaped.width, x) - start;
-            let left = aligned_row_left(align, bounds.size.width, width);
+        let visual_lines = line.visual_lines();
+        for row in first.saturating_sub(base)..limit.saturating_sub(base).min(visual_lines.len()) {
+            let visual_line = &visual_lines[row];
+            let width = visual_line.advance_width;
+            let left = aligned_row_left(align, bounds.size.width, width, visual_line.direction);
             emit(base + row, left, left + width);
         }
-        base += breaks.len() + 1;
+        base += visual_lines.len();
     }
 }

@@ -967,20 +967,17 @@ impl StatefulInteractiveElement for SliderIndicator {}
 
 impl RenderOnce for SliderIndicator {
     fn render(self, _: &mut Window, _: &mut App) -> impl IntoElement {
-        self.base
-            .id("slider-bar")
-            .children(self.children)
-            .on_prepaint({
-                let state = self.state;
-                // Only when they moved: with retained views, an update while
-                // the window draws renders every view that reads the state
-                // again.
-                move |bounds, _, cx| {
-                    if state.read(cx).bounds != bounds {
-                        state.update(cx, |state, _| state.set_bounds(bounds));
-                    }
+        ElementExt::on_prepaint(self.base.id("slider-bar").children(self.children), {
+            let state = self.state;
+            // Only when they moved: with retained views, an update while
+            // the window draws renders every view that reads the state
+            // again.
+            move |bounds, _, cx| {
+                if state.read(cx).bounds != bounds {
+                    state.update(cx, |state, _| state.set_bounds(bounds));
                 }
-            })
+            }
+        })
     }
 }
 
@@ -1627,5 +1624,4 @@ mod tests {
     fn legacy_logarithmic_validation_is_preserved() {
         let _ = SliderState::new().scale(SliderScale::Logarithmic);
     }
-
 }

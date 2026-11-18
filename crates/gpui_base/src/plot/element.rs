@@ -3,9 +3,9 @@
 use std::{cell::Cell, rc::Rc};
 
 use gpui::{
-    AnyElement, App, Bounds, Element, ElementId, GlobalElementId, Hitbox, HitboxBehavior,
-    InspectorElementId, LayoutId, LongPressEvent, MouseMoveEvent, Pixels, Point, Size, Style,
-    TouchPhase, Window,
+    AnyElement, App, AppContext as _, Bounds, Element, ElementId, GlobalElementId, Hitbox,
+    HitboxBehavior, InspectorElementId, LayoutId, LongPressEvent, MouseMoveEvent, Pixels, Point,
+    Size, Style, TouchPhase, Window,
 };
 
 use super::{Plot, PlotAppear, appear::track_appear, hover::track_hover};

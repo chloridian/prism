@@ -27,8 +27,8 @@ use std::{cell::RefCell, collections::HashMap, ops::Range, rc::Rc, sync::Arc};
 
 use gpui::{
     AnyElement, App, Bounds, ClickEvent, ElementId, HighlightStyle, Hsla, ImageSource,
-    InteractiveElement as _, IntoElement as _, ParentElement as _, Pixels, Point, SharedString,
-    SharedUri, TextLayout, Window, WrappedLineLayout, div, point, px,
+    InteractiveElement as _, IntoElement as _, ParentElement as _, Pixels, Point, ShapedTextLayout,
+    SharedString, SharedUri, TextLayout, Window, div, point, px,
 };
 use unicode_segmentation::UnicodeSegmentation as _;
 
@@ -349,7 +349,7 @@ struct LayoutSnapshot {
     len: usize,
     line_height: Pixels,
     text: SharedString,
-    lines: Vec<Arc<WrappedLineLayout>>,
+    lines: Vec<Arc<ShapedTextLayout>>,
 }
 
 impl LayoutSnapshot {
@@ -375,7 +375,7 @@ impl LayoutSnapshot {
     fn text(&self) -> &str {
         &self.text
     }
-    fn line_layouts(&self) -> &[Arc<WrappedLineLayout>] {
+    fn line_layouts(&self) -> &[Arc<ShapedTextLayout>] {
         &self.lines
     }
 
@@ -385,7 +385,7 @@ impl LayoutSnapshot {
         for line in &self.lines {
             if index <= start + line.len() {
                 return line
-                    .position_for_index(index - start, self.line_height)
+                    .visual_position_for_byte_index(index - start, self.line_height)
                     .map(|p| origin + p);
             }
             start += line.len() + 1;
@@ -539,7 +539,7 @@ impl LeafGeometry {
             .find_map(|piece| match piece {
                 Piece::Whole(layout) | Piece::Text { layout, .. } => {
                     let line = layout.lines.first()?;
-                    let h = line.unwrapped_layout.ascent + line.unwrapped_layout.descent;
+                    let h = line.ascent() + line.descent();
                     (h > Pixels::ZERO).then_some(h)
                 }
                 Piece::Atom { .. } | Piece::Empty { .. } => None,
@@ -743,7 +743,7 @@ fn whole_index_at(layout: &LayoutSnapshot, at: Point<Pixels>) -> usize {
                 (at.x - bounds.left()).max(px(0.)),
                 (at.y - top).clamp(px(0.), (height - px(1.)).max(px(0.))),
             );
-            let index = match line.closest_index_for_position(local, line_height) {
+            let index = match line.closest_byte_index_for_pixel_point(local, line_height) {
                 Ok(ix) | Err(ix) => ix,
             };
             return start + index;
@@ -755,10 +755,11 @@ fn whole_index_at(layout: &LayoutSnapshot, at: Point<Pixels>) -> usize {
 }
 
 /// The byte offsets where each soft-wrapped row after the first starts.
-fn wrap_starts(line: &WrappedLineLayout) -> impl Iterator<Item = usize> + '_ {
-    line.wrap_boundaries
+fn wrap_starts(line: &ShapedTextLayout) -> impl Iterator<Item = usize> + '_ {
+    line.visual_lines()
         .iter()
-        .map(|b| line.unwrapped_layout.runs[b.run_ix].glyphs[b.glyph_ix].index)
+        .skip(1)
+        .map(|visual_line| visual_line.text_range.start)
 }
 
 /// [`whole_index_at`] plus the affinity of the visual row that was hit.
@@ -796,22 +797,16 @@ fn whole_position_for_caret(layout: &LayoutSnapshot, caret: Caret) -> Option<Poi
     let mut start = 0;
     for line in layout.line_layouts() {
         if index <= start + line.len() {
-            let local = index - start;
-            let unwrapped = &line.unwrapped_layout;
-            // Row starts: 0, then each wrap. Pick the last row starting at or
-            // before `local`; upstream steps back off a row that starts there.
-            let mut row = 0;
-            let mut row_start = 0;
-            for (ix, wrap) in wrap_starts(line).enumerate() {
-                if wrap < local || (wrap == local && caret.affinity == CaretAffinity::Downstream) {
-                    row = ix + 1;
-                    row_start = wrap;
-                } else {
-                    break;
-                }
-            }
-            let x = unwrapped.x_for_index(local) - unwrapped.x_for_index(row_start);
-            return Some(origin + point(x, line_height * row as f32));
+            let local = gpui::CaretPosition {
+                index: index - start,
+                affinity: match caret.affinity {
+                    CaretAffinity::Downstream => gpui::CaretAffinity::Downstream,
+                    CaretAffinity::Upstream => gpui::CaretAffinity::Upstream,
+                },
+            };
+            return line
+                .visual_position_for_caret(local, line_height)
+                .map(|position| origin + position);
         }
         start += line.len() + 1;
         origin.y += line.size(line_height).height;
@@ -1343,7 +1338,7 @@ mod tests {
 
     #[gpui::test]
     fn atom_decorations_are_painted_for_custom_nodes_and_images(cx: &mut TestAppContext) {
-        let color: Hsla = rgba(0x12345680).into();
+        let color: Hsla = gpui::rgb_to_hsla(rgba(0x12345680));
         let mut custom = Paragraph::default();
         custom.push(atom());
         let mut image = Paragraph::default();
@@ -1486,7 +1481,7 @@ mod tests {
         fn report_empty_piece(&self, _: u64, _: usize, _: Bounds<Pixels>) {}
         fn backgrounds(&self, key: u64) -> Vec<(Range<usize>, Hsla)> {
             self.asked.borrow_mut().push(key);
-            vec![(0..1, rgb(0xff0000).into())]
+            vec![(0..1, gpui::rgb_to_hsla(rgb(0xff0000)))]
         }
     }
 
@@ -1526,8 +1521,8 @@ mod tests {
         let decorations = HashMap::from([(
             1,
             vec![
-                (0..5, rgba(0x3366ff80).into()),
-                (6..11, rgb(0xffcc00).into()),
+                (0..5, gpui::rgb_to_hsla(rgba(0x3366ff80))),
+                (6..11, gpui::rgb_to_hsla(rgb(0xffcc00))),
             ],
         )]);
         let plain_geometry = draw(

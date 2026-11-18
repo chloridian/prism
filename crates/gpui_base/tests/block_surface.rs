@@ -21,18 +21,8 @@ use std::ops::Range;
 const HEADER: f32 = 30.;
 const PADDING: f32 = 20.;
 const WIDTH: f32 = 500.;
-const PANEL: Hsla = Hsla {
-    h: 0.6,
-    s: 0.5,
-    l: 0.9,
-    a: 1.,
-};
-const MARK: Hsla = Hsla {
-    h: 0.15,
-    s: 1.,
-    l: 0.5,
-    a: 1.,
-};
+const PANEL: Hsla = gpui::hsla(0.6, 0.5, 0.9, 1.);
+const MARK: Hsla = gpui::hsla(0.15, 1., 0.5, 1.);
 
 fn extensions() -> MarkdownExtensions {
     MarkdownExtensions::default().block_surface("summary", |_, _| {

@@ -2,7 +2,6 @@
 
 use std::{collections::HashMap, hash::Hash};
 
-
 use super::Scale;
 
 #[derive(Clone)]
@@ -101,11 +100,7 @@ impl<T> ScaleBand<T> {
     /// The range divided evenly among the bands.
     fn avg_width(&self) -> f32 {
         let len = self.len() as f32;
-        if len == 0. {
-            0.
-        } else {
-            self.range_diff / len
-        }
+        if len == 0. { 0. } else { self.range_diff / len }
     }
 
     /// Get the ratio of the band.

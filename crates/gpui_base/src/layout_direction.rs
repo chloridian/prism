@@ -121,27 +121,45 @@ macro_rules! logical_edge {
 pub trait LogicalStyledExt: Styled + Sized {
     logical_edge!(
         /// Padding on the start edge.
-        ps, pl, pr, DefiniteLength
+        ps,
+        pl,
+        pr,
+        DefiniteLength
     );
     logical_edge!(
         /// Padding on the end edge.
-        pe, pr, pl, DefiniteLength
+        pe,
+        pr,
+        pl,
+        DefiniteLength
     );
     logical_edge!(
         /// Margin on the start edge.
-        ms, ml, mr, Length
+        ms,
+        ml,
+        mr,
+        Length
     );
     logical_edge!(
         /// Margin on the end edge.
-        me, mr, ml, Length
+        me,
+        mr,
+        ml,
+        Length
     );
     logical_edge!(
         /// Inset from the start edge of the positioned ancestor.
-        inset_s, left, right, Length
+        inset_s,
+        left,
+        right,
+        Length
     );
     logical_edge!(
         /// Inset from the end edge of the positioned ancestor.
-        inset_e, right, left, Length
+        inset_e,
+        right,
+        left,
+        Length
     );
 
     /// Border width on the start edge.
@@ -289,10 +307,7 @@ mod tests {
         struct Row;
         impl Render for Row {
             fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-                div()
-                    .flex_row_dir(cx)
-                    .w(px(100.))
-                    .justify_flex_end()
+                LogicalStyledExt::justify_flex_end(div().flex_row_dir(cx).w(px(100.)))
                     .child(div().size(px(10.)).debug_selector(|| "item".into()))
             }
         }
@@ -316,21 +331,33 @@ mod tests {
         cx.update(|cx| {
             crate::init(cx);
             assert_eq!(
-                div().text_start(cx).style().text.text_align,
+                LogicalStyledExt::text_start(div(), cx)
+                    .style()
+                    .text
+                    .text_align,
                 Some(TextAlign::Left)
             );
             assert_eq!(
-                div().text_end(cx).style().text.text_align,
+                LogicalStyledExt::text_end(div(), cx)
+                    .style()
+                    .text
+                    .text_align,
                 Some(TextAlign::Right)
             );
 
             LayoutDirection::Rtl.set_global(cx);
             assert_eq!(
-                div().text_start(cx).style().text.text_align,
+                LogicalStyledExt::text_start(div(), cx)
+                    .style()
+                    .text
+                    .text_align,
                 Some(TextAlign::Right)
             );
             assert_eq!(
-                div().text_end(cx).style().text.text_align,
+                LogicalStyledExt::text_end(div(), cx)
+                    .style()
+                    .text
+                    .text_align,
                 Some(TextAlign::Left)
             );
         });

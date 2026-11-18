@@ -4,11 +4,11 @@ use std::rc::Rc;
 use web_time::Instant;
 
 use gpui::{
-    App, Axis, BorderStyle, Bounds, ContentMask, Edges, Element, ElementId, GlobalElementId,
-    Hitbox, Hsla, InteractiveElement as _, IntoElement, IsZero as _, LayoutId, OngoingScroll,
-    PaintQuad, ParentElement as _, Point, Position, ScrollDelta, ScrollEvent, ScrollHandle,
-    StatefulInteractiveElement as _, Style, StyleRefinement, Styled as _, Window, div, px,
-    relative,
+    App, AppContext as _, Axis, BorderStyle, Bounds, ContentMask, Edges, Element, ElementId,
+    GlobalElementId, Hitbox, Hsla, InteractiveElement as _, IntoElement, IsZero as _, LayoutId,
+    OngoingScroll, PaintQuad, ParentElement as _, Point, Position, ScrollDelta, ScrollHandle,
+    ScrollWheelEvent, StatefulInteractiveElement as _, Style, StyleRefinement, Styled as _, Window,
+    div, px, relative,
 };
 use gpui::{Corners, Pixels};
 
@@ -488,156 +488,165 @@ impl<H: ScrollbarHandle + Clone> Element for ScrollableMask<H> {
             })
             .unwrap_or_default();
 
-        window.with_content_mask(Some(ContentMask { bounds }), |window| {
-            if let Some(color) = self.debug {
-                window.paint_quad(PaintQuad {
-                    bounds,
-                    border_widths: Edges::all(px(1.0)),
-                    border_color: color,
-                    background: gpui::transparent_white().into(),
-                    corner_radii: Corners::all(px(0.)),
-                    border_style: BorderStyle::default(),
-                });
-            }
-
-            window.on_mouse_event({
-                let view_id = window.current_view();
-                let scroll_handle = self.scroll_handle.clone();
-                let hitbox_id = hitbox.id;
-                let ongoing_scroll = ongoing_scroll.clone();
-
-                move |event: &ScrollEvent, phase, window, cx| {
-                    // Handle in the capture phase: ancestor scrollers such as
-                    // `gpui::list` register their wheel listeners after their
-                    // children paint, so in the bubble phase (reverse
-                    // registration order) they run first and would consume the
-                    // vertical component of a trackpad swipe before this mask
-                    // could stop the propagation.
-                    //
-                    // `should_handle_scroll` (instead of a raw bounds check)
-                    // keeps the mask inert when it is occluded, e.g. below an
-                    // open dialog or context menu.
-                    if !(phase.capture() && hitbox_id.should_handle_scroll(window)) {
-                        return;
-                    }
-
-                    let mut offset = scroll_handle.offset();
-                    let mut delta = event.delta.pixel_delta(line_height);
-
-                    // A plain mouse wheel's vertical lines move the scroller
-                    // sideways; once it is at its edge the parent scrolls
-                    // instead, as for a vertical mask.
-                    if vertical_wheel {
-                        let ScrollDelta::Lines(lines) = event.delta else {
-                            return;
-                        };
-                        if lines.x != 0. || lines.y == 0. || !lines.y.is_finite() {
-                            return;
-                        }
-                        let axis_max = (scroll_handle.content_size().width
-                            - scroll_handle.viewport_bounds().size.width)
-                            .max(px(0.));
-                        let current = offset.x.clamp(-axis_max, px(0.));
-                        let new_offset = (current + delta.y).clamp(-axis_max, px(0.));
-                        if new_offset == current {
-                            return;
-                        }
-
-                        offset.x = new_offset;
-                        scroll_handle.set_offset(offset);
-                        cx.notify(view_id);
-                        cx.stop_propagation();
-                        return;
-                    }
-
-                    // With nothing to scroll sideways, a swipe that moves
-                    // vertically at all belongs to the parent scroller.
-                    if is_horizontal
-                        && !delta.y.is_zero()
-                        && scroll_handle.content_size().width
-                            <= scroll_handle.viewport_bounds().size.width
-                    {
-                        return;
-                    }
-
-                    // Lock the gesture to the axis it started on, so a diagonal
-                    // trackpad swipe cannot flip which mask consumes it from one
-                    // event to the next. Line deltas carry no touch phase.
-                    if event.delta.precise() {
-                        ongoing_scroll
-                            .borrow_mut()
-                            .lock_axis(&mut delta, event.touch_phase);
-                    }
-
-                    // Limit for only one way scrolling at same time.
-                    // When use MacBook touchpad we may get both x and y delta,
-                    // only allows the one that more to scroll.
-                    if !delta.x.is_zero() && !delta.y.is_zero() {
-                        if delta.x.abs() > delta.y.abs() {
-                            delta.y = px(0.);
-                        } else {
-                            delta.x = px(0.);
-                        }
-                    }
-
-                    if !is_horizontal {
-                        // The current offset must be clamped too: after a
-                        // bubbled event, the scrolled element's own listener
-                        // pushes the shared offset beyond the edge unclamped
-                        // (the div only clamps on prepaint), and that
-                        // transient overscroll would read as "room to scroll".
-                        // `ScrollbarHandle` has no `max_offset`; recover it from
-                        // the definition `content_size = viewport + max_offset`.
-                        let axis_max = (scroll_handle.content_size().height
-                            - scroll_handle.viewport_bounds().size.height)
-                            .max(px(0.));
-                        let current = offset.y.clamp(-axis_max, px(0.));
-                        let new_offset = (current + delta.y).clamp(-axis_max, px(0.));
-                        if new_offset == current {
-                            // At the edge or no overflow: bubble to the parent.
-                            return;
-                        }
-
-                        offset.y = new_offset;
-                        scroll_handle.set_offset(offset);
-                        cx.notify(view_id);
-                        cx.stop_propagation();
-                        return;
-                    }
-
-                    // Record whether this step actually moves the content
-                    // (see [`last_horizontal_scroll_claim`]). The current offset
-                    // is clamped for comparison only: the next offset must use
-                    // the raw value, which may sit past the edge until prepaint.
-                    if !delta.x.is_zero() {
-                        let axis_max = (scroll_handle.content_size().width
-                            - scroll_handle.viewport_bounds().size.width)
-                            .max(px(0.));
-                        let current = offset.x.clamp(-axis_max, px(0.));
-                        let moved = (offset.x + delta.x).clamp(-axis_max, px(0.)) - current;
-                        if moved.abs() >= CLAIM_EPSILON {
-                            LAST_HORIZONTAL_SCROLL_CLAIM.set(Some(HorizontalScrollClaim {
-                                at: Instant::now(),
-                                delta_x: moved,
-                            }));
-                        }
-                    }
-
-                    offset.x += delta.x;
-
-                    // NOTE: `set_offset` does not clamp (clamping happens in
-                    // the div's prepaint), so any non-zero horizontal-dominant
-                    // delta passes this guard — even at the scroll edge the
-                    // event is consumed rather than turned into a parent
-                    // scroll.
-                    if offset != scroll_handle.offset() {
-                        scroll_handle.set_offset(offset);
-                        cx.notify(view_id);
-                        cx.stop_propagation();
-                    }
+        window.with_content_mask(
+            Some(ContentMask {
+                bounds,
+                fade_out: Default::default(),
+            }),
+            |window| {
+                if let Some(color) = self.debug {
+                    window.paint_quad(PaintQuad {
+                        bounds,
+                        border_widths: Edges::all(px(1.0)),
+                        border_color: color.into(),
+                        background: gpui::transparent_white().into(),
+                        corner_radii: Corners::all(px(0.)),
+                        border_style: BorderStyle::default(),
+                        border_dashed_gap: Default::default(),
+                        border_dashed_length: Default::default(),
+                        corner_smoothing: Default::default(),
+                    });
                 }
-            });
-        });
+
+                window.on_mouse_event({
+                    let view_id = window.current_view();
+                    let scroll_handle = self.scroll_handle.clone();
+                    let hitbox_id = hitbox.id;
+                    let ongoing_scroll = ongoing_scroll.clone();
+
+                    move |event: &ScrollWheelEvent, phase, window, cx| {
+                        // Handle in the capture phase: ancestor scrollers such as
+                        // `gpui::list` register their wheel listeners after their
+                        // children paint, so in the bubble phase (reverse
+                        // registration order) they run first and would consume the
+                        // vertical component of a trackpad swipe before this mask
+                        // could stop the propagation.
+                        //
+                        // `should_handle_scroll` (instead of a raw bounds check)
+                        // keeps the mask inert when it is occluded, e.g. below an
+                        // open dialog or context menu.
+                        if !(phase.capture() && hitbox_id.should_handle_scroll(window)) {
+                            return;
+                        }
+
+                        let mut offset = scroll_handle.offset();
+                        let mut delta = event.delta.pixel_delta(line_height);
+
+                        // A plain mouse wheel's vertical lines move the scroller
+                        // sideways; once it is at its edge the parent scrolls
+                        // instead, as for a vertical mask.
+                        if vertical_wheel {
+                            let ScrollDelta::Lines(lines) = event.delta else {
+                                return;
+                            };
+                            if lines.x != 0. || lines.y == 0. || !lines.y.is_finite() {
+                                return;
+                            }
+                            let axis_max = (scroll_handle.content_size().width
+                                - scroll_handle.viewport_bounds().size.width)
+                                .max(px(0.));
+                            let current = offset.x.clamp(-axis_max, px(0.));
+                            let new_offset = (current + delta.y).clamp(-axis_max, px(0.));
+                            if new_offset == current {
+                                return;
+                            }
+
+                            offset.x = new_offset;
+                            scroll_handle.set_offset(offset);
+                            cx.notify(view_id);
+                            cx.stop_propagation();
+                            return;
+                        }
+
+                        // With nothing to scroll sideways, a swipe that moves
+                        // vertically at all belongs to the parent scroller.
+                        if is_horizontal
+                            && !delta.y.is_zero()
+                            && scroll_handle.content_size().width
+                                <= scroll_handle.viewport_bounds().size.width
+                        {
+                            return;
+                        }
+
+                        // Lock the gesture to the axis it started on, so a diagonal
+                        // trackpad swipe cannot flip which mask consumes it from one
+                        // event to the next. Line deltas carry no touch phase.
+                        if event.delta.precise() {
+                            ongoing_scroll
+                                .borrow_mut()
+                                .lock_axis(&mut delta, event.touch_phase);
+                        }
+
+                        // Limit for only one way scrolling at same time.
+                        // When use MacBook touchpad we may get both x and y delta,
+                        // only allows the one that more to scroll.
+                        if !delta.x.is_zero() && !delta.y.is_zero() {
+                            if delta.x.abs() > delta.y.abs() {
+                                delta.y = px(0.);
+                            } else {
+                                delta.x = px(0.);
+                            }
+                        }
+
+                        if !is_horizontal {
+                            // The current offset must be clamped too: after a
+                            // bubbled event, the scrolled element's own listener
+                            // pushes the shared offset beyond the edge unclamped
+                            // (the div only clamps on prepaint), and that
+                            // transient overscroll would read as "room to scroll".
+                            // `ScrollbarHandle` has no `max_offset`; recover it from
+                            // the definition `content_size = viewport + max_offset`.
+                            let axis_max = (scroll_handle.content_size().height
+                                - scroll_handle.viewport_bounds().size.height)
+                                .max(px(0.));
+                            let current = offset.y.clamp(-axis_max, px(0.));
+                            let new_offset = (current + delta.y).clamp(-axis_max, px(0.));
+                            if new_offset == current {
+                                // At the edge or no overflow: bubble to the parent.
+                                return;
+                            }
+
+                            offset.y = new_offset;
+                            scroll_handle.set_offset(offset);
+                            cx.notify(view_id);
+                            cx.stop_propagation();
+                            return;
+                        }
+
+                        // Record whether this step actually moves the content
+                        // (see [`last_horizontal_scroll_claim`]). The current offset
+                        // is clamped for comparison only: the next offset must use
+                        // the raw value, which may sit past the edge until prepaint.
+                        if !delta.x.is_zero() {
+                            let axis_max = (scroll_handle.content_size().width
+                                - scroll_handle.viewport_bounds().size.width)
+                                .max(px(0.));
+                            let current = offset.x.clamp(-axis_max, px(0.));
+                            let moved = (offset.x + delta.x).clamp(-axis_max, px(0.)) - current;
+                            if moved.abs() >= CLAIM_EPSILON {
+                                LAST_HORIZONTAL_SCROLL_CLAIM.set(Some(HorizontalScrollClaim {
+                                    at: Instant::now(),
+                                    delta_x: moved,
+                                }));
+                            }
+                        }
+
+                        offset.x += delta.x;
+
+                        // NOTE: `set_offset` does not clamp (clamping happens in
+                        // the div's prepaint), so any non-zero horizontal-dominant
+                        // delta passes this guard — even at the scroll edge the
+                        // event is consumed rather than turned into a parent
+                        // scroll.
+                        if offset != scroll_handle.offset() {
+                            scroll_handle.set_offset(offset);
+                            cx.notify(view_id);
+                            cx.stop_propagation();
+                        }
+                    }
+                });
+            },
+        );
     }
 }
 
@@ -645,7 +654,7 @@ impl<H: ScrollbarHandle + Clone> Element for ScrollableMask<H> {
 mod tests {
     use super::*;
     use gpui::{
-        Context, IntoElement, ListAlignment, ListState, Render, ScrollDelta, ScrollEvent,
+        Context, IntoElement, ListAlignment, ListState, Render, ScrollDelta, ScrollWheelEvent,
         TestAppContext, VisualTestContext, Window, div, list, point, px,
     };
 
@@ -721,7 +730,7 @@ mod tests {
             _ = window.draw(cx);
         });
 
-        cx.simulate_event(ScrollEvent {
+        cx.simulate_event(ScrollWheelEvent {
             position: point(px(10.), px(10.)),
             delta: ScrollDelta::Pixels(point(px(0.), px(-40.))),
             ..Default::default()
@@ -798,7 +807,7 @@ mod tests {
 
         // A trackpad swipe is rarely axis-pure: horizontal dominant with a
         // small vertical component.
-        cx.simulate_event(ScrollEvent {
+        cx.simulate_event(ScrollWheelEvent {
             position: point(px(10.), px(10.)),
             delta: ScrollDelta::Pixels(point(px(-40.), px(-10.))),
             ..Default::default()
@@ -817,7 +826,7 @@ mod tests {
         let list_state = ListState::new(10, ListAlignment::Top, px(0.));
         let cx = setup_list_test(cx, &scroll_handle, &list_state, false);
 
-        cx.simulate_event(ScrollEvent {
+        cx.simulate_event(ScrollWheelEvent {
             position: point(px(10.), px(10.)),
             delta: ScrollDelta::Pixels(point(px(-10.), px(-40.))),
             ..Default::default()
@@ -866,7 +875,7 @@ mod tests {
             _ = window.draw(cx);
         });
 
-        cx.simulate_event(ScrollEvent {
+        cx.simulate_event(ScrollWheelEvent {
             position: point(px(10.), px(10.)),
             delta: ScrollDelta::Pixels(point(px(-40.), px(-10.))),
             ..Default::default()
@@ -939,7 +948,7 @@ mod tests {
         let list_state = ListState::new(10, ListAlignment::Top, px(1000.));
         let cx = setup_vertical_mask_test(cx, &outer_handle, &list_state);
 
-        cx.simulate_event(ScrollEvent {
+        cx.simulate_event(ScrollWheelEvent {
             position: point(px(10.), px(10.)),
             delta: ScrollDelta::Pixels(point(px(0.), px(-40.))),
             ..Default::default()
@@ -961,7 +970,7 @@ mod tests {
         });
         let cx = setup_vertical_mask_test(cx, &outer_handle, &list_state);
 
-        cx.simulate_event(ScrollEvent {
+        cx.simulate_event(ScrollWheelEvent {
             position: point(px(10.), px(10.)),
             delta: ScrollDelta::Pixels(point(px(0.), px(-40.))),
             ..Default::default()
@@ -986,7 +995,7 @@ mod tests {
 
         // Swipe over the right side of the viewport. The mask must still
         // cover it — it must not slide away with the scrolled content.
-        cx.simulate_event(ScrollEvent {
+        cx.simulate_event(ScrollWheelEvent {
             position: point(px(90.), px(10.)),
             delta: ScrollDelta::Pixels(point(px(-40.), px(-10.))),
             ..Default::default()
@@ -1009,7 +1018,7 @@ mod tests {
             _ = window.draw(cx);
         });
 
-        cx.simulate_event(ScrollEvent {
+        cx.simulate_event(ScrollWheelEvent {
             position: point(px(10.), px(10.)),
             delta: ScrollDelta::Pixels(point(px(-40.), px(-10.))),
             ..Default::default()
@@ -1027,7 +1036,7 @@ mod tests {
         let list_state = ListState::new(10, ListAlignment::Top, px(0.));
         let cx = setup_list_test(cx, &scroll_handle, &list_state, true);
 
-        cx.simulate_event(ScrollEvent {
+        cx.simulate_event(ScrollWheelEvent {
             position: point(px(10.), px(10.)),
             delta: ScrollDelta::Pixels(point(px(-40.), px(-10.))),
             ..Default::default()
@@ -1051,7 +1060,7 @@ mod tests {
             _ = window.draw(cx);
         });
 
-        cx.simulate_event(ScrollEvent {
+        cx.simulate_event(ScrollWheelEvent {
             position: point(px(10.), px(10.)),
             delta: ScrollDelta::Pixels(point(px(-40.), px(0.))),
             ..Default::default()
@@ -1075,7 +1084,7 @@ mod tests {
 
         // At the left edge, a swipe toward the start has no room: no claim.
         LAST_HORIZONTAL_SCROLL_CLAIM.set(None);
-        cx.simulate_event(ScrollEvent {
+        cx.simulate_event(ScrollWheelEvent {
             position: point(px(10.), px(10.)),
             delta: ScrollDelta::Pixels(point(px(40.), px(0.))),
             ..Default::default()
@@ -1088,7 +1097,7 @@ mod tests {
         cx.update(|window, cx| {
             let mut dispatch = |delta_x: f32| {
                 window.dispatch_event(
-                    gpui::PlatformInput::Scroll(ScrollEvent {
+                    gpui::PlatformInput::ScrollWheel(ScrollWheelEvent {
                         position: point(px(10.), px(10.)),
                         delta: ScrollDelta::Pixels(point(px(delta_x), px(0.))),
                         ..Default::default()
@@ -1113,7 +1122,7 @@ mod tests {
 
         // Ignored input keeps the last meaningful claim intact.
         for delta in [point(px(0.), px(-40.)), point(px(-0.25), px(0.))] {
-            cx.simulate_event(ScrollEvent {
+            cx.simulate_event(ScrollWheelEvent {
                 position: point(px(10.), px(10.)),
                 delta: ScrollDelta::Pixels(delta),
                 ..Default::default()
@@ -1143,7 +1152,7 @@ mod tests {
         let scroll_handle = ScrollHandle::new();
         let cx = setup_horizontal_area_test(cx, &scroll_handle);
 
-        cx.simulate_event(ScrollEvent {
+        cx.simulate_event(ScrollWheelEvent {
             position: point(px(10.), px(10.)),
             delta: ScrollDelta::Pixels(point(px(-40.), px(-10.))),
             ..Default::default()
@@ -1153,7 +1162,7 @@ mod tests {
         // Same gesture, now leaning vertical but under the unlock ratio: the
         // lock holds and the horizontal offset keeps moving. Comparing this
         // event alone would zero `delta.x` and stall the scroller at -40.
-        cx.simulate_event(ScrollEvent {
+        cx.simulate_event(ScrollWheelEvent {
             position: point(px(10.), px(10.)),
             delta: ScrollDelta::Pixels(point(px(-10.), px(-15.))),
             ..Default::default()
@@ -1166,7 +1175,7 @@ mod tests {
         let scroll_handle = ScrollHandle::new();
         let cx = setup_horizontal_area_test(cx, &scroll_handle);
 
-        cx.simulate_event(ScrollEvent {
+        cx.simulate_event(ScrollWheelEvent {
             position: point(px(10.), px(10.)),
             delta: ScrollDelta::Pixels(point(px(-40.), px(-10.))),
             ..Default::default()
@@ -1175,7 +1184,7 @@ mod tests {
 
         // Past the unlock ratio the gesture is no longer horizontal, so the
         // event stops driving this scroller.
-        cx.simulate_event(ScrollEvent {
+        cx.simulate_event(ScrollWheelEvent {
             position: point(px(10.), px(10.)),
             delta: ScrollDelta::Pixels(point(px(-10.), px(-25.))),
             ..Default::default()
@@ -1246,7 +1255,7 @@ mod tests {
         let inner_handle = ScrollHandle::new();
         let cx = setup_nested_vertical_test(cx, &outer_handle, &inner_handle, px(300.));
 
-        cx.simulate_event(ScrollEvent {
+        cx.simulate_event(ScrollWheelEvent {
             position: point(px(10.), px(10.)),
             delta: ScrollDelta::Pixels(point(px(0.), px(-40.))),
             ..Default::default()
@@ -1269,7 +1278,7 @@ mod tests {
             _ = window.draw(cx);
         });
 
-        cx.simulate_event(ScrollEvent {
+        cx.simulate_event(ScrollWheelEvent {
             position: point(px(10.), px(10.)),
             delta: ScrollDelta::Pixels(point(px(0.), px(-40.))),
             ..Default::default()
@@ -1291,7 +1300,7 @@ mod tests {
         // Inner content (40) fits its 60px viewport: nothing to scroll.
         let cx = setup_nested_vertical_test(cx, &outer_handle, &inner_handle, px(40.));
 
-        cx.simulate_event(ScrollEvent {
+        cx.simulate_event(ScrollWheelEvent {
             position: point(px(10.), px(10.)),
             delta: ScrollDelta::Pixels(point(px(0.), px(-40.))),
             ..Default::default()
@@ -1319,7 +1328,7 @@ mod tests {
         // one leaves the inner offset beyond the edge unclamped, which must
         // not read as "room to scroll" and swallow the second event.
         for _ in 0..2 {
-            cx.simulate_event(ScrollEvent {
+            cx.simulate_event(ScrollWheelEvent {
                 position: point(px(10.), px(10.)),
                 delta: ScrollDelta::Pixels(point(px(0.), px(-40.))),
                 ..Default::default()
@@ -1388,7 +1397,7 @@ mod tests {
             _ = window.draw(cx);
         });
 
-        cx.simulate_event(ScrollEvent {
+        cx.simulate_event(ScrollWheelEvent {
             position: point(px(10.), px(10.)),
             delta: ScrollDelta::Pixels(point(px(0.), px(-40.))),
             ..Default::default()
@@ -1450,7 +1459,7 @@ mod tests {
     }
 
     fn wheel(cx: &mut VisualTestContext, delta: ScrollDelta) {
-        cx.simulate_event(ScrollEvent {
+        cx.simulate_event(ScrollWheelEvent {
             position: point(px(10.), px(10.)),
             delta,
             ..Default::default()

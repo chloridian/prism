@@ -439,7 +439,7 @@ impl<T: 'static, E: 'static + Render> Element for ResizeHandle<T, E> {
                 move |ev: &MouseDownEvent, phase, window, _| {
                     if phase.bubble()
                         && ev.button == MouseButton::Left
-                        && hitbox.is_hovered_at(ev.position, window)
+                        && hitbox.is_hovered(window)
                         && state.set(ResizeHandleState::Pressed)
                     {
                         window.refresh();
@@ -469,9 +469,7 @@ impl<T: 'static, E: 'static + Render> Element for ResizeHandle<T, E> {
                     // about whether the handle is still being dragged.
                     let next = match state.get() {
                         engaged if engaged.is_active() => ResizeHandleState::Dragging,
-                        _ if hitbox.is_hovered_at(ev.position, window) => {
-                            ResizeHandleState::Hovered
-                        }
+                        _ if hitbox.is_hovered(window) => ResizeHandleState::Hovered,
                         _ => ResizeHandleState::Idle,
                     };
                     if state.set(next) {
@@ -502,7 +500,7 @@ impl<T: 'static, E: 'static + Render> Element for ResizeHandle<T, E> {
                     // Releasing over the handle leaves it hovered. Going
                     // straight to idle there would drop the indicator for one
                     // frame and bring it back under a pointer that never left.
-                    let next = if hitbox.is_hovered_at(ev.position, window) {
+                    let next = if hitbox.is_hovered(window) {
                         ResizeHandleState::Hovered
                     } else {
                         ResizeHandleState::Idle
@@ -523,7 +521,7 @@ impl<T: 'static, E: 'static + Render> Element for ResizeHandle<T, E> {
 /// Projected colors win; without them the handle resolves from the tokens that
 /// already mean these two states everywhere else -- `border` for a divider at
 /// rest, `ring` for the thing the pointer currently owns. Before this the
-/// unprojected answer was `Hsla::default()`, which is transparent, so a
+/// unprojected answer was a transparent color, so a
 /// consumer with no styled façade had no divider at all.
 pub(crate) fn handle_color(theme: &crate::Theme, active: bool) -> gpui::Hsla {
     if active {
@@ -823,7 +821,7 @@ mod tests {
             assert_eq!(handle_color(&theme, true), ring);
             // The point of the change: the default used to be transparent, so
             // a divider with nothing projected onto it was not drawn at all.
-            assert_ne!(handle_color(&theme, false), gpui::Hsla::default());
+            assert_ne!(handle_color(&theme, false), gpui::transparent_black());
         });
     }
 

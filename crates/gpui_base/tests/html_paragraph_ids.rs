@@ -1,6 +1,5 @@
 #![cfg(feature = "test-support")]
 
-
 use gpui::{Context, IntoElement, ParentElement as _, Render, TestAppContext, Window, div};
 use gpui_base::{TextView, test_support::texts};
 

@@ -100,9 +100,6 @@ struct PaintedText {
     text_runs: Vec<TextSelectionRun>,
     /// Each with the table cell it painted in, if any.
     copy_projections: Vec<(CopyProjection, Option<Bounds<Pixels>>)>,
-    /// The caret boxes at the first and last selected character painted this
-    /// frame, where the touch handles go.
-    selection_edges: Option<(Bounds<Pixels>, Bounds<Pixels>)>,
 }
 
 pub(super) enum CopyProjection {
@@ -176,9 +173,6 @@ impl TextViewSelectionAdapter {
                         });
                     }
                     TextSelectionEvent::Cleared => {}
-                    TextSelectionEvent::TouchSelectionChanged => {
-                        let _ = view_for_events.update(cx, |_, cx| cx.notify());
-                    }
                 },
                 cx,
             )
@@ -321,15 +315,6 @@ impl TextViewSelectionAdapter {
         frame.text_bounds.clear();
         frame.text_runs.clear();
         frame.copy_projections.clear();
-        frame.selection_edges = None;
-    }
-
-    /// Records one inline's painted selection ends. Inlines paint in document
-    /// order, so the first start and the last end are the view's.
-    pub(super) fn register_selection_edges(&self, start: Bounds<Pixels>, end: Bounds<Pixels>) {
-        let mut frame = self.frame.borrow_mut();
-        let first = frame.selection_edges.map_or(start, |(first, _)| first);
-        frame.selection_edges = Some((first, end));
     }
 
     pub(super) fn register_text_run(&self, run: TextSelectionRun) {
@@ -358,35 +343,8 @@ impl TextViewSelectionAdapter {
             .with_text_bounds(frame.text_bounds.clone())
             .with_self_scroll(self_scroll)
             .with_rendered_element(&self.selection, window, cx);
-        let registration = match frame.selection_edges {
-            Some((start, end)) => registration.with_selection_edges(start, end),
-            None => registration,
-        };
         drop(frame);
         self.selection.register(registration, window, cx);
-    }
-
-    /// Lays out the touch handles this view owns; see
-    /// [`TextSelectionHandle::prepaint_touch_handles`].
-    pub(super) fn prepaint_touch_handles(
-        &self,
-        window: &mut Window,
-        cx: &App,
-    ) -> crate::TouchHandleLayout {
-        self.selection.prepaint_touch_handles(window, cx)
-    }
-
-    /// Paints the touch handles this view owns, after its content for the
-    /// frame; see [`TextSelectionHandle::paint_touch_handles`].
-    pub(super) fn paint_touch_handles(
-        &self,
-        layout: &crate::TouchHandleLayout,
-        color: gpui::Hsla,
-        window: &mut Window,
-        cx: &mut App,
-    ) {
-        self.selection
-            .paint_touch_handles(layout, color, window, cx);
     }
 
     pub(super) fn record_table_cell(&self, bounds: Bounds<Pixels>, cx: &App) {

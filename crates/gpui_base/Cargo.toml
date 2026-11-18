@@ -17,10 +17,6 @@ doctest = false
 name = "motion"
 harness = false
 
-[[bench]]
-name = "text_view_scroll"
-harness = false
-
 [features]
 test-support = ["gpui/test-support"]
 inspector = ["gpui_macros/inspector", "gpui/inspector"]
@@ -34,6 +30,7 @@ gpui.workspace = true
 gpui_macros.workspace = true
 jiff = "1.0"
 lsp-types.workspace = true
+palette.workspace = true
 markdown = { version = "1.0.0", features = ["serde"] }
 html5ever = "0.27"
 markup5ever_rcdom = "0.3.0"
@@ -77,8 +74,8 @@ ashpd = { version = "0.13", default-features = false, features = ["async-io", "s
 [dev-dependencies]
 criterion = "0.8"
 gpui-base = { path = ".", features = ["test-support"] }
-gpui = { workspace = true, features = ["test-support", "bench-support"] }
-gpui_platform = { workspace = true, features = ["bench-support"] }
+gpui = { workspace = true, features = ["test-support"] }
+gpui_platform.workspace = true
 indoc = "2"
 
 [lints]

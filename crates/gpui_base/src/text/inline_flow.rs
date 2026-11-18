@@ -1,3 +1,5 @@
+use crate::text_compat::ShapedLineExt as _;
+use crate::text_compat::{LineFragment as WrapLineFragment, LineWrapper, LineWrapperExt as _};
 use std::{
     cell::RefCell,
     ops::Range,
@@ -9,10 +11,9 @@ use unicode_segmentation::UnicodeSegmentation as _;
 use gpui::{
     AbsoluteLength, AnyElement, App, AvailableSpace, Bounds, DefiniteLength, Element, ElementId,
     GlobalElementId, Hsla, ImageSource, InspectorElementId, InteractiveElement as _, IntoElement,
-    LayoutId, LineFragment as WrapLineFragment, ObjectFit, Pixels, Refineable as _, ShapedLine,
-    SharedString, Size, StatefulInteractiveElement as _, StyleRefinement, Styled, StyledImage as _,
-    TextRun, TextStyle, WhiteSpace, Window, img, point, prelude::FluentBuilder as _, px, relative,
-    size,
+    LayoutId, ObjectFit, Pixels, Refineable as _, ShapedLine, SharedString, Size,
+    StatefulInteractiveElement as _, StyleRefinement, Styled, StyledImage as _, TextRun, TextStyle,
+    WhiteSpace, Window, img, point, prelude::FluentBuilder as _, px, relative, size,
 };
 
 use super::state::ParagraphRows;
@@ -1328,7 +1329,11 @@ fn code_background(
         .iter()
         .map(|run| {
             let font = window.text_system().resolve_font(&run.font);
-            window.text_system().cap_height(font, font_size)
+            window
+                .text_system()
+                .typographic_bounds(font, font_size, 'H')
+                .map(|bounds| bounds.size.height)
+                .unwrap_or_else(|_| window.text_system().ascent(font, font_size))
         })
         .fold(Pixels::ZERO, Pixels::max);
     let vertical_padding = font_size * 0.125 + shaped_line.descent / 2.;
@@ -1509,14 +1514,14 @@ fn line_ranges(
 /// Where the first line of `fragments` (which start at byte `start`) wraps at
 /// `wrap_width`; `end` when it all fits.
 fn next_wrap(
-    wrapper: &mut gpui::LineWrapperHandle,
+    wrapper: &mut LineWrapper,
     fragments: &[WrapLineFragment],
     wrap_width: Pixels,
     start: usize,
     end: usize,
 ) -> usize {
     wrapper
-        .wrap_line(fragments, wrap_width, gpui::IndentAdjustment::SameIndent)
+        .wrap_line(fragments, wrap_width)
         .next()
         .map_or(end, |boundary| (start + boundary.ix).min(end))
 }
@@ -1704,7 +1709,7 @@ fn push_text_wrap_fragments<'a>(
             );
             window
                 .text_system()
-                .layout_line(text, measured_font_size, &runs, None)
+                .layout_line(text, measured_font_size, &runs)
                 .width
         };
         let insets = highlight.code_insets(measured_font_size, rem_size);
@@ -1829,7 +1834,7 @@ fn shape_line(
     runs: &[TextRun],
     window: &mut Window,
 ) -> ShapedLine {
-    window.text_system().shape_line(text, font_size, runs, None)
+    window.text_system().shape_line(text, font_size, runs)
 }
 
 /// The line height GPUI's text layout gives a plain line in `text_style`.
@@ -1969,7 +1974,7 @@ mod tests {
         use super::super::inline::test_draw::in_prepaint;
         use super::super::inline::test_fonts::{BODY, WideMonoTextSystem};
         use gpui::TestApp;
-        let mut app = TestApp::with_text_system(Arc::new(WideMonoTextSystem));
+        let mut app = TestApp::with_text_system(Arc::new(WideMonoTextSystem::default()));
         in_prepaint(&mut app, |window, cx| {
             for scale in [1., 1.5, 2.] {
                 let style = TextStyle {
@@ -2058,7 +2063,7 @@ mod tests {
         use super::super::inline::test_fonts::{BODY, WideMonoTextSystem};
         use gpui::{AbsoluteLength, Empty, TestApp};
 
-        let mut app = TestApp::with_text_system(Arc::new(WideMonoTextSystem));
+        let mut app = TestApp::with_text_system(Arc::new(WideMonoTextSystem::default()));
         let mut window = app.open_window(|_, _| Empty);
         let style = TextStyle {
             font_family: BODY.into(),
@@ -2102,7 +2107,7 @@ mod tests {
         use super::super::inline::test_fonts::{BODY, MONO, WideMonoTextSystem};
         use gpui::{AbsoluteLength, Empty, HighlightStyle, TestApp};
 
-        let mut app = TestApp::with_text_system(Arc::new(WideMonoTextSystem));
+        let mut app = TestApp::with_text_system(Arc::new(WideMonoTextSystem::default()));
         let mut window = app.open_window(|_, _| Empty);
 
         let font_size = px(10.);
@@ -2205,7 +2210,7 @@ mod tests {
     fn long_inline_code_wraps_in_mixed_flow() {
         use super::super::inline::test_fonts::{BODY, MONO, WideMonoTextSystem};
         use gpui::{Empty, TestApp};
-        let mut app = TestApp::with_text_system(Arc::new(WideMonoTextSystem));
+        let mut app = TestApp::with_text_system(Arc::new(WideMonoTextSystem::default()));
         let mut window = app.open_window(|_, _| Empty);
         let style = TextStyle {
             font_family: BODY.into(),
@@ -2262,7 +2267,7 @@ mod tests {
         use super::super::inline::test_fonts::{BODY, MONO, WideMonoTextSystem};
         use gpui::{Empty, TestApp};
 
-        let mut app = TestApp::with_text_system(Arc::new(WideMonoTextSystem));
+        let mut app = TestApp::with_text_system(Arc::new(WideMonoTextSystem::default()));
         let mut window = app.open_window(|_, _| Empty);
         let font_size = px(10.);
         let style = TextStyle {
@@ -2318,7 +2323,7 @@ mod tests {
         use super::super::inline::test_fonts::{BODY, MONO, WideMonoTextSystem};
         use gpui::{Empty, TestApp};
 
-        let mut app = TestApp::with_text_system(Arc::new(WideMonoTextSystem));
+        let mut app = TestApp::with_text_system(Arc::new(WideMonoTextSystem::default()));
         let mut window = app.open_window(|_, _| Empty);
         let style = TextStyle {
             font_family: BODY.into(),
@@ -2351,7 +2356,7 @@ mod tests {
     fn inline_code_style_keeps_equal_size_prose_separate_and_measures_its_box() {
         use super::super::inline::test_fonts::{BODY, MONO, WideMonoTextSystem};
         use gpui::{Empty, HighlightStyle, TestApp, rems};
-        let mut app = TestApp::with_text_system(Arc::new(WideMonoTextSystem));
+        let mut app = TestApp::with_text_system(Arc::new(WideMonoTextSystem::default()));
         let mut window = app.open_window(|_, _| Empty);
         for rem_size in [px(14.), px(28.)] {
             window.update(|_, window, cx| {
@@ -2400,7 +2405,7 @@ mod tests {
                     if text.as_ref() == "code" {
                         let code = code_background.as_ref().expect("code box");
                         assert_eq!(code.style.background, code_style.background);
-                        assert_eq!(code.style.border_color, Some(gpui::blue()));
+                        assert_eq!(code.style.border_color, Some(gpui::blue().into()));
                         assert_eq!(code.style.corner_radii, code_style.corner_radii);
                         assert_eq!(code.bounds.size.width, size.width);
                         assert_eq!(
@@ -2444,7 +2449,7 @@ mod tests {
         use super::super::inline::test_fonts::{BODY, MONO, WideMonoTextSystem};
         use gpui::{Empty, TestApp};
 
-        let mut app = TestApp::with_text_system(Arc::new(WideMonoTextSystem));
+        let mut app = TestApp::with_text_system(Arc::new(WideMonoTextSystem::default()));
         let mut window = app.open_window(|_, _| Empty);
         // These are the 16px body size and the example-markdown preview's
         // 1.25x/1.5x inherited text-size zooms.

@@ -650,7 +650,7 @@ impl RenderOnce for Dialog {
                     .refine_style(&self.style),
             ),
         )
-        .with_priority(10 + self.layer)
+        .priority(10 + self.layer)
         .into_any_element()
     }
 }

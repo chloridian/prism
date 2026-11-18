@@ -1,4 +1,4 @@
-use crate::input::InputState;
+use crate::{HslaExt as _, RgbaExt as _, input::InputState};
 use std::rc::Rc;
 
 use gpui::{
@@ -6,7 +6,7 @@ use gpui::{
     FocusHandle, Focusable, Hsla, InteractiveElement, Interactivity, IntoElement, KeyBinding,
     ParentElement, Render, RenderOnce, Rgba, Role, SharedString, Stateful,
     StatefulInteractiveElement, StyleRefinement, Styled, Subscription, Toggled, Window, div, hsla,
-    prelude::FluentBuilder as _,
+    hsla_to_rgba, prelude::FluentBuilder as _, rgb_to_hsla,
 };
 use smallvec::SmallVec;
 
@@ -54,35 +54,32 @@ fn parse_hex(value: &str) -> Option<Hsla> {
         Some(raw as f32 / 255.0)
     };
 
-    Some(
-        Rgba {
-            r: component(0)?,
-            g: component(1)?,
-            b: component(2)?,
-            a: if has_alpha { component(3)? } else { 1.0 },
-        }
-        .into(),
-    )
+    Some(rgb_to_hsla(Rgba::new(
+        component(0)?,
+        component(1)?,
+        component(2)?,
+        if has_alpha { component(3)? } else { 1.0 },
+    )))
 }
 
 /// Formats a color as `#RRGGBB`, or `#RRGGBBAA` when it is translucent.
 fn hex_string(color: Hsla) -> String {
-    let rgba = Rgba::from(color);
+    let rgba = hsla_to_rgba(color);
     let channel = |value: f32| (value.clamp(0., 1.) * 255.).round() as u8;
-    if rgba.a < 1. {
+    if rgba.a() < 1. {
         format!(
             "#{:02X}{:02X}{:02X}{:02X}",
-            channel(rgba.r),
-            channel(rgba.g),
-            channel(rgba.b),
-            channel(rgba.a)
+            channel(rgba.r()),
+            channel(rgba.g()),
+            channel(rgba.b()),
+            channel(rgba.a())
         )
     } else {
         format!(
             "#{:02X}{:02X}{:02X}",
-            channel(rgba.r),
-            channel(rgba.g),
-            channel(rgba.b)
+            channel(rgba.r()),
+            channel(rgba.g()),
+            channel(rgba.b())
         )
     }
 }
@@ -157,10 +154,10 @@ impl HslaSliders {
 
     fn write(&self, color: Hsla, window: &mut Window, cx: &mut App) {
         let components = [
-            (&self.hue, color.h),
-            (&self.saturation, color.s),
-            (&self.lightness, color.l),
-            (&self.alpha, color.a),
+            (&self.hue, color.h()),
+            (&self.saturation, color.s()),
+            (&self.lightness, color.l()),
+            (&self.alpha, color.a()),
         ];
         for (slider, value) in components {
             slider.update(cx, |slider, cx| slider.set_value(value, window, cx));
@@ -787,8 +784,8 @@ mod tests {
         assert_eq!(parse_hex("ffffff"), Some(white));
 
         let half = parse_hex("#ff000080").unwrap();
-        assert!((half.a - 0.5).abs() < 0.01);
-        assert_eq!(parse_hex("#f008").map(|c| c.h), Some(half.h));
+        assert!((half.a() - 0.5).abs() < 0.01);
+        assert_eq!(parse_hex("#f008").map(|c| c.h()), Some(half.h()));
     }
 
     #[test]

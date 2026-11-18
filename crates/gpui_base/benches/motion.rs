@@ -1,4 +1,3 @@
-
 use std::{
     alloc::{GlobalAlloc, Layout, System},
     hint::black_box,

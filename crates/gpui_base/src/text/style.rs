@@ -1,3 +1,5 @@
+use crate::{HslaExt as _, RgbaExt as _};
+use gpui::ColorExt as _;
 use std::sync::Arc;
 
 use gpui::{HighlightStyle, Hsla, Rems, StyleRefinement, rems};
@@ -436,7 +438,7 @@ fn oklab_lightness(color: Hsla) -> f32 {
             ((c + 0.055) / 1.055).powf(2.4)
         }
     };
-    let (r, g, b) = (linear(rgb.r), linear(rgb.g), linear(rgb.b));
+    let (r, g, b) = (linear(rgb.r()), linear(rgb.g()), linear(rgb.b()));
     let l = (0.412_221_46 * r + 0.536_332_55 * g + 0.051_445_995 * b).cbrt();
     let m = (0.211_903_5 * r + 0.680_699_5 * g + 0.107_396_96 * b).cbrt();
     let s = (0.088_302_46 * r + 0.281_718_85 * g + 0.629_978_7 * b).cbrt();
@@ -538,12 +540,12 @@ mod tests {
     fn default_style_is_readable_without_an_application_theme() {
         let style = TextViewStyle::default();
 
-        assert_eq!(style.foreground().a, 1.0);
-        assert_eq!(style.link().a, 1.0);
-        assert!(style.selection().a > 0.0);
+        assert_eq!(style.foreground().a(), 1.0);
+        assert_eq!(style.link().a(), 1.0);
+        assert!(style.selection().a() > 0.0);
         assert!(style.inline_code().background_color.is_some());
-        assert!(style.code_background().a > 0.0);
-        assert!(style.border().a > 0.0);
+        assert!(style.code_background().a() > 0.0);
+        assert!(style.border().a() > 0.0);
         assert_eq!(style.table_row_hover(), None);
         assert_eq!(style.code_block().corner_radii.top_left, None);
         assert_eq!(style.code_block().corner_radii.top_right, None);
@@ -572,12 +574,12 @@ mod tests {
     #[test]
     fn inline_code_falls_back_to_the_code_background() {
         let style = TextViewStyle::default()
-            .with_code_background(gpui::rgb(0x123456).into())
+            .with_code_background(gpui::rgb_to_hsla(gpui::rgb(0x123456)))
             .with_inline_code(HighlightStyle::default());
 
         assert_eq!(
             style.inline_code_highlight().background_color,
-            Some(gpui::rgb(0x123456).into())
+            Some(gpui::rgb_to_hsla(gpui::rgb(0x123456)))
         );
     }
 
@@ -683,12 +685,12 @@ mod tests {
     #[test]
     fn from_theme_maps_base_semantic_tokens() {
         let mut theme = crate::Theme::default();
-        theme.tokens.colors.foreground = gpui::rgb(0x112233).into();
-        theme.tokens.colors.muted_foreground = gpui::rgb(0x445566).into();
-        theme.tokens.colors.primary = gpui::rgb(0x3366ff).into();
-        theme.tokens.colors.accent = gpui::rgb(0xddeeff).into();
-        theme.tokens.colors.border = gpui::rgb(0x778899).into();
-        theme.tokens.colors.selection = gpui::rgb(0x55a0fc).into();
+        theme.tokens.colors.foreground = gpui::rgb_to_hsla(gpui::rgb(0x112233));
+        theme.tokens.colors.muted_foreground = gpui::rgb_to_hsla(gpui::rgb(0x445566));
+        theme.tokens.colors.primary = gpui::rgb_to_hsla(gpui::rgb(0x3366ff));
+        theme.tokens.colors.accent = gpui::rgb_to_hsla(gpui::rgb(0xddeeff));
+        theme.tokens.colors.border = gpui::rgb_to_hsla(gpui::rgb(0x778899));
+        theme.tokens.colors.selection = gpui::rgb_to_hsla(gpui::rgb(0x55a0fc));
 
         let style = TextViewStyle::from_theme(&theme);
         assert_eq!(style.foreground(), theme.tokens.colors.foreground);

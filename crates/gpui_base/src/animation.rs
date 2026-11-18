@@ -1,10 +1,12 @@
 use std::{rc::Rc, time::Duration};
 
 use gpui::{
-    Animation, AnimationExt, ElementId, Hsla, IntoElement, Pixels, Point, Styled, point,
+    Animation, AnimationExt, ElementId, Hsla, IntoElement, Pixels, Point, Styled, hsla, point,
     prelude::FluentBuilder, px,
 };
 use smallvec::SmallVec;
+
+use crate::HslaExt as _;
 
 /// A cubic bezier function like CSS `cubic-bezier`.
 ///
@@ -129,12 +131,12 @@ impl Lerp for Hsla {
     /// near-grayscale UI colors (e.g. text colors), where hue interpolation is
     /// irrelevant.
     fn lerp(&self, target: &Self, t: f32) -> Self {
-        Hsla {
-            h: self.h.lerp(&target.h, t),
-            s: self.s.lerp(&target.s, t),
-            l: self.l.lerp(&target.l, t),
-            a: self.a.lerp(&target.a, t),
-        }
+        hsla(
+            self.h().lerp(&target.h(), t),
+            self.s().lerp(&target.s(), t),
+            self.l().lerp(&target.l(), t),
+            self.a().lerp(&target.a(), t),
+        )
     }
 }
 

@@ -35,6 +35,7 @@ fn label_run(
         background_color: None,
         underline: None,
         strikethrough: None,
+        letter_spacing: Default::default(),
     }
 }
 
@@ -48,7 +49,7 @@ fn shape_label(
     let text_run = label_run(text, color, font_weight, window);
     window
         .text_system()
-        .shape_line(text.clone(), font_size, &[text_run], None)
+        .shape_line(text.clone(), font_size, &[text_run])
 }
 
 /// Returns the rendered width of `text` at `font_size` using the window's
@@ -59,20 +60,9 @@ pub fn measure_text_width(text: &SharedString, font_size: Pixels, window: &mut W
         return 0.;
     }
     let font_weight = window.text_style().font_weight;
-    shape_label(
-        text,
-        font_size,
-        font_weight,
-        Hsla {
-            h: 0.,
-            s: 0.,
-            l: 0.,
-            a: 1.,
-        },
-        window,
-    )
-    .width()
-    .as_f32()
+    shape_label(text, font_size, font_weight, gpui::black(), window)
+        .width()
+        .as_f32()
 }
 
 /// Truncate `text` with a trailing ellipsis so it fits within `max_width` at
@@ -223,7 +213,7 @@ mod tests {
         window
             .update(cx, |_, window, _| {
                 let text = SharedString::from("14:30");
-                let color = Hsla::default();
+                let color = gpui::transparent_black();
                 assert_eq!(
                     label_run(&text, color, FontWeight::BOLD, window)
                         .font

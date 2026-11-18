@@ -1,3 +1,5 @@
+use crate::{HslaExt as _, RgbaExt as _};
+use gpui::ColorExt as _;
 use std::{
     borrow::Cow,
     collections::HashMap,
@@ -2133,7 +2135,7 @@ impl std::fmt::Debug for TableColumnWidthsCache {
 }
 
 fn text_system_id(window: &Window) -> usize {
-    std::rc::Rc::as_ptr(window.text_system()) as usize
+    std::sync::Arc::as_ptr(window.text_system()) as usize
 }
 
 struct TableColumnWidths {
@@ -2889,8 +2891,9 @@ fn mark_text_color(highlight: Hsla, background: Hsla) -> Hsla {
             ((value + 0.055) / 1.055).powf(2.4)
         }
     }
-    let rgb = background.to_rgb().blend(highlight.to_rgb());
-    let luminance = 0.2126 * channel(rgb.r) + 0.7152 * channel(rgb.g) + 0.0722 * channel(rgb.b);
+    let rgb = background.to_rgb().blend(&highlight.to_rgb());
+    let luminance =
+        0.2126 * channel(rgb.r()) + 0.7152 * channel(rgb.g()) + 0.0722 * channel(rgb.b());
     // Contrast with black is (L + 0.05) / 0.05 and with white 1.05 / (L + 0.05);
     // they are equal where (L + 0.05)^2 = 0.0525.
     if (luminance + 0.05) * (luminance + 0.05) > 0.0525 {
@@ -2949,7 +2952,7 @@ fn mark_highlight(mark: &TextMark, node_cx: &NodeContext, cx: &App) -> InlineHig
         // highlight stays readable in a dark theme.
         // A transparent mark leaves the underlying surface unchanged. Keep
         // its inherited foreground, including on custom-colored surfaces.
-        if color.a > 0.0 {
+        if color.a() > 0.0 {
             highlight.color = Some(mark_text_color(color, cx.theme().tokens.colors.background));
         }
     }
@@ -3682,7 +3685,7 @@ fn measure_table_text_columns(
                     let runs = text_runs(range.len(), text_style, &highlights);
                     line_w += window
                         .text_system()
-                        .layout_line(&line[range], font_size * scale, &runs, None)
+                        .layout_line(&line[range], font_size * scale, &runs)
                         .width;
                 }
                 w = w.max(f32::from(line_w));
@@ -5251,20 +5254,20 @@ mod tests {
 
             // The default `<mark>` yellow needs dark text, whatever the theme's
             // text color is (light in a dark theme).
-            let yellow: Hsla = gpui::rgb(0xfef08a).into();
+            let yellow: Hsla = gpui::rgb_to_hsla(gpui::rgb(0xfef08a));
             let style = mark_highlight(&TextMark::default().highlight(yellow), &node_cx, cx).style;
             assert_eq!(style.background_color, Some(yellow));
             assert_eq!(style.color, Some(gpui::black()));
 
             // A dark custom highlight gets light text instead.
-            let navy: Hsla = gpui::rgb(0x1e3a8a).into();
+            let navy: Hsla = gpui::rgb_to_hsla(gpui::rgb(0x1e3a8a));
             let style = mark_highlight(&TextMark::default().highlight(navy), &node_cx, cx).style;
             assert_eq!(style.color, Some(gpui::white()));
 
             // A translucent mark is composited with the theme surface before
             // choosing the text color. Fully transparent marks keep inherited ink.
-            let translucent_black: Hsla = gpui::rgba(0x00000080).into();
-            let translucent_white: Hsla = gpui::rgba(0xffffff4d).into();
+            let translucent_black: Hsla = gpui::rgb_to_hsla(gpui::rgba(0x00000080));
+            let translucent_white: Hsla = gpui::rgb_to_hsla(gpui::rgba(0xffffff4d));
             assert_eq!(
                 mark_text_color(translucent_black, gpui::white()),
                 gpui::black()
@@ -5273,7 +5276,7 @@ mod tests {
                 mark_text_color(translucent_white, gpui::black()),
                 gpui::white()
             );
-            let transparent: Hsla = gpui::rgba(0x00000000).into();
+            let transparent: Hsla = gpui::rgb_to_hsla(gpui::rgba(0x00000000));
             let style =
                 mark_highlight(&TextMark::default().highlight(transparent), &node_cx, cx).style;
             assert_eq!(style.color, None);
@@ -5294,7 +5297,7 @@ mod tests {
             let paragraph = Paragraph {
                 children: vec![InlineNode::new("mark").marks(vec![(
                     0..4,
-                    TextMark::default().highlight(gpui::rgba(0x00000033).into()),
+                    TextMark::default().highlight(gpui::rgb_to_hsla(gpui::rgba(0x00000033))),
                 )])],
                 ..Default::default()
             };
@@ -5537,7 +5540,7 @@ mod tests {
             ))],
             span: None,
         };
-        let mut app = TestApp::with_text_system(Arc::new(WideMonoTextSystem));
+        let mut app = TestApp::with_text_system(Arc::new(WideMonoTextSystem::default()));
         in_prepaint(&mut app, move |window, cx| {
             cx.set_global(crate::Theme::default());
             window.with_text_style(
@@ -5595,7 +5598,7 @@ mod tests {
             ))],
             span: None,
         };
-        let mut app = TestApp::with_text_system(Arc::new(WideMonoTextSystem));
+        let mut app = TestApp::with_text_system(Arc::new(WideMonoTextSystem::default()));
         in_prepaint(&mut app, move |window, cx| {
             cx.set_global(crate::Theme::default());
             window.with_text_style(
@@ -5651,7 +5654,7 @@ mod tests {
         );
         let uncached = table.clone();
         let node_cx = NodeContext::default();
-        let mut app = TestApp::with_text_system(Arc::new(WideMonoTextSystem));
+        let mut app = TestApp::with_text_system(Arc::new(WideMonoTextSystem::default()));
         let (table, node_cx, cached) = in_prepaint(&mut app, move |window, cx| {
             window.set_rem_size(px(20.));
             let style = TextStyle {
@@ -5748,7 +5751,7 @@ mod tests {
             font_weight: Some(FontWeight::BOLD),
             ..Default::default()
         };
-        let mut app = TestApp::with_text_system(Arc::new(WideMonoTextSystem));
+        let mut app = TestApp::with_text_system(Arc::new(WideMonoTextSystem::default()));
         in_prepaint(&mut app, move |window, cx| {
             let mut previous = None;
             for (style, rem_size, family, inline_code, expected) in [
@@ -5797,7 +5800,7 @@ mod tests {
         use gpui::{Refineable as _, TestApp, TextStyle};
 
         let mut node_cx = NodeContext::default();
-        let mut app = TestApp::with_text_system(Arc::new(WideMonoTextSystem));
+        let mut app = TestApp::with_text_system(Arc::new(WideMonoTextSystem::default()));
         in_prepaint(&mut app, move |window, cx| {
             let style = TextStyle {
                 font_family: BODY.into(),
@@ -5853,7 +5856,7 @@ mod tests {
         };
         let node_cx = NodeContext::default();
 
-        let mut app = TestApp::with_text_system(Arc::new(WideMonoTextSystem));
+        let mut app = TestApp::with_text_system(Arc::new(WideMonoTextSystem::default()));
         let mut window = app.open_window(|_, _| Empty);
         let (col_w, font_size) = window.update(|_, window, cx| {
             let mut theme = crate::Theme::default();
@@ -5910,7 +5913,7 @@ mod tests {
         };
         let node_cx = NodeContext::default();
 
-        let mut app = TestApp::with_text_system(Arc::new(WideMonoTextSystem));
+        let mut app = TestApp::with_text_system(Arc::new(WideMonoTextSystem::default()));
         in_prepaint(&mut app, move |window, cx| {
             let style = TextStyle {
                 font_family: BODY.into(),
@@ -5965,7 +5968,7 @@ mod tests {
             vec![(
                 0..2,
                 HighlightStyle {
-                    color: Some(gpui::rgb(0x0000ff).into()),
+                    color: Some(gpui::rgb_to_hsla(gpui::rgb(0x0000ff))),
                     ..Default::default()
                 },
             )]
@@ -5974,7 +5977,7 @@ mod tests {
             vec![(
                 0..2,
                 HighlightStyle {
-                    color: Some(gpui::rgb(0xffff00).into()),
+                    color: Some(gpui::rgb_to_hsla(gpui::rgb(0xffff00))),
                     ..Default::default()
                 },
             )]
@@ -5984,8 +5987,14 @@ mod tests {
         let light_styles = block.highlighted_styles(&light);
         let dark_styles = block.highlighted_styles(&dark);
 
-        assert_eq!(light_styles[0].1.color, Some(gpui::rgb(0x0000ff).into()));
-        assert_eq!(dark_styles[0].1.color, Some(gpui::rgb(0xffff00).into()));
+        assert_eq!(
+            light_styles[0].1.color,
+            Some(gpui::rgb_to_hsla(gpui::rgb(0x0000ff)))
+        );
+        assert_eq!(
+            dark_styles[0].1.color,
+            Some(gpui::rgb_to_hsla(gpui::rgb(0xffff00)))
+        );
         assert_eq!(block.code(), "42", "the document must survive the swap");
     }
 
@@ -6758,7 +6767,7 @@ mod tests {
         assert_eq!(wrap(TextMark::default().code()), "`x`");
         assert_eq!(wrap(TextMark::default().strikethrough()), "~~x~~");
         assert_eq!(
-            wrap(TextMark::default().highlight(gpui::rgb(0xfef08a).into())),
+            wrap(TextMark::default().highlight(gpui::rgb_to_hsla(gpui::rgb(0xfef08a)))),
             "==x=="
         );
         // No Markdown syntax for underline, so it keeps the tag it came from.

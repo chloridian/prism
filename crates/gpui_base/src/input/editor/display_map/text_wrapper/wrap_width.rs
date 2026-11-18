@@ -1,6 +1,7 @@
 //! Conservative width intervals reuse the original Unicode wrapping decisions without approximating glyphs.
 
-use gpui::{Boundary, Pixels, px};
+use crate::text_compat::Boundary;
+use gpui::{Pixels, px};
 
 #[cfg(test)]
 mod tests;

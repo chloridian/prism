@@ -355,7 +355,7 @@ impl Render for TooltipOverlay {
                     |_, _, _, _| {},
                 )),
         )
-        .with_priority(TOOLTIP_PRIORITY)
+        .priority(TOOLTIP_PRIORITY)
         .into_any_element()
     }
 }

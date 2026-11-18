@@ -114,7 +114,7 @@ impl PlotAxis {
             y_labels: Vec::new(),
             y_axis: false,
             y_label_side: AxisLabelSide::default(),
-            stroke: Hsla::default().into(),
+            stroke: gpui::transparent_black().into(),
         }
     }
 
@@ -259,8 +259,8 @@ mod tests {
 
     fn labels() -> Vec<AxisText> {
         vec![
-            AxisText::new("a", px(10.), Hsla::default()),
-            AxisText::new("b", px(20.), Hsla::default()).align(TextAlign::Right),
+            AxisText::new("a", px(10.), gpui::transparent_black()),
+            AxisText::new("b", px(20.), gpui::transparent_black()).align(TextAlign::Right),
         ]
     }
 

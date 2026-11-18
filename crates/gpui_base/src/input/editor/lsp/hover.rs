@@ -1,7 +1,7 @@
 use anyhow::Result;
 use gpui::{App, Context, MouseMoveEvent, Task, Window};
-use web_time::Duration;
 use ropey::Rope;
+use web_time::Duration;
 
 use crate::input::{EditorMode, HoverPopoverState, InputBaseState, RopeExt};
 
@@ -96,7 +96,7 @@ impl InputBaseState<EditorMode> {
             self.clear_hover_state(cx);
             return;
         }
-        if event.modifiers.secondary(cx) {
+        if event.modifiers.secondary() {
             self.handle_hover_definition(offset, window, cx);
         } else {
             // Repaint only when the definition underline goes away; the hover

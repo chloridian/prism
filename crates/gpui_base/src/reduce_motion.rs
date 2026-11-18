@@ -168,12 +168,10 @@ mod platform {
 #[cfg(target_os = "windows")]
 mod platform {
     use gpui::App;
-    use windows::Win32::{
-        Foundation::BOOL,
-        UI::WindowsAndMessaging::{
-            SPI_GETCLIENTAREAANIMATION, SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS, SystemParametersInfoW,
-        },
+    use windows::Win32::UI::WindowsAndMessaging::{
+        SPI_GETCLIENTAREAANIMATION, SYSTEM_PARAMETERS_INFO_UPDATE_FLAGS, SystemParametersInfoW,
     };
+    use windows::core::BOOL;
 
     pub(super) fn read() -> Option<bool> {
         let mut animations_enabled = BOOL(0);

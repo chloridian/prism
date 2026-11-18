@@ -1,11 +1,7 @@
-#[cfg(not(target_family = "wasm"))]
-use std::time::Instant;
 use std::{
     cell::RefCell,
     rc::{Rc, Weak},
 };
-#[cfg(target_family = "wasm")]
-use web_time::Instant;
 
 use gpui::{App, Bounds, Entity, Global, OwnedMenu, Pixels, Point};
 
@@ -29,9 +25,6 @@ pub struct GlobalState {
     text_view_state_stack: RefCell<Vec<Entity<TextViewState>>>,
     /// The table cells being prepainted or painted, innermost last.
     table_cell_stack: RefCell<Vec<Bounds<Pixels>>>,
-    /// When a finger last went down. A tap reaches controls as a mouse press;
-    /// this is how they tell it from one.
-    last_touch: Option<Instant>,
 }
 
 impl Global for GlobalState {}
@@ -44,24 +37,7 @@ impl GlobalState {
             suppress_text_selection: false,
             text_view_state_stack: RefCell::new(Vec::new()),
             table_cell_stack: RefCell::new(Vec::new()),
-            last_touch: None,
         }
-    }
-
-    /// Records that a finger went down. Called from the touch drag GPUI
-    /// offers on every touch, before it becomes a tap, a long press or a pan.
-    pub fn note_touch(cx: &mut App) {
-        Self::init(cx);
-        Self::global_mut(cx).last_touch = Some(Instant::now());
-    }
-
-    /// Whether the press being handled came from a finger: a touch went
-    /// down recently enough that the mouse events of a tap are still
-    /// arriving. A double tap takes up to twice the tap interval.
-    pub fn is_touch_press(cx: &App) -> bool {
-        cx.try_global::<Self>()
-            .and_then(|state| state.last_touch)
-            .is_some_and(|at| at.elapsed() < std::time::Duration::from_secs(1))
     }
 
     /// Ensures that the Base global exists.
