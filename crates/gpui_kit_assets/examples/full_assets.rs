@@ -1,4 +1,3 @@
-
 // Native-only binary size measurement: WASM assets are fetched from an endpoint.
 #[cfg(not(target_family = "wasm"))]
 use gpui::AssetSource;
