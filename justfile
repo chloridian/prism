@@ -57,7 +57,7 @@ build-windows:
 [group('build')]
 build-examples:
     @echo "📐 Building examples..."
-    cargo build --package gpui-ce --examples
+    cargo build --package examples --examples
 
 [doc('Check WASM target (stable) — requires wasm32-unknown-unknown target to be installed')]
 [group('build')]
@@ -82,7 +82,7 @@ check-wasm-atomics:
 [group('build')]
 check-examples:
     @echo "📐 Checking examples..."
-    cargo build --package gpui-ce --examples
+    cargo build --package examples --examples
     cargo check --package gpui_ce_web --target wasm32-unknown-unknown --no-default-features
 
 
@@ -223,7 +223,7 @@ ci:
             skip "WASM atomics" "rustup not installed (required for +nightly)"
         })
         (run-check "check examples" {
-            cargo build --package gpui-ce --examples
+            cargo build --package examples --examples
             cargo check --package gpui_ce_web --target wasm32-unknown-unknown
         })
         (if (available "typos") { run-check "typos" { typos } } else { skip "typos" "not installed" })
@@ -565,7 +565,7 @@ doc-open:
 [group('development')]
 example name:
     @echo "▶️ Running example {{ name }}..."
-    cargo run --example {{ name }}
+    cargo run --package examples --example {{ name }}
 
 alias b   := build
 alias br  := build-release
