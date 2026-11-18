@@ -1459,9 +1459,7 @@ impl Render for Example {
                                                     )
                                                     .when_some(lang, |this, lang| {
                                                         // Only show run terminal button for certain languages
-                                                        if lang.as_ref() == "rust"
-                                                            || lang.as_ref() == "python"
-                                                        {
+                                                        if lang.as_ref() == "lua" {
                                                             this.child(
                                                                 Button::new("run-terminal")
                                                                     .icon(IconName::SquareTerminal)
