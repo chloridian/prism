@@ -338,8 +338,9 @@ impl WgpuContextHandle {
     #[cfg(any(
         target_os = "linux",
         target_os = "freebsd",
-        all(target_os = "macos", feature = "custom-gpu"),
-        all(target_family = "wasm", feature = "custom-gpu")
+        target_os = "macos",
+        target_os = "windows",
+        target_family = "wasm"
     ))]
     pub fn from_window(window: &gpui::Window) -> Option<Self> {
         window
@@ -399,11 +400,14 @@ impl WgpuRenderTarget {
     }
 
     /// Creates a GPUI element that composites this target at its layout bounds.
+    ///
+    /// The element has no intrinsic size, so give it one, for example with `size_full`.
     #[cfg(any(
         target_os = "linux",
         target_os = "freebsd",
-        all(target_os = "macos", feature = "custom-gpu"),
-        all(target_family = "wasm", feature = "custom-gpu")
+        target_os = "macos",
+        target_os = "windows",
+        target_family = "wasm"
     ))]
     pub fn surface(&self) -> gpui::Surface {
         gpui::surface(gpui::SurfaceSource::Texture {
