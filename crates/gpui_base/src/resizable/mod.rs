@@ -735,73 +735,10 @@ mod tests {
         (cx, state, resizes)
     }
 
-    /// A view reading a [`ResizableState`], counting its renders.
-    #[cfg(feature = "gpui-fast")]
-    struct StateReader {
-        state: gpui::Entity<ResizableState>,
-        renders: Rc<Cell<usize>>,
-    }
 
-    #[cfg(feature = "gpui-fast")]
-    impl Render for StateReader {
-        fn render(&mut self, _: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-            self.renders.set(self.renders.get() + 1);
-            let _ = self.state.read(cx).sizes.len();
-            div()
-        }
-    }
 
-    /// Panels beside a [`StateReader`] of their state.
-    #[cfg(feature = "gpui-fast")]
-    struct ReaderBesidePanels {
-        state: gpui::Entity<ResizableState>,
-        reader: gpui::Entity<StateReader>,
-    }
 
-    #[cfg(feature = "gpui-fast")]
-    impl Render for ReaderBesidePanels {
-        fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
-            div()
-                .w(px(800.))
-                .h(px(100.))
-                .child(self.reader.clone())
-                .child(
-                    h_resizable("reader-panels")
-                        .with_state(&self.state)
-                        .child(resizable_panel().size(px(240.)).child(div().size_full()))
-                        .child(resizable_panel().child(div().size_full())),
-                )
-        }
-    }
 
-    /// Drawing panels again at the bounds they had changes nothing in their
-    /// state: a view reading it, beside them in a view drawn again, is not
-    /// built again for it.
-    #[cfg(feature = "gpui-fast")]
-    #[gpui::test]
-    fn redrawing_panels_where_they_were_leaves_their_readers_retained(cx: &mut TestAppContext) {
-        let renders = Rc::new(Cell::new(0));
-        let state = cx.update(|cx| cx.new(|_| ResizableState::default()));
-        let (view, cx) = cx.add_window_view({
-            let state = state.clone();
-            let renders = renders.clone();
-            move |_, cx| ReaderBesidePanels {
-                state: state.clone(),
-                reader: cx.new(|_| StateReader { state, renders }),
-            }
-        });
-        for _ in 0..3 {
-            cx.update(|window, cx| window.draw(cx).clear(cx));
-            cx.run_until_parked();
-        }
-        let before = renders.get();
-        for _ in 0..3 {
-            view.update(cx, |_, cx| cx.notify());
-            cx.update(|window, cx| window.draw(cx).clear(cx));
-            cx.run_until_parked();
-        }
-        assert_eq!(renders.get(), before, "the reader rendered again");
-    }
 
     #[gpui::test]
     fn dynamic_panel_lifecycle_is_owned_by_resizable_state(cx: &mut TestAppContext) {

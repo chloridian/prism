@@ -110,7 +110,6 @@ impl<E: ParentElement + Styled> Styled for ContextMenu<E> {
     }
 }
 
-#[cfg(not(feature = "gpui-fast"))]
 impl<E: ParentElement + Styled + IntoElement + 'static> IntoElement for ContextMenu<E> {
     type Element = Self;
 
@@ -201,7 +200,6 @@ impl DeferredMenu {
     }
 }
 
-#[cfg(not(feature = "gpui-fast"))]
 impl IntoElement for DeferredMenu {
     type Element = Self;
 

@@ -44,7 +44,6 @@ impl CarouselScrollMask {
     }
 }
 
-#[cfg(not(feature = "gpui-fast"))]
 impl gpui::IntoElement for CarouselScrollMask {
     type Element = Self;
 

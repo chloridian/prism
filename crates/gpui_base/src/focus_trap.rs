@@ -135,7 +135,6 @@ impl<E: InteractiveElement + ParentElement + Styled + Element> FocusTrapContaine
     }
 }
 
-#[cfg(not(feature = "gpui-fast"))]
 impl<E: InteractiveElement + ParentElement + Styled + Element> gpui::IntoElement
     for FocusTrapContainer<E>
 {

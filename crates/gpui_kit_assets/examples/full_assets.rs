@@ -1,5 +1,3 @@
-#[cfg(feature = "gpui-fast")]
-extern crate gpui_fast as gpui;
 
 // Native-only binary size measurement: WASM assets are fetched from an endpoint.
 #[cfg(not(target_family = "wasm"))]

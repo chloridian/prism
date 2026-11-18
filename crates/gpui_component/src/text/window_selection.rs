@@ -43,7 +43,6 @@ mod tests {
         }
     }
 
-    #[cfg(not(feature = "gpui-fast"))]
     impl IntoElement for PlainSelectableText {
         type Element = Self;
 
@@ -1465,7 +1464,6 @@ mod tests {
         samples: Rc<RefCell<Vec<bool>>>,
     }
 
-    #[cfg(not(feature = "gpui-fast"))]
     impl IntoElement for SelectionPaintProbe {
         type Element = Self;
 

@@ -22,9 +22,8 @@ name = "text_view_scroll"
 harness = false
 
 [features]
-gpui-fast = ["dep:gpui-fast"]
-test-support = ["gpui/test-support", "gpui-fast?/test-support"]
-inspector = ["gpui_macros/inspector", "gpui/inspector", "gpui-fast?/inspector"]
+test-support = ["gpui/test-support"]
+inspector = ["gpui_macros/inspector", "gpui/inspector"]
 
 [dependencies]
 anyhow.workspace = true
@@ -32,7 +31,6 @@ aho-corasick = "1.1.3"
 data-url = "0.3"
 futures = "0.3"
 gpui.workspace = true
-gpui-fast = { workspace = true, optional = true }
 gpui_macros.workspace = true
 jiff = "1.0"
 lsp-types.workspace = true
@@ -45,7 +43,7 @@ schemars.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 smallvec.workspace = true
-sum-tree.workspace = true
+sum_tree.workspace = true
 tracing.workspace = true
 sys-locale = "0.3"
 unicode-bidi = "0.3.18"
@@ -80,11 +78,8 @@ ashpd = { version = "0.13", default-features = false, features = ["async-io", "s
 criterion = "0.8"
 gpui-base = { path = ".", features = ["test-support"] }
 gpui = { workspace = true, features = ["test-support", "bench-support"] }
-gpui-fast = { workspace = true, features = ["test-support", "bench-support"] }
 gpui_platform = { workspace = true, features = ["bench-support"] }
-gpui-fast-platform = { workspace = true, features = ["bench-support"] }
 indoc = "2"
-reqwest_client.workspace = true
 
 [lints]
 workspace = true

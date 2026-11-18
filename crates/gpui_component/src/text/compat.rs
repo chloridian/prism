@@ -268,7 +268,6 @@ impl TextView {
     }
 }
 
-#[cfg(not(feature = "gpui-fast"))]
 impl IntoElement for TextView {
     type Element = Self;
 

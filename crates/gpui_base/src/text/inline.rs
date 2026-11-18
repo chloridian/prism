@@ -1155,7 +1155,6 @@ impl Inline {
     }
 }
 
-#[cfg(not(feature = "gpui-fast"))]
 impl gpui::IntoElement for Inline {
     type Element = Self;
 

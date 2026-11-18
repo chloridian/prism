@@ -293,7 +293,6 @@ impl<M: InputModeKind> EditorScrollbar<M> {
     }
 }
 
-#[cfg(not(feature = "gpui-fast"))]
 impl<M: InputModeKind> IntoElement for EditorScrollbar<M> {
     type Element = Self;
 
@@ -3027,7 +3026,6 @@ fn snap_caret_to_device_pixels(bounds: Bounds<Pixels>, scale_factor: f32) -> Bou
     Bounds::new(point(x, bounds.origin.y), size(width, bounds.size.height))
 }
 
-#[cfg(not(feature = "gpui-fast"))]
 impl<M: InputModeKind> IntoElement for TextElement<M> {
     type Element = Self;
 
@@ -5220,140 +5218,7 @@ mod tests {
         });
     }
 
-    /// Paints an input moved by its parent, then counts the views a draw with
-    /// nothing else to do builds: a notify during a draw only marks a view
-    /// dirty, for the next draw. Only GPUI Fast reuses a clean view.
-    #[cfg(feature = "gpui-fast")]
-    #[gpui::test]
-    fn an_input_moved_by_its_parent_is_dirty_only_while_focused(cx: &mut TestAppContext) {
-        use std::{cell::Cell, rc::Rc};
 
-        struct Moved {
-            input: Entity<crate::input::InputState>,
-            top: Rc<Cell<f32>>,
-            width: Rc<Cell<f32>>,
-        }
-
-        impl Render for Moved {
-            fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
-                div().size_full().pt(px(self.top.get())).child(
-                    div()
-                        .w(px(self.width.get()))
-                        .child(crate::input::Input::new(&self.input)),
-                )
-            }
-        }
-
-        cx.update(crate::init);
-        let (top, width) = (Rc::new(Cell::new(0.)), Rc::new(Cell::new(200.)));
-        let mut input = None;
-        let window = cx.open_window(size(px(400.), px(300.)), |window, cx| {
-            let state = cx.new(|cx| crate::input::InputState::new(window, cx).default_value("a"));
-            input = Some(state.clone());
-            Moved {
-                input: state,
-                top: top.clone(),
-                width: width.clone(),
-            }
-        });
-        let input = input.unwrap();
-        let mut cx = VisualTestContext::from_window(window.into(), cx);
-        cx.update(|window, cx| window.draw(cx).clear(cx));
-        cx.run_until_parked();
-        let dirty_after_painting_at = |y: f32, cx: &mut VisualTestContext| {
-            top.set(y);
-            cx.update(|window, cx| {
-                window.refresh();
-                window.draw(cx).clear(cx);
-                let built = window.layout_stats().views_built;
-                window.draw(cx).clear(cx);
-                window.layout_stats().views_built - built
-            })
-        };
-
-        for y in [10., 20., 30., 10.] {
-            assert_eq!(
-                dirty_after_painting_at(y, &mut cx),
-                0,
-                "moved to {y}, not focused"
-            );
-        }
-
-        width.set(240.);
-        assert_ne!(dirty_after_painting_at(30., &mut cx), 0, "a new size");
-
-        cx.update(|window, cx| input.update(cx, |state, cx| state.focus(window, cx)));
-        dirty_after_painting_at(30., &mut cx);
-        assert_ne!(dirty_after_painting_at(40., &mut cx), 0, "moved, focused");
-    }
-
-    /// A wheel over a list builds the view holding it again, and draws the
-    /// page around that view from the last frame. The page was checked before
-    /// the view in it painted, so an input in that view writing its layout
-    /// while painting would read as a change to what the page read, and the
-    /// page would be built again on the next frame. Only GPUI Fast draws a
-    /// view around another.
-    #[cfg(feature = "gpui-fast")]
-    #[gpui::test]
-    fn drawing_an_input_leaves_the_view_around_it_clean(cx: &mut TestAppContext) {
-        use gpui::{
-            InteractiveElement as _, ScrollDelta, ScrollEvent, StatefulInteractiveElement as _,
-        };
-        use std::{cell::Cell, rc::Rc};
-
-        struct Form(Entity<crate::input::InputState>);
-
-        impl Render for Form {
-            fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
-                div()
-                    .size_full()
-                    .child(div().w(px(200.)).child(crate::input::Input::new(&self.0)))
-                    .child(
-                        div()
-                            .id("list")
-                            .h(px(200.))
-                            .overflow_y_scroll()
-                            .child(div().h(px(1000.))),
-                    )
-            }
-        }
-
-        struct Page(Entity<Form>, Rc<Cell<usize>>);
-
-        impl Render for Page {
-            fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
-                self.1.set(self.1.get() + 1);
-                div().size_full().child(self.0.clone())
-            }
-        }
-
-        cx.update(crate::init);
-        let renders = Rc::new(Cell::new(0));
-        let window = cx.open_window(size(px(400.), px(300.)), |window, cx| {
-            let input = cx.new(|cx| crate::input::InputState::new(window, cx).default_value("a"));
-            Page(cx.new(|_| Form(input)), renders.clone())
-        });
-        let mut cx = VisualTestContext::from_window(window.into(), cx);
-        // The input's first layout notifies it, for a second frame.
-        for _ in 0..2 {
-            cx.update(|window, cx| window.draw(cx).clear(cx));
-            cx.run_until_parked();
-        }
-
-        let page_renders = renders.get();
-        for wheel in 0..3 {
-            // A test window draws as soon as the wheel leaves it dirty.
-            cx.simulate_event(ScrollEvent {
-                position: point(px(100.), px(150.)),
-                delta: ScrollDelta::Pixels(point(px(0.), px(-8.))),
-                ..Default::default()
-            });
-            cx.run_until_parked();
-            // The next frame, with nothing dirty.
-            cx.update(|window, cx| window.draw(cx).clear(cx));
-            assert_eq!(renders.get(), page_renders, "wheel {wheel}");
-        }
-    }
 
     #[gpui::test]
     fn a_focused_input_reports_a_moved_caret_to_the_platform(cx: &mut TestAppContext) {

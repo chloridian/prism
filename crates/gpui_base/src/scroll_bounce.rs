@@ -282,7 +282,6 @@ pub struct ScrollBouncePrepaintState {
     hitbox: Hitbox,
 }
 
-#[cfg(not(feature = "gpui-fast"))]
 impl IntoElement for ScrollBounce {
     type Element = Self;
     fn into_element(self) -> Self {

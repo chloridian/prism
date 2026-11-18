@@ -3067,7 +3067,6 @@ struct KeepTextSelection {
     id: ElementId,
 }
 
-#[cfg(not(feature = "gpui-fast"))]
 impl IntoElement for KeepTextSelection {
     type Element = Self;
 
@@ -3151,7 +3150,6 @@ struct TextSelectionScopeMarker<E> {
     element: E,
 }
 
-#[cfg(not(feature = "gpui-fast"))]
 impl<E: Element> IntoElement for TextSelectionScopeMarker<E> {
     type Element = Self;
 
@@ -3229,7 +3227,6 @@ impl<E: Element> Element for TextSelectionScopeMarker<E> {
 #[doc(hidden)]
 pub struct TextSelectionLayerPrepaintState(Entity<WindowSelectionState>);
 
-#[cfg(not(feature = "gpui-fast"))]
 impl IntoElement for TextSelectionLayer {
     type Element = Self;
 
@@ -3692,8 +3689,6 @@ pub(crate) fn clear_window_text_selection(window_id: gpui::WindowId, cx: &mut Ap
 mod tests {
     use super::*;
     use crate::ElementExt as _;
-    #[cfg(feature = "gpui-fast")]
-    use gpui::StatefulInteractiveElement as _;
     use gpui::{
         Bounds, ContentMask, Context, Hitbox, HitboxBehavior, HitboxId, InteractiveElement as _,
         IntoElement, ParentElement as _, Render, SharedString, Styled as _, StyledText,
@@ -5220,34 +5215,7 @@ mod tests {
         }
     }
 
-    #[cfg(feature = "gpui-fast")]
-    struct RetainedScrollingSelectionRoot {
-        text: Entity<RetainedSelectionText>,
-        unrelated: Entity<RetainedSelectionText>,
-        scroll: gpui::ScrollHandle,
-    }
 
-    #[cfg(feature = "gpui-fast")]
-    impl Render for RetainedScrollingSelectionRoot {
-        fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
-            div()
-                .size_full()
-                .flex()
-                .flex_col()
-                .child(TextSelectionLayer)
-                .child(
-                    div()
-                        .id("scrolling-texts")
-                        .w(px(240.))
-                        .h(px(64.))
-                        .flex_none()
-                        .overflow_y_scroll()
-                        .track_scroll(&self.scroll)
-                        .child(div().h(px(352.)).child(self.text.clone())),
-                )
-                .child(self.unrelated.clone())
-        }
-    }
 
     fn draw_selection_frame(cx: &mut gpui::VisualTestContext) {
         cx.update(|window, cx| window.draw(cx).clear(cx));
@@ -5306,64 +5274,6 @@ mod tests {
         })
     }
 
-    /// Uses only the original public TextView/selection APIs and real retained
-    /// views, so this also runs against the implementation before this fix.
-    #[cfg(feature = "gpui-fast")]
-    #[gpui::test]
-    fn active_selection_keeps_unrelated_text_views_retained(cx: &mut TestAppContext) {
-        cx.update(crate::init);
-        let (root, cx) = cx.add_window_view(|_, cx| RetainedSelectionRoot {
-            texts: ["alpha", "bravo", "charlie"]
-                .into_iter()
-                .map(|text| RetainedSelectionText::new(text, cx))
-                .collect(),
-        });
-        draw_selection_frame(cx);
-        draw_selection_frame(cx);
-        assert_eq!(select_retained_texts(0, false, cx).trim(), "alpha");
-        draw_selection_frame(cx);
-        draw_selection_frame(cx);
-        let texts = root.read_with(cx, |root, _| root.texts.clone());
-        let unrelated = texts[1].read_with(cx, |text, _| text.renders.clone());
-        let before = unrelated.get();
-        let first_line = cx.update(|window, cx| {
-            let state = WindowSelectionState::existing(window, cx).unwrap();
-            state
-                .read(cx)
-                .participants
-                .borrow()
-                .values()
-                .map(|participant| participant.registration.text_bounds[0])
-                .min_by(|a, b| a.top().partial_cmp(&b.top()).unwrap())
-                .unwrap()
-        });
-        for fraction in [0.2, 0.4, 0.6, 0.8] {
-            cx.update(|window, cx| {
-                window.dispatch_event(
-                    gpui::PlatformInput::MouseMove(MouseMoveEvent {
-                        position: point(
-                            first_line.left() + first_line.size.width * fraction,
-                            first_line.center().y,
-                        ),
-                        pressed_button: Some(MouseButton::Left),
-                        ..Default::default()
-                    }),
-                    cx,
-                );
-            });
-            draw_selection_frame(cx);
-        }
-        assert_ne!(
-            cx.update(|window, cx| TextSelection::selected_text(window, cx))
-                .trim(),
-            "alpha"
-        );
-        assert_eq!(
-            unrelated.get(),
-            before,
-            "active registration redrew an unrelated view"
-        );
-    }
 
     #[gpui::test]
     fn active_selection_frame_publication_visits_participants_linearly(cx: &mut TestAppContext) {
@@ -5401,124 +5311,7 @@ mod tests {
         }
     }
 
-    #[cfg(feature = "gpui-fast")]
-    #[gpui::test]
-    fn scrolling_selected_text_does_not_rebuild_unrelated_document_order(cx: &mut TestAppContext) {
-        cx.update(crate::init);
-        let (root, cx) = cx.add_window_view(|_, cx| {
-            let scrolling = RetainedSelectionText::new("alpha\n\nbravo\n\ncharlie\n\ndelta", cx);
-            scrolling.update(cx, |text, _| text.scrollable = true);
-            RetainedSelectionRoot {
-                texts: vec![scrolling, RetainedSelectionText::new("unrelated", cx)],
-            }
-        });
-        draw_selection_frame(cx);
-        draw_selection_frame(cx);
-        assert_eq!(select_retained_texts(0, false, cx).trim(), "alpha");
-        draw_selection_frame(cx);
-        draw_selection_frame(cx);
-        let unrelated = root.read_with(cx, |root, cx| root.texts[1].read(cx).renders.clone());
-        let before = unrelated.get();
-        let previous_offset = cx.update(|window, cx| {
-            let state = WindowSelectionState::existing(window, cx).unwrap();
-            let registration = state
-                .read(cx)
-                .participants
-                .borrow()
-                .values()
-                .find(|participant| participant.registration.self_scroll)
-                .unwrap()
-                .registration
-                .clone();
-            let offset = registration.scroll_offset;
-            window.dispatch_event(
-                gpui::PlatformInput::Scroll(ScrollEvent {
-                    position: registration.bounds.center(),
-                    delta: ScrollDelta::Pixels(point(px(0.), px(-20.))),
-                    touch_phase: TouchPhase::Moved,
-                    ..Default::default()
-                }),
-                cx,
-            );
-            offset
-        });
-        for _ in 0..3 {
-            draw_selection_frame(cx);
-        }
-        cx.update(|window, cx| {
-            let state = WindowSelectionState::existing(window, cx).unwrap();
-            let participants = state.read(cx).participants.borrow();
-            let scrolling = participants
-                .values()
-                .find(|participant| participant.registration.self_scroll)
-                .unwrap();
-            assert_ne!(
-                scrolling.registration.scroll_offset, previous_offset,
-                "the content must actually scroll"
-            );
-            assert!(!state.read(cx).refresh_held_cursor.get());
-        });
-        assert_eq!(
-            unrelated.get(),
-            before,
-            "a content scroll must not request a full order rebuild"
-        );
-    }
 
-    #[cfg(feature = "gpui-fast")]
-    #[gpui::test]
-    fn ancestor_scrolling_keeps_unrelated_text_views_retained(cx: &mut TestAppContext) {
-        for selected in [false, true] {
-            cx.update(crate::init);
-            let (root, cx) = cx.add_window_view(|_, cx| RetainedScrollingSelectionRoot {
-                text: RetainedSelectionText::new("alpha", cx),
-                unrelated: RetainedSelectionText::new("unrelated", cx),
-                scroll: gpui::ScrollHandle::new(),
-            });
-            draw_selection_frame(cx);
-            draw_selection_frame(cx);
-            if selected {
-                assert_eq!(select_retained_texts(0, true, cx).trim(), "alpha");
-                draw_selection_frame(cx);
-                draw_selection_frame(cx);
-            }
-            let (scroll, renders, text) = root.read_with(cx, |root, cx| {
-                (
-                    root.scroll.clone(),
-                    root.unrelated.read(cx).renders.clone(),
-                    root.text.read(cx).text.clone(),
-                )
-            });
-            let before = renders.get();
-            let bounds_before = text.read_with(cx, |text, _| text.bounds());
-            for _ in 0..4 {
-                let previous_offset = scroll.offset();
-                cx.update(|window, cx| {
-                    window.dispatch_event(
-                        gpui::PlatformInput::Scroll(ScrollEvent {
-                            position: point(px(20.), px(20.)),
-                            delta: ScrollDelta::Pixels(point(px(0.), px(-4.))),
-                            touch_phase: TouchPhase::Moved,
-                            ..Default::default()
-                        }),
-                        cx,
-                    );
-                });
-                for _ in 0..3 {
-                    draw_selection_frame(cx);
-                }
-                assert_ne!(scroll.offset(), previous_offset, "the ancestor must scroll");
-                assert_eq!(
-                    renders.get(),
-                    before,
-                    "ancestor scrolling rebuilt an unrelated text view (selected: {selected})"
-                );
-                let copied = cx.update(|window, cx| TextSelection::selected_text(window, cx));
-                assert_eq!(copied.trim(), if selected { "alpha" } else { "" });
-            }
-            assert_ne!(text.read_with(cx, |text, _| text.bounds()), bounds_before);
-        }
-    }
 
     #[gpui::test]
     fn retained_text_order_survives_partial_frames_insertion_and_reordering(
@@ -5574,15 +5367,6 @@ mod tests {
             words(cx.update(|window, cx| TextSelection::selected_text(window, cx))),
             ["alpha", "bravo", "delta", "charlie"]
         );
-        #[cfg(feature = "gpui-fast")]
-        {
-            let renders = texts[0].read_with(cx, |text, _| text.renders.clone());
-            let before = renders.get();
-            for _ in 0..3 {
-                draw_selection_frame(cx);
-            }
-            assert_eq!(renders.get(), before, "order recovery must settle");
-        }
         // Keep the endpoint's entity alive after removing its element. A
         // later remount must not resurrect the retired window gesture.
         root.update(cx, |root, cx| {
@@ -5606,75 +5390,10 @@ mod tests {
         );
     }
 
-    /// A view reading the window's selection state, beside selectable text,
-    /// counting its renders.
-    #[cfg(feature = "gpui-fast")]
-    struct SelectionStateReader {
-        renders: Rc<Cell<usize>>,
-    }
 
-    #[cfg(feature = "gpui-fast")]
-    impl Render for SelectionStateReader {
-        fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
-            self.renders.set(self.renders.get() + 1);
-            if let Some(state) = WindowSelectionState::existing(window, cx) {
-                let _ = state.read(cx).participants.borrow().len();
-            }
-            div().size_full()
-        }
-    }
 
-    /// The selectable text of a [`ToggleSelectionElementView`] beside a
-    /// [`SelectionStateReader`].
-    #[cfg(feature = "gpui-fast")]
-    struct ReaderBesideSelectionView {
-        text: gpui::Entity<ToggleSelectionElementView>,
-        reader: gpui::Entity<SelectionStateReader>,
-    }
 
-    #[cfg(feature = "gpui-fast")]
-    impl Render for ReaderBesideSelectionView {
-        fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
-            div()
-                .size_full()
-                .child(self.reader.clone())
-                .child(self.text.clone())
-        }
-    }
 
-    /// Selectable text drawn again, nothing about its selection changed,
-    /// writes neither the window's selection state nor its own: a view
-    /// reading them is retained, as it would not be had they changed.
-    #[cfg(feature = "gpui-fast")]
-    #[gpui::test]
-    fn redrawing_selectable_text_leaves_its_readers_retained(cx: &mut TestAppContext) {
-        let renders = Rc::new(Cell::new(0));
-        let (view, cx) = cx.add_window_view(|_, cx| ReaderBesideSelectionView {
-            text: cx.new(|cx| ToggleSelectionElementView {
-                enabled: true,
-                selection: TextSelectionHandle::new("text", cx),
-            }),
-            reader: cx.new(|_| SelectionStateReader {
-                renders: renders.clone(),
-            }),
-        });
-        let text = cx.update(|_, cx| view.read(cx).text.clone());
-        let redraw = |cx: &mut gpui::VisualTestContext| {
-            text.update(cx, |_, cx| cx.notify());
-            cx.update(|window, cx| {
-                let _ = window.draw(cx);
-                window.simulate_next_frame(cx);
-            });
-            cx.run_until_parked();
-        };
-        redraw(cx);
-        redraw(cx);
-        let before = renders.get();
-        for _ in 0..4 {
-            redraw(cx);
-        }
-        assert_eq!(renders.get(), before, "the reader rendered again");
-    }
 
     #[gpui::test]
     fn retained_selection_state_releases_and_does_not_resurrect_selection(cx: &mut TestAppContext) {

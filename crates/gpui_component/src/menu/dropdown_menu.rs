@@ -207,7 +207,6 @@ impl TriggerFocus {
     }
 }
 
-#[cfg(not(feature = "gpui-fast"))]
 impl IntoElement for TriggerFocus {
     type Element = Self;
 

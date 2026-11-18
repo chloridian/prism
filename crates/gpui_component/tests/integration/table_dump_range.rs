@@ -1,5 +1,3 @@
-#[cfg(feature = "gpui-fast")]
-extern crate gpui_fast as gpui;
 
 use std::{cell::Cell, rc::Rc};
 
