@@ -934,7 +934,6 @@ pub(crate) mod tests {
         AppContext as _, Bounds, Context, Render, StatefulInteractiveElement as _, TestAppContext,
         VisualTestContext, size,
     };
-    use gpui_base::HslaExt as _;
     use std::{cell::Cell, rc::Rc};
 
     struct DialogHost {
