@@ -2930,6 +2930,21 @@ impl Window {
         self.platform_window.set_traffic_light_position(position);
     }
 
+    /// Hides the cursor and keeps it from leaving the window, and
+    /// [`RawMouseMotionEvent`](crate::RawMouseMotionEvent)s report device movement until
+    /// [`Window::release_cursor`] is called. The platform releases the capture when the window
+    /// loses focus, is minimized or closes. Platforms without cursor capture ignore the call.
+    ///
+    /// This is separate from [`Window::capture_pointer`], which routes events to a hitbox.
+    pub fn capture_cursor(&mut self) {
+        self.platform_window.capture_cursor();
+    }
+
+    /// Releases a cursor capture, showing the cursor again at the position it had when the capture began.
+    pub fn release_cursor(&mut self) {
+        self.platform_window.release_cursor();
+    }
+
     /// Sets the application identifier.
     pub fn set_app_id(&mut self, app_id: &str) {
         self.platform_window.set_app_id(app_id);
@@ -5912,6 +5927,7 @@ impl Window {
             PlatformInput::MousePressure(mouse_pressure) => {
                 PlatformInput::MousePressure(mouse_pressure)
             }
+            PlatformInput::RawMouseMotion(raw_motion) => PlatformInput::RawMouseMotion(raw_motion),
             PlatformInput::MouseExited(mouse_exited) => {
                 self.modifiers = mouse_exited.modifiers;
                 PlatformInput::MouseExited(mouse_exited)
