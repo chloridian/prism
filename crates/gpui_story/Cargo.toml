@@ -1,0 +1,38 @@
+[package]
+name = "gpui-component-story"
+version = "0.10.0"
+publish = false
+edition.workspace = true
+
+[features]
+inspector = ["gpui-kit/inspector"]
+tree-sitter = ["gpui-kit/tree-sitter-languages"]
+default = ["tree-sitter"]
+
+[dependencies]
+anyhow.workspace = true
+gpui-kit.workspace = true
+lsp-types.workspace = true
+
+async-channel = "2.3.1"
+autocorrect = "2.14.2"
+csv = "1.4"
+fake = { version = "2.10.0", features = ["dummy"] }
+itertools = "0.14.0"
+jiff = "1.0"
+rand = "0.8"
+regex = "1"
+serde = "1"
+serde_json = "1"
+tracing.workspace = true
+tracing-subscriber = { version = "0.3.22", features = [
+  "env-filter",
+  "fmt",
+  "registry",
+], default-features = false }
+unindent = "0.2.3"
+rust-i18n.workspace = true
+dirs = "6.0.0"
+
+[lints]
+workspace = true
