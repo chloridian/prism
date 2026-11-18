@@ -2927,6 +2927,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "gpui-kit"
+version = "0.10.0"
+dependencies = [
+ "anyhow",
+ "gpui-base",
+ "gpui-ce",
+ "gpui-component",
+ "gpui-kit-assets",
+ "gpui_ce_platform",
+]
+
+[[package]]
 name = "gpui-kit-assets"
 version = "0.10.0"
 dependencies = [
@@ -3455,6 +3467,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2304e00983f87ffb38b55b444b5e3b60a884b5d30c0fca7d82fe33449bbe55ea"
 
 [[package]]
+name = "hello_world"
+version = "0.10.0"
+dependencies = [
+ "anyhow",
+ "gpui-kit",
+]
+
+[[package]]
 name = "hermit-abi"
 version = "0.5.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3880,6 +3900,14 @@ checksum = "3b5cf4372d022092674a83b8febf5865f7a573cc0c5baec5e49c879b6a20978f"
 dependencies = [
  "block-padding",
  "hybrid-array",
+]
+
+[[package]]
+name = "input"
+version = "0.10.0"
+dependencies = [
+ "anyhow",
+ "gpui-kit",
 ]
 
 [[package]]
@@ -7020,6 +7048,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f8fadd59c855ef2080decdef8ff161eb6661b86933c9d82e5ba29dc602a55aba"
 
 [[package]]
+name = "sidebar"
+version = "0.10.0"
+dependencies = [
+ "anyhow",
+ "gpui-kit",
+]
+
+[[package]]
 name = "signal-hook-registry"
 version = "1.4.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7569,6 +7605,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "table_in_scrollable"
+version = "0.10.0"
+dependencies = [
+ "gpui-kit",
+]
+
+[[package]]
 name = "taffy"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7637,6 +7680,14 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "06794f8f6c5c898b3275aebefa6b8a1cb24cd2c6c79397ab15774837a0bc5755"
 dependencies = [
  "winapi-util",
+]
+
+[[package]]
+name = "text_selection"
+version = "0.10.0"
+dependencies = [
+ "anyhow",
+ "gpui-kit",
 ]
 
 [[package]]
@@ -8947,6 +8998,14 @@ name = "winapi-x86_64-pc-windows-gnu"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "712e227841d057c1ee1cd2fb22fa7e5a5461ae8e48fa2ca79ec42cfc1931183f"
+
+[[package]]
+name = "window_title"
+version = "0.10.0"
+dependencies = [
+ "anyhow",
+ "gpui-kit",
+]
 
 [[package]]
 name = "windows"
