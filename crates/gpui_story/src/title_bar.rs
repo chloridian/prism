@@ -15,7 +15,7 @@ use gpui_kit::{
 };
 
 use crate::{
-    AppState, SelectFont, SelectRadius, SelectScrollbarMode, ToggleAppMenuBar, ToggleFpsMonitor,
+    AppState, SelectFont, SelectRadius, SelectScrollbarMode, ToggleAppMenuBar,
     ToggleListActiveHighlight, ToggleRightToLeft, app_menus,
 };
 
@@ -159,17 +159,6 @@ impl FontSizeSelector {
         });
     }
 
-    fn on_toggle_fps_monitor(
-        &mut self,
-        _: &ToggleFpsMonitor,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
-        let state = AppState::global_mut(cx);
-        state.show_fps_monitor = !state.show_fps_monitor;
-        window.refresh();
-    }
-
     fn on_toggle_right_to_left(
         &mut self,
         _: &ToggleRightToLeft,
@@ -203,7 +192,6 @@ impl Render for FontSizeSelector {
         let font_size = cx.theme().font_size.as_f32() as i32;
         let radius = cx.theme().radius.as_f32() as i32;
         let scroll_show = cx.theme().scrollbar_mode;
-        let show_fps_monitor = AppState::global(cx).show_fps_monitor;
         let show_app_menu_bar = AppState::global(cx).show_app_menu_bar;
         let rtl = LayoutDirection::global(cx).is_rtl();
 
@@ -214,7 +202,6 @@ impl Render for FontSizeSelector {
             .on_action(cx.listener(Self::on_select_radius))
             .on_action(cx.listener(Self::on_select_scrollbar_mode))
             .on_action(cx.listener(Self::on_toggle_list_active_highlight))
-            .on_action(cx.listener(Self::on_toggle_fps_monitor))
             .on_action(cx.listener(Self::on_toggle_app_menu_bar))
             .on_action(cx.listener(Self::on_toggle_right_to_left))
             .child(
@@ -276,11 +263,6 @@ impl Render for FontSizeSelector {
                                 "List Active Highlight",
                                 cx.theme().list.active_highlight,
                                 Box::new(ToggleListActiveHighlight),
-                            )
-                            .menu_with_check(
-                                "FPS Monitor",
-                                show_fps_monitor,
-                                Box::new(ToggleFpsMonitor),
                             )
                             .menu_with_check(
                                 "App Menu Bar",

@@ -71,7 +71,6 @@ actions!(
         TabPrev,
         ShowPanelInfo,
         ToggleListActiveHighlight,
-        ToggleFpsMonitor,
         ToggleAppMenuBar,
         ToggleRightToLeft
     ]
@@ -81,9 +80,6 @@ const PANEL_NAME: &str = "StoryContainer";
 
 pub struct AppState {
     pub invisible_panels: Entity<Vec<SharedString>>,
-    /// Whether the window root renders the performance HUD. Toggled from the
-    /// title bar's settings menu, read by [`StoryRoot`].
-    pub show_fps_monitor: bool,
     /// Whether the title bar draws the in-window [`AppMenuBar`] instead of the
     /// window title. Toggled from the title bar's settings menu, read by
     /// [`AppTitleBar`].
@@ -96,7 +92,6 @@ impl AppState {
     fn init(cx: &mut App) {
         let state = Self {
             invisible_panels: cx.new(|_| Vec::new()),
-            show_fps_monitor: false,
             // macOS draws the app menus in the system menu bar, so an in-window
             // menu bar would be a second copy of them. Off by default there,
             // but still switchable so the component stays demoable on a Mac.
