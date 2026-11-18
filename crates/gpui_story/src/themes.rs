@@ -8,9 +8,6 @@ use serde::{Deserialize, Serialize};
 
 use crate::AppState;
 
-#[cfg(target_family = "wasm")]
-use crate::embedded_themes;
-
 const STATE_FILE: &str = "target/state.json";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -78,43 +75,12 @@ fn apply_persisted_radius(state: &State, cx: &mut App) {
 }
 
 pub fn init(cx: &mut App) {
-    #[cfg(target_family = "wasm")]
-    {
-        tracing::info!("Loading embedded themes for WASM...");
-        let embedded = embedded_themes::embedded_themes();
-        let registry = ThemeRegistry::global_mut(cx);
-
-        for (name, content) in embedded {
-            if let Err(e) = registry.load_themes_from_str(content) {
-                tracing::error!("Failed to load embedded theme {}: {}", name, e);
-            } else {
-                tracing::info!("Loaded embedded theme: {}", name);
-            }
-        }
-    }
-
     let state = if cfg!(not(target_family = "wasm")) {
         let json = std::fs::read_to_string(STATE_FILE).unwrap_or(String::default());
         serde_json::from_str::<State>(&json).unwrap_or_default()
     } else {
         State::default()
     };
-
-    #[cfg(not(target_family = "wasm"))]
-    let watched_state = state.clone();
-    #[cfg(not(target_family = "wasm"))]
-    if let Err(err) = ThemeRegistry::load_dir(std::path::PathBuf::from("./themes"), cx, move |cx| {
-        if let Some(theme) = ThemeRegistry::global(cx)
-            .themes()
-            .get(&watched_state.theme)
-            .cloned()
-        {
-            apply_theme_config(theme, cx);
-            apply_persisted_radius(&watched_state, cx);
-        }
-    }) {
-        tracing::error!("Failed to watch themes directory: {}", err);
-    }
 
     if let Some(scrollbar_mode) = state.scrollbar_mode {
         Theme::set_scrollbar_mode(scrollbar_mode, cx);
