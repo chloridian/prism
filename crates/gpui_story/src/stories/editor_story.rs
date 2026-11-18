@@ -13,7 +13,7 @@ use gpui_kit::component::{
 
 use crate::story_toolbar_group;
 
-const EXAMPLE_CODE: &str = include_str!("./editor_preview.rs");
+const EXAMPLE_CODE: &str = include_str!("./editor_preview.lua");
 
 /// Words chosen so `fl` and `log` light up different spans under each highlighter.
 const COMPLETION_WORDS: [&str; 6] = [
@@ -138,7 +138,7 @@ impl EditorStory {
     fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
         let editor_state = cx.new(|cx| {
             EditorState::new(window, cx)
-                .language("rust")
+                .language("lua")
                 .folding(true)
                 .tab_size(TabSize {
                     tab_size: 4,

@@ -52,42 +52,35 @@ And this is next blockquote
 > > Second level
 > > Third level
 >
-> ```rs
-> const FOO: &str = "bar";
+> ```lua
+> local FOO = "bar"
 > ```
 
 ## Code block
 
-#### Rust
+#### Lua
 
-```rust
-struct Repository {
-    /// Name of the repository.
-    name: String,
-}
+```lua
+-- A repository.
+local Repository = {}
+Repository.__index = Repository
 
-fn main() {
-    let _ = Repository {
-        name: "GPUI Component".to_string(),
-    };
+function Repository.new(name)
+  return setmetatable({ name = name }, Repository)
+end
 
-    println!("Hello, World!");
-}
+local repo = Repository.new("GPUI Component")
+print("Hello, World!", repo.name)
 ```
 
-#### Python
+#### JSON
 
-```python
-class Repository:
-    """A repository."""
-
-    def __init__(self, name: str):
-        """Initialize the repository.
-
-        Args:
-            name: Name of the repository.
-        """
-        self.name = name
+```json
+{
+  "name": "GPUI Component",
+  "private": false,
+  "topics": ["gpui", "ui"]
+}
 ```
 
 ---
@@ -155,10 +148,10 @@ See the way the text is aligned, depending on the position of `':'`
 
 1. A fenced code block:
 
-   ```rust
-   fn main() {
-       println!("Nested code block");
-   }
+   ```lua
+   local function main()
+     print("Nested code block")
+   end
    ```
 
 2. A blockquote:
@@ -275,11 +268,11 @@ $$
 
 It also catches markers inside inline `code` and fenced blocks:
 
-```rust
-fn render() {
-    // TODO: cache the parsed AST between frames
-    // FIXME: handle empty input without a panic
-}
+```lua
+local function render()
+  -- TODO: cache the parsed AST between frames
+  -- FIXME: handle empty input without a panic
+end
 ```
 
 This is final paragraph, it includes a code block and a list of items.
