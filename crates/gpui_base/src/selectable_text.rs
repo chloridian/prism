@@ -3,7 +3,7 @@ use std::ops::Range;
 use gpui::{
     App, BorderStyle, Bounds, Corners, Edges, Element, ElementId, GlobalElementId, HighlightStyle,
     Hitbox, HitboxBehavior, Hsla, InspectorElementId, LayoutId, PaintQuad, Pixels, Point,
-    SharedString, StyledText, Subscription, TextStyleRefinement, Window, transparent_black,
+    SharedString, Style, StyledText, Subscription, TextStyleRefinement, Window, transparent_black,
 };
 
 use crate::{TextSelectionHandle, TextSelectionRegistration, TextSelectionRun};
@@ -191,7 +191,7 @@ impl Element for SelectableText {
                 },
             )
         });
-        let (layout_id, ()) = if let Some(style) = self.text_style.clone() {
+        let (text_id, ()) = if let Some(style) = self.text_style.clone() {
             window.with_text_style(Some(style), |window| {
                 self.styled_text
                     .request_layout(global_id, inspector_id, window, cx)
@@ -200,6 +200,7 @@ impl Element for SelectableText {
             self.styled_text
                 .request_layout(global_id, inspector_id, window, cx)
         };
+        let layout_id = window.request_layout(Style::default(), [text_id], cx);
         (layout_id, handle)
     }
 
