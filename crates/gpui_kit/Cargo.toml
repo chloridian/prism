@@ -1,0 +1,34 @@
+[package]
+name = "gpui-kit"
+version = "0.10.0"
+description = "GPUI Kit: one dependency for building desktop applications with GPUI, GPUI Base, GPUI Component and default assets."
+keywords = ["desktop", "gpui", "shadcn", "ui", "uikit"]
+categories = ["gui"]
+license = "Apache-2.0"
+documentation = "https://docs.rs/gpui-kit"
+homepage = "https://gpui-kit.com"
+repository = "https://github.com/longbridge/gpui-kit"
+publish = false
+edition.workspace = true
+
+[lints]
+workspace = true
+
+[lib]
+doctest = false
+
+[features]
+default = ["component", "assets"]
+component = ["dep:gpui-component"]
+assets = ["dep:gpui-kit-assets"]
+inspector = ["gpui/inspector", "gpui-base/inspector", "gpui-component?/inspector"]
+tree-sitter = ["component", "gpui-component/tree-sitter"]
+tree-sitter-languages = ["component", "gpui-component/tree-sitter-languages"]
+
+[dependencies]
+gpui.workspace = true
+gpui_platform = { workspace = true, features = ["font-kit"] }
+gpui-base.workspace = true
+gpui-component = { workspace = true, optional = true }
+gpui-kit-assets = { workspace = true, optional = true }
+anyhow.workspace = true
