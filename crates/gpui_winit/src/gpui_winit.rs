@@ -5,9 +5,17 @@
 
 #![cfg(target_os = "windows")]
 
+mod app;
 mod clipboard;
 mod credentials;
 mod dispatcher;
 mod display;
 mod input;
+mod keyboard;
+mod platform;
+mod renderer;
 mod system;
+mod text;
+mod window;
+
+pub use platform::WinitPlatform;

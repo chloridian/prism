@@ -51,7 +51,7 @@ build-mac:
 [group('build')]
 build-windows:
     @echo "🪟 Building Windows crates..."
-    cargo build -p gpui_ce_windows
+    cargo build -p gpui_ce_winit
 
 [doc('Build all GPUI examples')]
 [group('build')]

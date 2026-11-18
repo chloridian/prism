@@ -1,6 +1,6 @@
-//! The WGPU renderer behind the interface the Windows window draws through.
+//! The wgpu renderer behind a window, built on the device every window shares.
 
-use std::{num::NonZeroIsize, sync::Arc};
+use std::sync::Arc;
 
 use anyhow::Result;
 use gpui::{DevicePixels, GpuSpecs, Scene, Size};
@@ -8,20 +8,14 @@ use gpui_wgpu::{
     FontRasterizationSettings, GpuContext, SubpixelOrder, WgpuAtlas, WgpuContextHandle,
     WgpuDeviceRequirements, WgpuRenderer, WgpuSurfaceConfig, wgpu,
 };
-use raw_window_handle as rwh;
 use windows::{
-    Win32::{
-        Foundation::HWND,
-        Graphics::DirectWrite::{
-            DWRITE_FACTORY_TYPE_SHARED, DWRITE_PIXEL_GEOMETRY_BGR, DWriteCreateFactory,
-            IDWriteFactory5, IDWriteRenderingParams1,
-        },
-        UI::WindowsAndMessaging::GWLP_HINSTANCE,
+    Win32::Graphics::DirectWrite::{
+        DWRITE_FACTORY_TYPE_SHARED, DWRITE_PIXEL_GEOMETRY_BGR, DWriteCreateFactory,
+        IDWriteFactory5, IDWriteRenderingParams1,
     },
     core::Interface as _,
 };
-
-use crate::util::get_window_long;
+use winit::window::Window;
 
 /// The device every window shares, and what the application requires of it.
 #[derive(Clone, Default)]
@@ -36,43 +30,17 @@ impl RendererContext {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
-struct WindowHandle {
-    hwnd: NonZeroIsize,
-    hinstance: Option<NonZeroIsize>,
-}
-
-impl rwh::HasWindowHandle for WindowHandle {
-    fn window_handle(&self) -> Result<rwh::WindowHandle<'_>, rwh::HandleError> {
-        let mut handle = rwh::Win32WindowHandle::new(self.hwnd);
-        handle.hinstance = self.hinstance;
-        let raw = rwh::RawWindowHandle::Win32(handle);
-        Ok(unsafe { rwh::WindowHandle::borrow_raw(raw) })
-    }
-}
-
-impl rwh::HasDisplayHandle for WindowHandle {
-    fn display_handle(&self) -> Result<rwh::DisplayHandle<'_>, rwh::HandleError> {
-        Ok(rwh::DisplayHandle::windows())
-    }
-}
-
 pub(crate) struct Renderer {
     renderer: WgpuRenderer,
-    window: WindowHandle,
+    window: Arc<Window>,
 }
 
 impl Renderer {
     pub(crate) fn new(
         context: RendererContext,
-        hwnd: HWND,
+        window: Arc<Window>,
         size: Size<DevicePixels>,
     ) -> Result<Self> {
-        let window = WindowHandle {
-            hwnd: NonZeroIsize::new(hwnd.0 as isize)
-                .ok_or_else(|| anyhow::anyhow!("window handle is null"))?,
-            hinstance: NonZeroIsize::new(unsafe { get_window_long(hwnd, GWLP_HINSTANCE) }),
-        };
         let config = WgpuSurfaceConfig {
             size: Size {
                 width: DevicePixels(size.width.0.max(1)),
@@ -126,16 +94,6 @@ impl Renderer {
 
     pub(crate) fn device_lost(&self) -> bool {
         self.renderer.device_lost()
-    }
-
-    #[cfg(feature = "test-support")]
-    pub(crate) fn render_to_image(&mut self, scene: &Scene) -> Result<image::RgbaImage> {
-        self.renderer.render_to_image(scene)
-    }
-
-    #[cfg(all(test, not(feature = "test-support")))]
-    pub(crate) fn render_to_image(&mut self, _scene: &Scene) -> Result<image::RgbaImage> {
-        anyhow::bail!("rendering to an image needs the test-support feature")
     }
 }
 
