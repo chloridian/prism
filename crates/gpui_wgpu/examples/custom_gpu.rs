@@ -322,7 +322,7 @@ fn fs_main(input: VertexOutput) -> @location(0) vec4<f32> {
             self.render_gpu(window);
             let mut root = div().size_full();
             if let Some(target) = self.target.as_ref() {
-                root = root.child(target.surface());
+                root = root.child(target.surface().size_full());
             }
             root
         }

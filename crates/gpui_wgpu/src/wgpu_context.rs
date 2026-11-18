@@ -400,6 +400,8 @@ impl WgpuRenderTarget {
     }
 
     /// Creates a GPUI element that composites this target at its layout bounds.
+    ///
+    /// The element has no intrinsic size, so give it one, for example with `size_full`.
     #[cfg(any(
         target_os = "linux",
         target_os = "freebsd",
