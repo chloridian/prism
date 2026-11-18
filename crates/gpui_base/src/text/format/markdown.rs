@@ -3020,14 +3020,14 @@ mod tests {
         assert_eq!(
             highlight_runs(paragraph),
             [
-                ("highlighted".into(), gpui::rgb(0xfef08a).into()),
+                ("highlighted".into(), gpui::rgb_to_hsla(gpui::rgb(0xfef08a))),
                 (
                     "red".into(),
-                    gpui::Rgba::try_from("#ff000059").unwrap().into()
+                    gpui::rgb_to_hsla(crate::rgba_from_hex("#ff000059").unwrap())
                 ),
                 (
                     "hex".into(),
-                    gpui::Rgba::try_from("#336699").unwrap().into()
+                    gpui::rgb_to_hsla(crate::rgba_from_hex("#336699").unwrap())
                 ),
             ]
         );

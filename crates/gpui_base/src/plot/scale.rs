@@ -32,6 +32,8 @@ pub trait PlotValue:
     fn is_zero(&self) -> bool;
 
     fn to_f32(&self) -> Option<f32>;
+
+    fn to_f64(&self) -> Option<f64>;
 }
 
 impl PlotValue for f32 {
@@ -46,6 +48,10 @@ impl PlotValue for f32 {
     fn to_f32(&self) -> Option<f32> {
         Some(*self)
     }
+
+    fn to_f64(&self) -> Option<f64> {
+        Some(f64::from(*self))
+    }
 }
 
 impl PlotValue for f64 {
@@ -59,6 +65,10 @@ impl PlotValue for f64 {
 
     fn to_f32(&self) -> Option<f32> {
         Some(*self as f32)
+    }
+
+    fn to_f64(&self) -> Option<f64> {
+        Some(*self)
     }
 }
 

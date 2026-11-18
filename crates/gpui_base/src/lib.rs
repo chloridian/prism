@@ -4,7 +4,6 @@
 //! colors, sizing, and motion belong to applications or the
 //! `gpui-component` façade.
 
-
 mod a11y_disabled;
 mod accordion;
 pub mod actions;
@@ -18,6 +17,7 @@ mod button;
 mod calendar;
 mod checkbox;
 mod collapsible;
+mod color_compat;
 mod color_picker;
 mod combobox;
 pub mod component_traits;
@@ -71,6 +71,7 @@ mod table;
 mod tabs;
 pub mod text;
 mod text_boundary;
+mod text_compat;
 mod text_selection;
 mod theme;
 pub mod theme_tokens;
@@ -100,6 +101,7 @@ pub use checkbox::{
     Checkbox, CheckboxIndicator, CheckboxIndicatorStyles, CheckboxState, CheckboxStyles,
 };
 pub use collapsible::Collapsible;
+pub use color_compat::{HslaExt, RgbaExt, rgba_from_hex};
 pub use color_picker::{ColorPicker, ColorPickerEvent, ColorPickerState, ColorSwatch, HslaSliders};
 pub use combobox::Combobox;
 pub use component_traits::FocusableExt;
@@ -197,7 +199,7 @@ pub use text_selection::{
     TextSelection, TextSelectionContentKey, TextSelectionCoverage, TextSelectionEndpoint,
     TextSelectionEvent, TextSelectionHandle, TextSelectionLayer, TextSelectionProjection,
     TextSelectionRegistration, TextSelectionRun, TextSelectionScopeId, TextSelectionSnapshot,
-    TextSelectionWindowPoints, TouchHandleLayout,
+    TextSelectionWindowPoints,
 };
 pub use theme::{PlotTheme, ResizableTheme, ScrollbarTheme, Theme, ThemeAppearance};
 pub use theme_tokens::{

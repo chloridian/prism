@@ -430,8 +430,7 @@ mod tests {
         });
 
         for key in ["enter", "space"] {
-            let keystroke =
-                cx.update(|_, cx| Keystroke::parse_with_os(key, cx.platform_info().os).unwrap());
+            let keystroke = Keystroke::parse(key).unwrap();
             cx.simulate_event(KeyDownEvent {
                 keystroke: keystroke.clone(),
                 is_held: false,
@@ -493,8 +492,7 @@ mod tests {
     }
 
     fn press_transition_key(cx: &mut VisualTestContext, key: &str) {
-        let keystroke =
-            cx.update(|_, cx| Keystroke::parse_with_os(key, cx.platform_info().os).unwrap());
+        let keystroke = Keystroke::parse(key).unwrap();
         cx.simulate_event(KeyDownEvent {
             keystroke: keystroke.clone(),
             is_held: false,
@@ -519,7 +517,7 @@ mod tests {
             let (_, cx) =
                 cx.add_window_view(|window, cx| crate::Root::new(controls.clone(), window, cx));
             cx.update(|window, cx| {
-                window.activate_window();
+                window.activate();
                 window.draw(cx).clear(cx);
                 handles[0].focus(window, cx);
                 window.draw(cx).clear(cx);
@@ -580,20 +578,22 @@ mod tests {
             fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
                 let root_capture = self.captured.clone();
                 let child_capture = self.captured.clone();
-                Button::new("alignment-button")
-                    .w(px(120.))
-                    .h(px(40.))
-                    .child(
-                        div()
-                            .w(px(48.))
-                            .h(px(12.))
-                            .on_prepaint(move |bounds, _, _| {
-                                child_capture.lock().unwrap().1 = Some(bounds);
-                            }),
-                    )
-                    .on_prepaint(move |bounds, _, _| {
+                crate::ElementExt::on_prepaint(
+                    Button::new("alignment-button")
+                        .w(px(120.))
+                        .h(px(40.))
+                        .child(
+                            div()
+                                .w(px(48.))
+                                .h(px(12.))
+                                .on_prepaint(move |bounds, _, _| {
+                                    child_capture.lock().unwrap().1 = Some(bounds);
+                                }),
+                        ),
+                    move |bounds, _, _| {
                         root_capture.lock().unwrap().0 = Some(bounds);
-                    })
+                    },
+                )
             }
         }
 

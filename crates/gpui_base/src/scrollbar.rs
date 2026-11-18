@@ -1,3 +1,5 @@
+use crate::HslaExt as _;
+use gpui::ColorExt as _;
 use std::{cell::Cell, ops::Deref, panic::Location, rc::Rc};
 
 use web_time::{Duration, Instant};
@@ -8,11 +10,12 @@ use crate::{
     theme::ActiveTheme as _,
 };
 use gpui::{
-    Anchor, App, Axis, Background, BorderStyle, Bounds, ContentMask, CursorStyle, Edges, Element,
-    ElementId, EntityId, GlobalElementId, Hitbox, HitboxBehavior, Hsla, InspectorElementId, IsZero,
-    LayoutId, ListState, MouseDownEvent, MouseMoveEvent, MouseUpEvent, PaintQuad, Pixels, Point,
-    Position, ScrollEvent, ScrollHandle, Size, Style, TouchDragEvent, TouchPhase,
-    UniformListScrollHandle, Window, fill, point, prelude::FluentBuilder, px, relative, size,
+    Anchor, App, AppContext as _, Axis, Background, BorderStyle, Bounds, ContentMask, CursorStyle,
+    Edges, Element, ElementId, EntityId, GlobalElementId, Hitbox, HitboxBehavior, Hsla,
+    InspectorElementId, IsZero, LayoutId, ListState, MouseDownEvent, MouseMoveEvent, MouseUpEvent,
+    PaintQuad, Pixels, Point, Position, ScrollHandle, ScrollWheelEvent, Size, Style,
+    TouchDragEvent, TouchPhase, UniformListScrollHandle, Window, fill, point,
+    prelude::FluentBuilder, px, relative, size,
 };
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
@@ -1301,9 +1304,13 @@ impl Element for Scrollbar {
         cx: &mut App,
     ) -> Self::PrepaintState {
         let bounds = self.resolved_viewport_bounds(bounds);
-        let hitbox = window.with_content_mask(Some(ContentMask { bounds }), |window| {
-            window.insert_hitbox(bounds, HitboxBehavior::Normal)
-        });
+        let hitbox = window.with_content_mask(
+            Some(ContentMask {
+                bounds,
+                fade_out: Default::default(),
+            }),
+            |window| window.insert_hitbox(bounds, HitboxBehavior::Normal),
+        );
 
         let state = window
             .use_state(cx, |_, _| ScrollbarState::default())
@@ -1550,9 +1557,13 @@ impl Element for Scrollbar {
                 )
             };
 
-            let bar_hitbox = window.with_content_mask(Some(ContentMask { bounds }), |window| {
-                window.insert_hitbox(bounds, gpui::HitboxBehavior::Normal)
-            });
+            let bar_hitbox = window.with_content_mask(
+                Some(ContentMask {
+                    bounds,
+                    fade_out: Default::default(),
+                }),
+                |window| window.insert_hitbox(bounds, gpui::HitboxBehavior::Normal),
+            );
 
             states.push(AxisPrepaintState {
                 axis,
@@ -1600,6 +1611,7 @@ impl Element for Scrollbar {
         window.with_content_mask(
             Some(ContentMask {
                 bounds: hitbox_bounds,
+                fade_out: Default::default(),
             }),
             |window| {
                 for state in prepaint.states.iter() {
@@ -1647,8 +1659,11 @@ impl Element for Scrollbar {
                                     left: px(0.),
                                 }
                             },
-                            border_color: painted_border,
+                            border_color: painted_border.into(),
                             border_style: BorderStyle::default(),
+                            border_dashed_gap: Default::default(),
+                            border_dashed_length: Default::default(),
+                            corner_smoothing: Default::default(),
                         });
 
                         cx.paint_quad(
@@ -1660,7 +1675,7 @@ impl Element for Scrollbar {
                         let state = scrollbar_state.clone();
                         let scroll_handle = self.scroll_handle.clone();
 
-                        move |event: &ScrollEvent, phase, _, cx| {
+                        move |event: &ScrollWheelEvent, phase, _, cx| {
                             if phase.bubble() && hitbox_bounds.contains(&event.position) {
                                 if scroll_handle.offset() != state.get().last_scroll_offset {
                                     state.set(state.get().with_last_scroll(

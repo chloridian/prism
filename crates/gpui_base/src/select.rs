@@ -24,11 +24,7 @@ pub fn init(cx: &mut App) {
         KeyBinding::new("down", SelectDown, Some(CONTEXT)),
         KeyBinding::new("enter", Confirm { secondary: false }, Some(CONTEXT)),
         KeyBinding::new(
-            if cx.platform_info().is_mac() {
-                "cmd-enter"
-            } else {
-                "ctrl-enter"
-            },
+            "secondary-enter",
             Confirm { secondary: true },
             Some(CONTEXT),
         ),

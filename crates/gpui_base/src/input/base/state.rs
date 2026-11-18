@@ -7,8 +7,8 @@ use gpui::{
     Action, App, AppContext, Bounds, ClipboardItem, Context, Edges, Entity, EntityInputHandler,
     EventEmitter, FocusHandle, Focusable, Hsla, InteractiveElement as _, IntoElement, KeyBinding,
     MouseButton, MouseDownEvent, MouseMoveEvent, MouseUpEvent, ParentElement as _, Pixels, Point,
-    Render, ScrollEvent, ScrollHandle, SharedString, StatefulInteractiveElement as _, Styled as _,
-    Subscription, UTF16Selection, WeakFocusHandle, Window, actions, div, point,
+    Render, ScrollHandle, ScrollWheelEvent, SharedString, StatefulInteractiveElement as _,
+    Styled as _, Subscription, UTF16Selection, WeakFocusHandle, Window, actions, div, point,
     prelude::FluentBuilder as _, px,
 };
 use gpui::{Autocapitalize, TextInputAction, TextInputConfiguration};
@@ -199,11 +199,7 @@ pub(crate) fn init(cx: &mut App) {
             Some(CONTEXT),
         ),
         KeyBinding::new(
-            if cx.platform_info().is_mac() {
-                "cmd-enter"
-            } else {
-                "ctrl-enter"
-            },
+            "secondary-enter",
             Enter {
                 secondary: true,
                 shift: false,
@@ -506,8 +502,6 @@ pub struct InputBaseState<M: InputModeKind> {
     pub(super) selecting: bool,
     /// Anchor point of an in-progress columnar (block) selection.
     pub(super) column_select_start: Option<ColumnarPoint>,
-    /// The selection a long press made, with its handles and edit menu.
-    pub(super) touch_selection: super::touch::TouchSelection,
     pub(crate) disabled: bool,
     pub(crate) readonly: bool,
     pub(crate) text_align: TextAlign,
@@ -1009,7 +1003,6 @@ impl<M: InputModeKind> InputBaseState<M> {
             ime_original_text: None,
             input_bounds: Bounds::default(),
             selecting: false,
-            touch_selection: Default::default(),
             disabled: false,
             readonly: false,
             text_align: TextAlign::Left,
@@ -2567,12 +2560,6 @@ impl<M: InputModeKind> InputBaseState<M> {
         }
         M::clear_inline_completion(self, cx);
 
-        // The handles and the edit menu are the topmost surface to dismiss.
-        if self.touch_selection().is_some() {
-            self.dismiss_touch_selection(cx);
-            return;
-        }
-
         if self.ime_marked_range.is_some() {
             self.unmark_text(window, cx);
         }
@@ -2800,15 +2787,6 @@ impl<M: InputModeKind> InputBaseState<M> {
         if window.default_prevented() {
             return;
         }
-        // A tap asks for the virtual keyboard. Focus alone does not when it
-        // moves from another input, or stays here, after the user hid it.
-        if event.button == MouseButton::Left
-            && crate::GlobalState::is_touch_press(cx)
-            && !self.disabled
-            && !self.readonly
-        {
-            window.request_virtual_keyboard();
-        }
         self.undo_manager.break_transaction_coalescing();
         // Treat every press like a cursor move: take focus now rather than
         // after GPUI's focus observer runs, show the caret at once and restart
@@ -2823,17 +2801,6 @@ impl<M: InputModeKind> InputBaseState<M> {
 
         // Clear inline completion on any mouse interaction
         M::clear_inline_completion(self, cx);
-        // A tap on the touch selection asks for its menu back. Any other press
-        // places the caret or starts a new drag, and the handles and the menu
-        // no longer belong to what is selected.
-        if event.button == MouseButton::Left
-            && event.click_count == 1
-            && self.reopen_edit_menu_at(event.position, cx)
-        {
-            return;
-        }
-        self.dismiss_touch_selection(cx);
-
         // If there have IME marked range and is empty (Means pressed Esc to abort IME typing)
         // Clear the marked range.
         if let Some(ime_marked_range) = &self.ime_marked_range {
@@ -2859,11 +2826,6 @@ impl<M: InputModeKind> InputBaseState<M> {
         // Double click to select word
         if event.button == MouseButton::Left && event.click_count == 2 {
             self.select_word(offset, window, cx);
-            // A double tap is touch's other way to select a word, and it
-            // gets the handles and the menu like a long press does.
-            if crate::GlobalState::is_touch_press(cx) {
-                self.keep_touch_selection(cx);
-            }
             return;
         }
 
@@ -2970,7 +2932,7 @@ impl<M: InputModeKind> InputBaseState<M> {
 
     pub(super) fn on_scroll_wheel(
         &mut self,
-        event: &ScrollEvent,
+        event: &ScrollWheelEvent,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
@@ -3046,9 +3008,6 @@ impl<M: InputModeKind> InputBaseState<M> {
         if self.diagnostic_popover.take().is_some() {
             cx.notify();
         }
-        // The handles follow the text; the menu would sit over whatever
-        // scrolls underneath it, so it steps aside until the finger lifts.
-        self.edit_menu_on_scroll(event.touch_phase, cx);
     }
 
     /// Whether the text takes a wheel event moving by `delta` from the
@@ -3156,8 +3115,8 @@ impl<M: InputModeKind> InputBaseState<M> {
         // For Right alignment use 0 margin: the cursor indicator is clamped inside bounds
         // in layout_cursors, so shifting the text here would cause a first-click visual jump.
         let safety_margin = match last_layout.text_align {
-            TextAlign::Left => RIGHT_MARGIN,
-            TextAlign::Right => px(0.),
+            TextAlign::Start | TextAlign::Left => RIGHT_MARGIN,
+            TextAlign::End | TextAlign::Right => px(0.),
             TextAlign::Center => CURSOR_WIDTH,
         };
         if let Some(vi) = last_layout
@@ -4098,7 +4057,6 @@ impl<M: InputModeKind> InputBaseState<M> {
         M::clear_hover_state(self, cx);
         self.diagnostic_popover = None;
         M::clear_inline_completion(self, cx);
-        self.dismiss_touch_selection(cx);
         self.blink_cursor.update(cx, |cursor, cx| {
             cursor.stop(cx);
         });
@@ -4592,7 +4550,6 @@ impl<M: InputModeKind> InputBaseState<M> {
 
         self.ime_marked_range.take();
         self.update_preferred_column();
-        self.dismiss_touch_selection(cx);
         if self.is_multi_line() {
             self.mode.update_auto_grow(&self.display_map);
         }
@@ -4994,7 +4951,6 @@ impl<M: InputModeKind> EntityInputHandler for InputBaseState<M> {
         }
         self.update_preferred_column();
         self.update_search(cx);
-        self.dismiss_touch_selection(cx);
         if self.is_multi_line() {
             self.mode.update_auto_grow(&self.display_map);
         }
@@ -5423,7 +5379,7 @@ impl<M: InputModeKind> Render for InputBaseState<M> {
                 window.listener_for(&entity, InputBaseState::on_mouse_up),
             )
             .on_mouse_move(window.listener_for(&entity, InputBaseState::on_mouse_move))
-            .on_scroll(window.listener_for(&entity, InputBaseState::on_scroll_wheel))
+            .on_scroll_wheel(window.listener_for(&entity, InputBaseState::on_scroll_wheel))
             .when(self.is_multi_line() && !self.disabled, |this| {
                 this.on_modifiers_changed(cx.listener(|_, _, _, cx| cx.notify()))
             })
@@ -6765,7 +6721,7 @@ mod tests {
         cx.update(|window, cx| {
             view.input.update(cx, |state, cx| {
                 state.on_scroll_wheel(
-                    &ScrollEvent {
+                    &ScrollWheelEvent {
                         delta: gpui::ScrollDelta::Pixels(point(px(0.), px(dy))),
                         touch_phase: phase,
                         ..Default::default()
@@ -6911,7 +6867,7 @@ mod tests {
         cx.update(|window, cx| {
             view.input.update(cx, |state, cx| {
                 state.on_scroll_wheel(
-                    &ScrollEvent {
+                    &ScrollWheelEvent {
                         delta: gpui::ScrollDelta::Pixels(point(px(1.), px(0.))),
                         touch_phase: gpui::TouchPhase::Ended,
                         ..Default::default()
@@ -6943,7 +6899,7 @@ mod tests {
             window.draw(cx).clear(cx);
             view.input.update(cx, |state, cx| {
                 state.on_scroll_wheel(
-                    &ScrollEvent {
+                    &ScrollWheelEvent {
                         delta: gpui::ScrollDelta::Lines(point(0., -100_000.)),
                         touch_phase: gpui::TouchPhase::Moved,
                         ..Default::default()
@@ -6972,7 +6928,7 @@ mod tests {
             window.draw(cx).clear(cx);
             view.input.update(cx, |state, cx| {
                 state.on_scroll_wheel(
-                    &ScrollEvent {
+                    &ScrollWheelEvent {
                         delta: gpui::ScrollDelta::Lines(point(0., 2.)),
                         touch_phase: gpui::TouchPhase::Moved,
                         ..Default::default()
@@ -7058,7 +7014,7 @@ mod tests {
             .update(cx, |_, window, cx| {
                 input.update(cx, |state, cx| {
                     state.on_scroll_wheel(
-                        &ScrollEvent {
+                        &ScrollWheelEvent {
                             delta: gpui::ScrollDelta::Pixels(point(px(0.), px(-40.))),
                             ..Default::default()
                         },
@@ -7079,7 +7035,7 @@ mod tests {
             .update(cx, |_, window, cx| {
                 input.update(cx, |state, cx| {
                     state.on_scroll_wheel(
-                        &ScrollEvent {
+                        &ScrollWheelEvent {
                             delta: gpui::ScrollDelta::Pixels(point(px(0.), px(-40.))),
                             ..Default::default()
                         },
@@ -7175,7 +7131,7 @@ mod tests {
         cx.update(|window, cx| {
             input.update(cx, |state, cx| {
                 state.on_scroll_wheel(
-                    &ScrollEvent {
+                    &ScrollWheelEvent {
                         delta: gpui::ScrollDelta::Pixels(point(px(0.), px(-400.))),
                         ..Default::default()
                     },
@@ -10337,38 +10293,6 @@ mod tests {
                 assert_eq!(rows, 2);
             }
         }
-    }
-
-    #[gpui::test]
-    fn test_prewrap_uses_the_configured_tab_stops(cx: &mut TestAppContext) {
-        cx.update(crate::init);
-        cx.open_window(size(px(400.), px(100.)), |window, cx| {
-            let font = window.text_style().font();
-            let font_size = px(14.);
-            let font_id = window.text_system().resolve_font(&font);
-            let space_width = window.text_system().layout_width(font_id, font_size, ' ');
-            cx.new(|cx| {
-                let mut state = crate::input::EditorState::new(window, cx)
-                    .tab_size(TabSize {
-                        tab_size: 4,
-                        hard_tabs: true,
-                    })
-                    .default_value("\t\t");
-                for (tab_size, expected_rows) in [(4, 2), (2, 1), (8, 2)] {
-                    state.set_tab_size(
-                        TabSize {
-                            tab_size,
-                            hard_tabs: true,
-                        },
-                        cx,
-                    );
-                    state.prewrap(font.clone(), font_size, space_width * 5. + RIGHT_MARGIN, cx);
-                    assert_eq!(state.display_map().wrap_row_count(), expected_rows);
-                }
-                state
-            });
-            gpui::EmptyView
-        });
     }
 
     /// Prewrap counts with the state's wrapping indent, as the first layout

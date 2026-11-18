@@ -142,7 +142,7 @@ fn attr_value(attrs: &RefCell<Vec<html5ever::Attribute>>, name: LocalName) -> Op
 
 /// Default `<mark>` background when the tag has no usable color.
 pub(super) fn default_mark_color() -> Hsla {
-    gpui::rgb(0xfef08a).into()
+    gpui::rgb_to_hsla(gpui::rgb(0xfef08a))
 }
 
 /// Get the highlight background color for a `<mark>` element.
@@ -172,13 +172,13 @@ pub(super) fn mark_color_from_values(color: Option<&str>, style: Option<&str>) -
 
 fn parse_mark_color(value: &str) -> Option<Hsla> {
     if value.starts_with('#') {
-        return gpui::Rgba::try_from(value).ok().map(Into::into);
+        return crate::rgba_from_hex(value).ok().map(gpui::rgb_to_hsla);
     }
     match value.to_ascii_lowercase().as_str() {
-        "black" => Some(gpui::rgb(0x000000).into()),
-        "white" => Some(gpui::rgb(0xffffff).into()),
-        "blue" => Some(gpui::rgb(0x3b82f6).into()),
-        "yellow" => Some(gpui::rgb(0xfacc15).into()),
+        "black" => Some(gpui::rgb_to_hsla(gpui::rgb(0x000000))),
+        "white" => Some(gpui::rgb_to_hsla(gpui::rgb(0xffffff))),
+        "blue" => Some(gpui::rgb_to_hsla(gpui::rgb(0x3b82f6))),
+        "yellow" => Some(gpui::rgb_to_hsla(gpui::rgb(0xfacc15))),
         _ => None,
     }
 }
@@ -207,7 +207,7 @@ fn value_to_length(value: &str) -> Option<DefiniteLength> {
             .trim_end_matches("%")
             .parse::<f32>()
             .ok()
-            .map(|v| relative(v / 100.))
+            .map(|v| relative(v / 100.).into())
     } else {
         value
             .trim_end_matches("px")
@@ -1149,8 +1149,8 @@ mod tests {
     #[test]
     fn test_value_to_length() {
         assert_eq!(super::value_to_length("100px"), Some(px(100.).into()));
-        assert_eq!(super::value_to_length("100%"), Some(relative(1.)));
-        assert_eq!(super::value_to_length("56%"), Some(relative(0.56)));
+        assert_eq!(super::value_to_length("100%"), Some(relative(1.).into()));
+        assert_eq!(super::value_to_length("56%"), Some(relative(0.56).into()));
         assert_eq!(super::value_to_length("240"), Some(px(240.).into()));
     }
 
@@ -1189,7 +1189,7 @@ mod tests {
                     children: vec![InlineNode::image(ImageNode {
                         url: "https://example.com/image.png".to_string().into(),
                         alt: Some("Example".to_string().into()),
-                        width: Some(relative(0.8)),
+                        width: Some(relative(0.8).into()),
                         height: None,
                         title: Some("Example Image".to_string().into()),
                         ..Default::default()

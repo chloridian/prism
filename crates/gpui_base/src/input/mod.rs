@@ -76,8 +76,6 @@ mod state;
 mod tab_stops;
 mod textarea;
 pub use scrollbar_presentation::{EditorScrollbarContext, EditorScrollbarRenderer};
-#[path = "base/touch.rs"]
-mod touch;
 #[path = "base/undo_manager.rs"]
 mod undo_manager;
 

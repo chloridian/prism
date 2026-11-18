@@ -1,4 +1,5 @@
 use super::inline_line::InputLine;
+use crate::text_compat::{Boundary, LineFragment, LineWrapper, LineWrapperExt as _};
 mod char_widths;
 mod measurements;
 mod monospace;
@@ -13,8 +14,8 @@ use std::rc::Rc;
 use wrap_width::{MeasuredWrap, WidthRange};
 
 use gpui::{
-    App, Bounds, ContentMask, Font, LineFragment, Pixels, Point, ShapedLine, Size, TextAlign,
-    Window, point, px, size,
+    App, Bounds, ContentMask, Font, Pixels, Point, ShapedLine, Size, TextAlign, Window, point, px,
+    size,
 };
 use ropey::Rope;
 use smallvec::SmallVec;
@@ -24,7 +25,6 @@ use unicode_segmentation::UnicodeSegmentation as _;
 use crate::input::{
     Point as TreeSitterPoint, RopeExt, TabSize,
     layout::{LastLayout, WhitespaceIndicators},
-    tab_stops::{expanded_width, tab_stop_width},
 };
 
 /// Controls how soft-wrapped continuation lines are indented.
@@ -44,12 +44,12 @@ fn measured_wrap_boundaries(
     width: Pixels,
     wrapping_indent: WrappingIndent,
     mut measure: impl FnMut(&str) -> Pixels,
-) -> Vec<gpui::Boundary> {
+) -> Vec<Boundary> {
     let indent = if wrapping_indent == WrappingIndent::Same {
         text.chars()
             .take_while(|&c| c == ' ')
             .count()
-            .min(gpui::LineWrapper::MAX_INDENT as usize)
+            .min(LineWrapper::MAX_INDENT as usize)
     } else {
         0
     };
@@ -102,7 +102,7 @@ fn measured_wrap_boundaries(
             .map(|ix| opportunities[ix])
             .filter(|&ix| ix > start && (start != 0 || ix > indent))
             .unwrap_or(fitting_end);
-        result.push(gpui::Boundary {
+        result.push(Boundary {
             ix: end,
             next_indent: indent as u32,
         });
@@ -189,7 +189,7 @@ fn measured_wrap_ranges(
         text.chars()
             .take_while(|&c| c == ' ')
             .count()
-            .min(gpui::LineWrapper::MAX_INDENT as usize)
+            .min(LineWrapper::MAX_INDENT as usize)
     } else {
         0
     };
@@ -261,7 +261,7 @@ fn measured_wrap_ranges(
         if end == text.len() {
             break;
         }
-        result.push(gpui::Boundary {
+        result.push(Boundary {
             ix: end,
             next_indent: indent as u32,
         });
@@ -805,7 +805,6 @@ impl TextWrapper {
         let font = self.font.clone();
         let font_size = self.font_size;
         let wrapping_indent = self.wrapping_indent;
-        let tab_stop = tab_stop_width(&text_system, &font, font_size, self.tab_size);
         let layout = |text: &str| {
             text_system.layout_line(
                 text,
@@ -817,15 +816,18 @@ impl TextWrapper {
                     background_color: None,
                     underline: None,
                     strikethrough: None,
+                    letter_spacing: Default::default(),
                 }],
-                None,
             )
         };
-        let shaped = |text: &str| expanded_width(&layout(text), text, tab_stop);
+        let shaped = |text: &str| layout(text).width;
         let cached = |text: &str| measurements.borrow_mut().measure(text, || shaped(text));
         let glyph_starts = |text: &str| {
             let layout = layout(text);
-            let glyphs = layout.runs.iter().flat_map(|run| &run.glyphs);
+            let glyphs = layout
+                .paint_fragments
+                .iter()
+                .flat_map(|fragment| fragment.glyphs.iter());
             let mut starts: Vec<Pixels> = glyphs.map(|glyph| glyph.position.x).collect();
             starts.push(layout.width);
             starts
@@ -893,7 +895,7 @@ impl TextWrapper {
                     && let Some(widths) = char_widths.line_widths(
                         line_str,
                         monospace,
-                        tab_stop,
+                        px(0.),
                         &mut |text: &str| shaped(text),
                         &mut |text: &str| glyph_starts(text),
                     )
@@ -906,11 +908,7 @@ impl TextWrapper {
                 fragments.push(LineFragment::text(&line_str[offset..]));
             }
             // Inline element widths retain the original wrapper; no safe interval is inferred.
-            MeasuredWrap::uncached(
-                line_wrapper
-                    .wrap_line(&fragments, wrap_width, gpui::IndentAdjustment::SameIndent)
-                    .collect(),
-            )
+            MeasuredWrap::uncached(line_wrapper.wrap_line(&fragments, wrap_width).collect())
         };
         for (range, new_text) in edits {
             self.update_lines(
@@ -1014,7 +1012,7 @@ impl TextWrapper {
         new_text: &Rope,
         wrap_line: &mut F,
     ) where
-        F: FnMut(&str, Pixels, usize) -> Vec<gpui::Boundary>,
+        F: FnMut(&str, Pixels, usize) -> Vec<Boundary>,
     {
         self.update_lines(
             changed_text,
@@ -1420,9 +1418,9 @@ impl LineLayout {
             .map_or(px(0.), |line| line.width);
         indent
             + match self.align {
-                TextAlign::Left => px(0.),
+                TextAlign::Start | TextAlign::Left => px(0.),
                 TextAlign::Center => (content_width - width).half().max(px(0.)),
-                TextAlign::Right => (content_width - width).max(px(0.)),
+                TextAlign::End | TextAlign::Right => (content_width - width).max(px(0.)),
             }
     }
 
@@ -1714,6 +1712,7 @@ impl LineLayout {
                     Some(tab_width) => {
                         let tab_cell = ContentMask {
                             bounds: Bounds::new(origin, size(*tab_width, line_height)),
+                            fade_out: Default::default(),
                         };
                         window.with_content_mask(Some(tab_cell), |window| {
                             _ = indicators.tab.paint(
@@ -1749,7 +1748,7 @@ mod tests {
 
     #[cfg(target_os = "linux")]
     use gpui::TestAppContext;
-    use gpui::{Boundary, FontFeatures, FontStyle, FontWeight, px};
+    use gpui::{FontFeatures, FontStyle, FontWeight, px};
 
     #[cfg(target_os = "linux")]
     fn shaped_width(text: &str, font: &Font, font_size: Pixels, cx: &App) -> Pixels {
@@ -1934,6 +1933,20 @@ mod tests {
         }
     }
 
+    fn test_line(len: usize) -> ShapedLine {
+        let text_system = gpui::WindowTextSystem::new(std::sync::Arc::new(gpui::TextSystem::new(
+            std::sync::Arc::new(gpui::TestTextSystem::new()),
+        )));
+        text_system.shape_line(
+            "a".repeat(len).into(),
+            px(0.),
+            &[gpui::TextRun {
+                len,
+                ..Default::default()
+            }],
+        )
+    }
+
     #[test]
     fn test_update() {
         let font = gpui::Font {
@@ -1942,6 +1955,7 @@ mod tests {
             style: FontStyle::Normal,
             features: FontFeatures::default(),
             fallbacks: None,
+            width: Default::default(),
         };
 
         let mut wrapper = TextWrapper::new(font, px(14.), None);
@@ -2138,6 +2152,7 @@ mod tests {
             style: FontStyle::Normal,
             features: FontFeatures::default(),
             fallbacks: None,
+            width: Default::default(),
         }
     }
 
@@ -2276,8 +2291,8 @@ mod tests {
     fn test_line_layout() {
         let mut line_layout = LineLayout::new();
 
-        let line1 = ShapedLine::default().with_len(100);
-        let line2 = ShapedLine::default().with_len(50);
+        let line1 = test_line(100);
+        let line2 = test_line(50);
         let wrapped_lines = smallvec::smallvec![line1, line2];
         line_layout.set_wrapped_lines(wrapped_lines);
         assert_eq!(line_layout.len(), 150);
@@ -2308,9 +2323,9 @@ mod tests {
     fn test_position_for_index_prefers_first_leading_empty_visual_line() {
         let mut line_layout = LineLayout::new();
         line_layout.set_wrapped_lines(smallvec::smallvec![
-            ShapedLine::default(),
-            ShapedLine::default(),
-            ShapedLine::default().with_len(3),
+            test_line(0),
+            test_line(0),
+            test_line(3),
         ]);
 
         assert_eq!(
@@ -2323,10 +2338,7 @@ mod tests {
     fn clicking_past_a_wrapped_row_keeps_the_caret_on_that_row() {
         // One buffer line wrapped into two visual rows, splitting at byte 10.
         let mut line_layout = LineLayout::new();
-        line_layout.set_wrapped_lines(smallvec::smallvec![
-            ShapedLine::default().with_len(10),
-            ShapedLine::default().with_len(5),
-        ]);
+        line_layout.set_wrapped_lines(smallvec::smallvec![test_line(10), test_line(5),]);
         let last_layout = test_last_layout(px(20.));
 
         // Clicking past the last glyph of the first row resolves to the wrap boundary, which is
@@ -2415,6 +2427,7 @@ mod tests {
             style: FontStyle::Normal,
             features: FontFeatures::default(),
             fallbacks: None,
+            width: Default::default(),
         };
 
         let mut wrapper = TextWrapper::new(font, px(14.), None);
@@ -2586,7 +2599,7 @@ mod tests {
     #[test]
     fn a_paragraph_starts_at_the_edge_it_reads_from() {
         let row = |text: &str, width: f32| {
-            let mut row = InputLine::from(ShapedLine::default());
+            let mut row = InputLine::from(test_line(0));
             row.text = text.to_owned().into();
             row.width = px(width);
             row
@@ -2612,10 +2625,7 @@ mod tests {
     #[test]
     fn test_wrap_indent_offsets_continuation_lines() {
         let mut line_layout = LineLayout::new();
-        line_layout.set_wrapped_lines(smallvec::smallvec![
-            ShapedLine::default().with_len(5),
-            ShapedLine::default().with_len(10),
-        ]);
+        line_layout.set_wrapped_lines(smallvec::smallvec![test_line(5), test_line(10),]);
 
         line_layout = line_layout.wrap_indent(px(20.0));
 

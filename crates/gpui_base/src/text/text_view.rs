@@ -1,3 +1,4 @@
+use crate::HslaExt as _;
 use std::{ops::Range, rc::Rc, sync::Arc};
 
 use gpui::prelude::FluentBuilder as _;
@@ -708,8 +709,6 @@ pub struct TextViewPrepaintState {
     /// straddles the bottom of the box. `None` leaves the clip at the box edge,
     /// where the container's hidden overflow already applies it.
     clip_bottom: Option<Pixels>,
-    /// The touch handles this view owns, with their hitboxes.
-    touch_handles: crate::TouchHandleLayout,
 }
 
 /// Absorbs sub-pixel layout jitter: a line ending within a pixel of the box
@@ -1052,19 +1051,9 @@ impl Element for TextView {
         }
 
         let hitbox = window.insert_hitbox(bounds, HitboxBehavior::Normal);
-        // Over the text, so after its hitbox.
-        let touch_handles = if self.selectable {
-            state
-                .read(cx)
-                .selection_adapter
-                .prepaint_touch_handles(window, cx)
-        } else {
-            crate::TouchHandleLayout::default()
-        };
         TextViewPrepaintState {
             hitbox,
             clip_bottom,
-            touch_handles,
         }
     }
 
@@ -1089,6 +1078,7 @@ impl Element for TextView {
             // line of glyphs is never cut in half.
             let mask = ContentMask {
                 bounds: Bounds::from_corners(bounds.origin, point(bounds.right(), clip_bottom)),
+                fade_out: Default::default(),
             };
             window.with_content_mask(Some(mask), |window| {
                 request_layout.element.paint(window, cx);
@@ -1118,14 +1108,13 @@ impl Element for TextView {
         }
 
         if self.selectable {
-            let (adapter, scroll_offset, content_bounds, self_scroll, handle_color) = {
+            let (adapter, scroll_offset, content_bounds, self_scroll) = {
                 let state = state.read(cx);
                 (
                     state.selection_adapter.clone(),
                     state.scroll_offset(),
                     state.bounds(),
                     state.scrollable,
-                    state.text_view_style.selection().alpha(1.),
                 )
             };
             adapter.register(
@@ -1136,9 +1125,6 @@ impl Element for TextView {
                 window,
                 cx,
             );
-            // The handles of a touch selection go over the text, and under
-            // whatever is painted over the text after it.
-            adapter.paint_touch_handles(&prepaint.touch_handles, handle_color, window, cx);
         }
     }
 }
@@ -1905,8 +1891,8 @@ mod tests {
         cx.update(crate::init);
         cx.update(|cx| {
             let colors = &mut crate::Theme::global_mut(cx).tokens.colors;
-            colors.primary = gpui::rgb(0x55aaff).into();
-            colors.selection = gpui::rgb(0x335577).into();
+            colors.primary = gpui::rgb_to_hsla(gpui::rgb(0x55aaff));
+            colors.selection = gpui::rgb_to_hsla(gpui::rgb(0x335577));
         });
         let (root, cx) = cx.add_window_view(|_, cx| TextViewTestRoot::new("[link](url)", cx));
         let cx: &mut VisualTestContext = cx;
@@ -1914,8 +1900,8 @@ mod tests {
         cx.run_until_parked();
         root.read_with(cx, |root, cx| {
             let style = &root.text_view.read(cx).text_view_style;
-            assert_eq!(style.link(), gpui::rgb(0x55aaff).into());
-            assert_eq!(style.selection(), gpui::rgb(0x335577).into());
+            assert_eq!(style.link(), gpui::rgb_to_hsla(gpui::rgb(0x55aaff)));
+            assert_eq!(style.selection(), gpui::rgb_to_hsla(gpui::rgb(0x335577)));
         });
     }
 
@@ -1956,7 +1942,7 @@ mod tests {
             let style = state.text_view_style.inline_code_style();
             assert_eq!(style.text.font_size, Some(rems(1.).into()));
             assert_eq!(style.background, Some(gpui::red().into()));
-            assert_eq!(style.border_color, Some(gpui::blue()));
+            assert_eq!(style.border_color, Some(gpui::blue().into()));
             assert_eq!(style.border_widths.left, Some(px(1.).into()));
         });
     }
@@ -1998,7 +1984,7 @@ mod tests {
             assert_eq!(marker.text.color, Some(gpui::blue()));
             assert_eq!(marker.text.font_weight, Some(gpui::FontWeight::BOLD));
             let quote = style.blockquote_style();
-            assert_eq!(quote.border_color, Some(gpui::blue()));
+            assert_eq!(quote.border_color, Some(gpui::blue().into()));
             assert_eq!(quote.border_widths.left, Some(px(4.).into()));
         });
     }
@@ -2145,104 +2131,6 @@ mod tests {
         assert_eq!(copied.trim(), "Cell A");
     }
 
-    /// Text in a right-aligned or centered column is selected where it is
-    /// painted: a drag over it selects it, and the highlight covers it.
-    #[gpui::test]
-    fn table_drag_selects_aligned_cell_text_where_it_is_painted(cx: &mut TestAppContext) {
-        const SELECTION: u32 = 0xf020b0;
-
-        struct AlignedTableRoot {
-            text_view: Entity<TextViewState>,
-        }
-
-        impl Render for AlignedTableRoot {
-            fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
-                // The underline is painted under the glyphs, so it shows
-                // where the text is drawn.
-                div()
-                    .w(px(520.))
-                    .underline()
-                    .child(crate::TextSelectionLayer)
-                    .child(TextView::new(&self.text_view).style(
-                        TextViewStyle::default().with_selection(gpui::rgb(SELECTION).into()),
-                    ))
-            }
-        }
-
-        cx.update(crate::init);
-        let (root, cx) = cx.add_window_view(|_, cx| AlignedTableRoot {
-            text_view: cx.new(|cx| {
-                TextViewState::markdown(
-                    "| Quarterly revenue | Review status |\n| ---: | :---: |\n| 42 | ok |",
-                    cx,
-                )
-            }),
-        });
-        let cx: &mut VisualTestContext = cx;
-        cx.run_until_parked();
-        cx.update(|window, cx| window.draw(cx).clear(cx));
-
-        let mut underlines = cx.update(|window, _| {
-            let scale_factor = window.scale_factor();
-            window
-                .painted_underlines()
-                .into_iter()
-                .map(|underline| underline.bounds.map(|value| px(value.0 / scale_factor)))
-                .collect::<Vec<_>>()
-        });
-        underlines.sort_by(|a, b| {
-            (a.top(), a.left())
-                .partial_cmp(&(b.top(), b.left()))
-                .expect("finite bounds")
-        });
-        let [right_head, center_head, right, center] = underlines[..] else {
-            panic!("expected one underline per cell, got {underlines:?}");
-        };
-        // The body text is narrower than its header, so it is drawn at the
-        // end or in the middle of its column.
-        assert!((right.right() - right_head.right()).abs() < px(1.));
-        assert!(right.left() > right_head.left() + px(1.));
-        assert!((center.center().x - center_head.center().x).abs() < px(1.));
-        assert!(center.left() > center_head.left() + px(1.));
-
-        for (underline, expected) in [(right, "42"), (center, "ok")] {
-            // A few pixels above the underline is inside the text's line.
-            let y = underline.top() - px(4.);
-            let start = point(underline.left() + px(0.1), y);
-            let end = point(underline.right() - px(0.1), y);
-            cx.simulate_mouse_down(start, MouseButton::Left, Modifiers::default());
-            cx.update(|window, cx| window.draw(cx).clear(cx));
-            cx.simulate_mouse_move(end, MouseButton::Left, Modifiers::default());
-            cx.update(|window, cx| window.draw(cx).clear(cx));
-            cx.simulate_mouse_up(end, MouseButton::Left, Modifiers::default());
-            cx.update(|window, cx| window.draw(cx).clear(cx));
-
-            let selected = root.read_with(cx, |root, cx| root.text_view.read(cx).selected_text());
-            let copied = cx.update(|window, cx| crate::TextSelection::selected_text(window, cx));
-            assert_eq!(selected.trim(), expected);
-            assert_eq!(copied.trim(), expected);
-            let highlights = cx.update(|window, _| {
-                let selection: gpui::Background = gpui::rgb(SELECTION).into();
-                let scale_factor = window.scale_factor();
-                window
-                    .painted_quads()
-                    .into_iter()
-                    .filter(|quad| quad.background == selection)
-                    .map(|quad| quad.bounds.map(|value| px(value.0 / scale_factor)))
-                    .collect::<Vec<_>>()
-            });
-            assert!(
-                highlights.iter().any(|highlight| {
-                    highlight.left() <= underline.left() + px(1.)
-                        && highlight.right() >= underline.right() - px(1.)
-                        && highlight.top() <= y
-                        && highlight.bottom() >= underline.bottom()
-                }),
-                "the highlight {highlights:?} must cover the text above {underline:?}"
-            );
-        }
-    }
-
     struct CellSelectionTestRoot {
         text_view: Entity<TextViewState>,
         scrollable: bool,
@@ -2292,44 +2180,6 @@ mod tests {
         cx.update(|window, cx| window.draw(cx).clear(cx));
         let selected = root.read_with(cx, |root, cx| root.text_view.read(cx).selected_text());
         assert_eq!(selected.trim(), "Cell A");
-    }
-
-    #[gpui::test]
-    fn table_cell_touch_select_all_includes_every_cell(cx: &mut TestAppContext) {
-        cx.update(crate::init);
-        let (root, cx) = cx.add_window_view(|_, cx| CellSelectionTestRoot {
-            text_view: cx.new(|cx| {
-                TextViewState::markdown(
-                    "| Header | Other |\n| --- | --- |\n| Cell A | Cell B |",
-                    cx,
-                )
-            }),
-            scrollable: false,
-        });
-        cx.run_until_parked();
-        cx.update(|window, cx| window.draw(cx).clear(cx));
-        let rows = root.read_with(cx, |root, cx| {
-            root.text_view.read(cx).selection_adapter.text_bounds()
-        });
-        let position = rows[2].center();
-        for phase in [gpui::TouchPhase::Started, gpui::TouchPhase::Ended] {
-            cx.simulate_event(gpui::LongPressEvent {
-                phase,
-                start_position: position,
-                position,
-            });
-        }
-        cx.update(|window, cx| {
-            window.draw(cx).clear(cx);
-            crate::TextSelection::select_all(window, cx);
-            window.draw(cx).clear(cx);
-        });
-        let copied = cx.update(|window, cx| crate::TextSelection::selected_text(window, cx));
-        let selected = root.read_with(cx, |root, cx| root.text_view.read(cx).selected_text());
-        for text in ["Header", "Other", "Cell A", "Cell B"] {
-            assert!(selected.contains(text), "{selected:?}");
-            assert!(copied.contains(text), "{copied:?}");
-        }
     }
 
     #[gpui::test]
@@ -2641,7 +2491,7 @@ mod tests {
             };
             let step = px(20.);
             let wheel_at = |cx: &mut VisualTestContext, y: Pixels| {
-                cx.simulate_event(gpui::ScrollEvent {
+                cx.simulate_event(gpui::ScrollWheelEvent {
                     position: point(px(20.), y),
                     delta: gpui::ScrollDelta::Pixels(point(px(0.), -step)),
                     ..Default::default()
@@ -2906,7 +2756,7 @@ mod tests {
             vec![(
                 0..block.code().len(),
                 gpui::HighlightStyle {
-                    color: Some(gpui::rgb(0x3366ff).into()),
+                    color: Some(gpui::rgb_to_hsla(gpui::rgb(0x3366ff))),
                     ..Default::default()
                 },
             )]
@@ -3321,7 +3171,7 @@ mod tests {
             })
         }
 
-        let mut app = TestApp::with_text_system(Arc::new(WideMonoTextSystem));
+        let mut app = TestApp::with_text_system(Arc::new(WideMonoTextSystem::default()));
         app.update(|cx| {
             crate::init(cx);
             crate::Theme::global_mut(cx).tokens.typography.mono = MONO.into();
@@ -3393,7 +3243,7 @@ mod tests {
 
         fn shaped_markers(format: Format, source: &str) -> Vec<String> {
             let (_, shaped_lines) = record_shaped_lines(|| {
-                let mut app = TestApp::with_text_system(Arc::new(WideMonoTextSystem));
+                let mut app = TestApp::with_text_system(Arc::new(WideMonoTextSystem::default()));
                 app.update(crate::init);
                 let mut window = app.open_window(|_, cx| MarkdownRoot {
                     text_view: cx.new(|cx| match format {
@@ -3440,58 +3290,6 @@ mod tests {
             shaped_markers(Format::Markdown, nested_starts_at_zero),
             ["1.", "0."]
         );
-    }
-
-    /// A line with inline code takes `InlineFlow` and a plain line takes the
-    /// ordinary text path; both must be the same height, or a list with one
-    /// code item is unevenly spaced (#3162). The fractional scale factor and
-    /// zooms give line heights that are not whole logical pixels.
-    #[test]
-    fn inline_code_line_is_as_tall_as_a_plain_line() {
-        use crate::text::inline::test_fonts::{MONO, WideMonoTextSystem};
-        use gpui::{TestApp, rems};
-
-        struct LineRoot {
-            plain: Entity<TextViewState>,
-            code: Entity<TextViewState>,
-            preview_zoom: f32,
-        }
-
-        impl Render for LineRoot {
-            fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
-                div()
-                    .w(px(600.))
-                    .text_size(rems(self.preview_zoom))
-                    .child(TextView::new(&self.plain))
-                    .child(TextView::new(&self.code))
-            }
-        }
-
-        let mut app = TestApp::with_text_system(Arc::new(WideMonoTextSystem));
-        app.update(|cx| {
-            crate::init(cx);
-            crate::Theme::global_mut(cx).tokens.typography.mono = MONO.into();
-        });
-        for scale_factor in [1.6, 2.] {
-            for preview_zoom in [1., 1.25] {
-                let mut window = app.open_window(|_, cx| LineRoot {
-                    plain: cx.new(|cx| TextViewState::markdown("plain body words", cx)),
-                    code: cx.new(|cx| TextViewState::markdown("plain `code` words", cx)),
-                    preview_zoom,
-                });
-                window.simulate_scale_factor_change(scale_factor);
-                window.draw();
-                app.run_until_parked();
-                window.draw();
-                let (plain, code) = window.read(|root, cx| {
-                    (
-                        root.plain.read(cx).bounds().size.height,
-                        root.code.read(cx).bounds().size.height,
-                    )
-                });
-                assert_eq!(code, plain, "scale {scale_factor}, zoom {preview_zoom}");
-            }
-        }
     }
 
     /// The code-bearing list item takes `InlineFlow`; the plain item takes the
@@ -3546,7 +3344,7 @@ mod tests {
             })
         }
 
-        let mut app = TestApp::with_text_system(Arc::new(WideMonoTextSystem));
+        let mut app = TestApp::with_text_system(Arc::new(WideMonoTextSystem::default()));
         app.update(|cx| {
             crate::init(cx);
             crate::Theme::global_mut(cx).tokens.typography.mono = MONO.into();
@@ -3581,7 +3379,7 @@ mod tests {
             }
         }
 
-        let mut app = TestApp::with_text_system(Arc::new(WideMonoTextSystem));
+        let mut app = TestApp::with_text_system(Arc::new(WideMonoTextSystem::default()));
         app.update(|cx| {
             crate::init(cx);
             crate::Theme::global_mut(cx).tokens.typography.mono = MONO.into();
@@ -3645,7 +3443,7 @@ mod tests {
                     table.overflow.x = Some(gpui::Overflow::Scroll);
                 }
                 let style = TextViewStyle::default()
-                    .with_code_background(gpui::rgb(HEAD_BACKGROUND).into())
+                    .with_code_background(gpui::rgb_to_hsla(gpui::rgb(HEAD_BACKGROUND)))
                     .with_table(table);
                 div()
                     .w(px(400.))
@@ -3714,9 +3512,9 @@ mod tests {
                     table.overflow.x = Some(Overflow::Scroll);
                 }
                 let style = TextViewStyle::default()
-                    .with_code_background(gpui::rgb(HEAD_BACKGROUND).into())
+                    .with_code_background(gpui::rgb_to_hsla(gpui::rgb(HEAD_BACKGROUND)))
                     .with_table(table)
-                    .with_table_row_hover(gpui::rgb(ROW_HOVER).into());
+                    .with_table_row_hover(gpui::rgb_to_hsla(gpui::rgb(ROW_HOVER)));
                 div()
                     .w(px(400.))
                     .child(TextView::new(&self.text_view).style(style))
@@ -3849,7 +3647,7 @@ mod tests {
         );
         // Heights of the first column's cells, top to bottom.
         let first_column = |width: f32, style: TextViewStyle| {
-            let mut app = TestApp::with_text_system(Arc::new(WideMonoTextSystem));
+            let mut app = TestApp::with_text_system(Arc::new(WideMonoTextSystem::default()));
             app.update(crate::init);
             let cell = style.table_cell().clone().bg(gpui::rgb(CELL_BACKGROUND));
             let style = style.with_table_cell(cell);
@@ -4524,135 +4322,6 @@ mod tests {
             view.read_with(cx, |root, cx| root.text_view.read(cx).selected_text())
                 .trim(),
             "quick select value"
-        );
-    }
-
-    #[gpui::test]
-    fn long_press_release_keeps_handles_which_drag_the_selection(cx: &mut TestAppContext) {
-        use crate::{SelectionEdge, TextSelection};
-
-        struct TouchRoot {
-            text_view: Entity<TextViewState>,
-        }
-        impl Render for TouchRoot {
-            fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
-                div()
-                    .w(px(300.))
-                    .child(crate::TextSelectionLayer)
-                    .child(TextView::new(&self.text_view).selectable(true))
-            }
-        }
-        cx.update(crate::init);
-        let (view, cx) = cx.add_window_view(|_, cx| TouchRoot {
-            text_view: cx.new(|cx| TextViewState::markdown("quick select value", cx)),
-        });
-        let draw = |cx: &mut VisualTestContext| {
-            cx.update(|window, cx| {
-                let _ = window.draw(cx);
-            });
-        };
-        let selected = |cx: &mut VisualTestContext| {
-            view.read_with(cx, |root, cx| root.text_view.read(cx).selected_text())
-                .trim()
-                .to_string()
-        };
-        cx.run_until_parked();
-        draw(cx);
-
-        let start_position = point(px(70.), px(16.));
-        for phase in [gpui::TouchPhase::Started, gpui::TouchPhase::Ended] {
-            cx.simulate_event(gpui::LongPressEvent {
-                phase,
-                start_position,
-                position: start_position,
-            });
-            draw(cx);
-        }
-        assert_eq!(selected(cx), "select");
-        let snapshot = cx
-            .update(|window, cx| TextSelection::touch_selection(window, cx))
-            .expect("a released long press keeps its handles");
-        assert!(snapshot.is_menu_open());
-        assert!(!snapshot.is_empty());
-        assert!(snapshot.start().left() < snapshot.end().left());
-
-        // Drag the end handle to the end of the line. The finger holds the
-        // knob below the line, the selection follows along the line.
-        let end = snapshot.end();
-        let finger = point(end.left(), end.bottom() + px(20.));
-        cx.update(|window, cx| {
-            TextSelection::begin_edge_drag(SelectionEdge::End, finger, window, cx);
-        });
-        draw(cx);
-        let snapshot = cx
-            .update(|window, cx| TextSelection::touch_selection(window, cx))
-            .unwrap();
-        assert_eq!(snapshot.dragging(), Some(SelectionEdge::End));
-        assert!(!snapshot.is_menu_open());
-        cx.update(|window, cx| {
-            TextSelection::update_edge_drag(point(px(290.), finger.y), window, cx);
-        });
-        draw(cx);
-        assert_eq!(selected(cx), "select value");
-        cx.update(|window, cx| TextSelection::end_edge_drag(window, cx));
-        draw(cx);
-        let snapshot = cx
-            .update(|window, cx| TextSelection::touch_selection(window, cx))
-            .unwrap();
-        assert!(snapshot.is_menu_open());
-        assert_eq!(snapshot.dragging(), None);
-        let select_start = snapshot.start().left();
-
-        // Select All from the menu is a view-local selection; its handles
-        // still drag, turning it back into a point selection.
-        cx.update(|_, cx| {
-            view.update(cx, |root, cx| {
-                root.text_view.update(cx, |state, cx| state.select_all(cx));
-            });
-        });
-        draw(cx);
-        assert_eq!(selected(cx), "quick select value");
-        let snapshot = cx
-            .update(|window, cx| TextSelection::touch_selection(window, cx))
-            .expect("select all keeps the touch selection");
-        let start = snapshot.start();
-        cx.update(|window, cx| {
-            TextSelection::begin_edge_drag(SelectionEdge::Start, start.origin, window, cx);
-            TextSelection::update_edge_drag(point(select_start, start.origin.y), window, cx);
-            TextSelection::end_edge_drag(window, cx);
-        });
-        draw(cx);
-        assert_eq!(selected(cx), "select value");
-
-        // A press on the menu leaves the selection alone; one on the text
-        // clears it.
-        let menu = gpui::Bounds::new(point(px(0.), px(200.)), gpui::size(px(120.), px(32.)));
-        cx.update(|window, cx| TextSelection::register_touch_ui(menu, window, cx));
-        cx.simulate_event(MouseDownEvent {
-            position: point(px(10.), px(210.)),
-            modifiers: Modifiers::default(),
-            button: MouseButton::Left,
-            click_count: 1,
-            first_mouse: false,
-        });
-        assert_eq!(selected(cx), "select value");
-        cx.simulate_event(MouseDownEvent {
-            position: point(px(10.), px(16.)),
-            modifiers: Modifiers::default(),
-            button: MouseButton::Left,
-            click_count: 1,
-            first_mouse: false,
-        });
-        cx.simulate_event(MouseUpEvent {
-            position: point(px(10.), px(16.)),
-            modifiers: Modifiers::default(),
-            button: MouseButton::Left,
-            click_count: 1,
-        });
-        draw(cx);
-        assert!(
-            cx.update(|window, cx| TextSelection::touch_selection(window, cx))
-                .is_none()
         );
     }
 

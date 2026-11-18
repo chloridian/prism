@@ -371,7 +371,7 @@ mod tests {
                 Root::new(content, window, cx)
             }
         });
-        cx.update(|window, _| window.activate_window());
+        cx.update(|window, _| window.activate());
         cx.executor().run_until_parked();
         cx.update(|window, cx| window.draw(cx).clear(cx));
         (cx, container, controls, background, background_focuses)

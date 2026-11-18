@@ -1,9 +1,12 @@
+use crate::HslaExt as _;
 use crate::input::{DisplayMap, FoldRange, InputExtras as _, InputModeKind, OverviewRulerLane};
+use crate::text_compat::ShapedLineExt as _;
+use gpui::ColorExt as _;
 use gpui::Corners;
 use gpui::Half;
 use gpui::{
-    AnyElement, App, Bounds, Edges, Element, ElementId, ElementInputHandler, Entity,
-    GlobalElementId,
+    AnyElement, App, AppContext as _, Bounds, Edges, Element, ElementId, ElementInputHandler,
+    Entity, GlobalElementId,
 };
 use gpui::{
     HighlightStyle, Hitbox, HitboxBehavior, Hsla, InteractiveElement, IntoElement, LayoutId,
@@ -25,7 +28,6 @@ use super::{
     InputBaseState, PrepaintCaretGeometry, RangeDecorationStyle, TextDecoration,
     layout::{LastLayout, WhitespaceIndicators},
     mode::LayoutMode,
-    tab_stops::{expand_tabs, expanded_width, tab_stop_width},
 };
 
 fn diagnostic_highlight_style(
@@ -86,8 +88,8 @@ pub(super) fn line_number_digits_width(
                 background_color: None,
                 underline: None,
                 strikethrough: None,
+                letter_spacing: Default::default(),
             }],
-            None,
         )
         .width
 }
@@ -820,7 +822,7 @@ impl<M: InputModeKind> TextElement<M> {
         window.on_mouse_event({
             let state = self.state.clone();
             let hitbox = hitbox.id;
-            move |event: &gpui::ScrollEvent, phase, window, cx| {
+            move |event: &gpui::ScrollWheelEvent, phase, window, cx| {
                 if phase.capture()
                     && hitbox.should_handle_scroll(window)
                     && state
@@ -829,44 +831,6 @@ impl<M: InputModeKind> TextElement<M> {
                 {
                     crate::scroll_bounce::claim_scroll(hitbox, cx);
                 }
-            }
-        });
-
-        // Every touch is offered as a drag first; that is how a tap's mouse
-        // events are later told apart from a mouse's.
-        window.on_mouse_event(move |event: &TouchDragEvent, phase, _, cx| {
-            if phase.capture() && event.phase == TouchPhase::Started {
-                crate::GlobalState::note_touch(cx);
-            }
-        });
-
-        // A long press is touch's way to select: the word under the finger,
-        // then whatever the finger sweeps over. Claiming it keeps the moves
-        // out of the pan recognizer, so the input does not scroll instead.
-        window.on_mouse_event({
-            let state = self.state.clone();
-            let hitbox = hitbox.clone();
-            move |event: &LongPressEvent, phase, window, cx| {
-                if !phase.bubble() {
-                    return;
-                }
-                if event.phase == TouchPhase::Started {
-                    if window.default_prevented() || !hitbox.is_hovered(window) {
-                        return;
-                    }
-                    if !state.update(cx, |state, cx| state.on_long_press(event, window, cx)) {
-                        return;
-                    }
-                    window.capture_long_press(&state);
-                } else if !window.has_long_press_capture(&state) {
-                    return;
-                } else {
-                    state.update(cx, |state, cx| {
-                        state.on_long_press(event, window, cx);
-                    });
-                }
-                window.prevent_default();
-                cx.stop_propagation();
             }
         });
 
@@ -1043,8 +1007,8 @@ impl<M: InputModeKind> TextElement<M> {
                     if selection_changed {
                         // Right-aligned carets are clamped instead of scrolling.
                         let safety_margin = match last_layout.text_align {
-                            TextAlign::Left => RIGHT_MARGIN,
-                            TextAlign::Right => px(0.),
+                            TextAlign::Start | TextAlign::Left => RIGHT_MARGIN,
+                            TextAlign::End | TextAlign::Right => px(0.),
                             TextAlign::Center => CURSOR_WIDTH,
                         };
                         scroll_offset.x = if scroll_offset.x + cursor_pos.x
@@ -1577,8 +1541,8 @@ impl<M: InputModeKind> TextElement<M> {
                 background_color: None,
                 underline: None,
                 strikethrough: None,
+                letter_spacing: Default::default(),
             }],
-            None,
         );
 
         let tab_text = SharedString::new_static("→");
@@ -1592,8 +1556,8 @@ impl<M: InputModeKind> TextElement<M> {
                 background_color: None,
                 underline: None,
                 strikethrough: None,
+                letter_spacing: Default::default(),
             }],
-            None,
         );
 
         Some(WhitespaceIndicators { space, tab })
@@ -1649,11 +1613,12 @@ impl<M: InputModeKind> TextElement<M> {
                 background_color: None,
                 underline: None,
                 strikethrough: None,
+                letter_spacing: Default::default(),
             };
             Some(
                 window
                     .text_system()
-                    .shape_line(first_text, font_size, &[first_run], None),
+                    .shape_line(first_text, font_size, &[first_run]),
             )
         } else {
             None
@@ -1672,12 +1637,13 @@ impl<M: InputModeKind> TextElement<M> {
                     background_color: None,
                     underline: None,
                     strikethrough: None,
+                    letter_spacing: Default::default(),
                 };
                 // Use space for empty lines so they take up height
                 let shaped_text = if text.is_empty() { " ".into() } else { text };
                 window
                     .text_system()
-                    .shape_line(shaped_text, font_size, &[run], None)
+                    .shape_line(shaped_text, font_size, &[run])
             })
             .collect();
 
@@ -2370,7 +2336,6 @@ impl<M: InputModeKind> TextElement<M> {
                                         part.to_owned().into(),
                                         style.font_size.to_pixels(window.rem_size()),
                                         &[style.to_run(part.len())],
-                                        None,
                                     )
                                     .width;
                                 width +=
@@ -2385,7 +2350,6 @@ impl<M: InputModeKind> TextElement<M> {
                                         part.to_owned().into(),
                                         style.font_size.to_pixels(window.rem_size()),
                                         &[style.to_run(part.len())],
-                                        None,
                                     )
                                     .width
                         })
@@ -2455,7 +2419,6 @@ impl<M: InputModeKind> TextElement<M> {
                                 text[part.clone()].to_owned().into(),
                                 font_size,
                                 &runs_for_range(runs, run_offset, &part),
-                                None,
                             );
                             let width = shaped.width;
                             fragments.push(InlineFragment {
@@ -2482,7 +2445,6 @@ impl<M: InputModeKind> TextElement<M> {
                             text[part.clone()].to_owned().into(),
                             font_size,
                             &runs_for_range(runs, run_offset, &part),
-                            None,
                         );
                         let width = shaped.width;
                         fragments.push(InlineFragment {
@@ -2537,7 +2499,7 @@ impl<M: InputModeKind> TextElement<M> {
         const REVEAL_MAX_HEIGHT: Pixels = px(120.);
 
         let focused = self.state.read(cx).focus_handle.is_focused(window);
-        let viewport = window.fully_visible_bounds();
+        let viewport = Bounds::new(Point::default(), window.viewport_size());
         let reveal = self.state.update(cx, |state, _| {
             let target = focused.then_some(viewport);
             let changed = state.revealed_viewport != target;
@@ -2665,21 +2627,11 @@ impl<M: InputModeKind> TextElement<M> {
             return Self::layout_token_lines(state, last_layout, font_size, runs, window);
         }
 
-        let tab_stop = tab_stop_width(
-            window.text_system(),
-            &window.text_style().font(),
-            font_size,
-            state.mode.tab_size().tab_size,
-        );
-
         if is_single_line {
             let text: SharedString = display_text.to_string().into();
             let aligned_runs = align_runs_to_char_boundaries(&text, runs);
             let line_runs = aligned_runs.as_deref().unwrap_or(runs);
-            let mut shaped_line = window
-                .text_system()
-                .shape_line(text, font_size, line_runs, None);
-            expand_tabs(&mut shaped_line, tab_stop);
+            let shaped_line = window.text_system().shape_line(text, font_size, line_runs);
 
             let line_layout = LineLayout::new()
                 .lines(smallvec::smallvec![shaped_line])
@@ -2695,12 +2647,10 @@ impl<M: InputModeKind> TextElement<M> {
             let mut line_has_background = false;
 
             for (line, line_runs) in placeholder_line_runs(&placeholder_text, runs) {
-                let shaped_line = window.text_system().shape_line(
-                    line.to_string().into(),
-                    font_size,
-                    &line_runs,
-                    None,
-                );
+                let shaped_line =
+                    window
+                        .text_system()
+                        .shape_line(line.to_string().into(), font_size, &line_runs);
                 line_has_background |= has_background(&line_runs);
                 placeholder_lines.push(shaped_line);
             }
@@ -2763,10 +2713,9 @@ impl<M: InputModeKind> TextElement<M> {
                 let sub_line: SharedString = line_text[range.clone()].to_string().into();
                 let line_runs =
                     align_runs_to_char_boundaries(&sub_line, &line_runs).unwrap_or(line_runs);
-                let mut shaped_line = window
+                let shaped_line = window
                     .text_system()
-                    .shape_line(sub_line, font_size, &line_runs, None);
-                expand_tabs(&mut shaped_line, tab_stop);
+                    .shape_line(sub_line, font_size, &line_runs);
 
                 line_has_background |= has_background(&line_runs);
                 wrapped_lines.push(InputLine::from(shaped_line));
@@ -3222,7 +3171,11 @@ impl<M: InputModeKind> Element for TextElement<M> {
         // out there is measured in spaces instead.
         let space_width = {
             let font_id = window.text_system().resolve_font(&font);
-            window.text_system().layout_width(font_id, text_size, ' ')
+            window
+                .text_system()
+                .advance(font_id, text_size, ' ')
+                .map(|size| size.width)
+                .unwrap_or_default()
         };
 
         // Text stretched past an end is drawn that far from where it scrolled
@@ -3368,6 +3321,7 @@ impl<M: InputModeKind> Element for TextElement<M> {
             background_color: None,
             underline: None,
             strikethrough: None,
+            letter_spacing: Default::default(),
         };
         let marked_run = TextRun {
             len: 0,
@@ -3380,6 +3334,7 @@ impl<M: InputModeKind> Element for TextElement<M> {
                 wavy: false,
             }),
             strikethrough: None,
+            letter_spacing: Default::default(),
         };
 
         let ime_marked_range = ime_marked_display_range(
@@ -3488,8 +3443,6 @@ impl<M: InputModeKind> Element for TextElement<M> {
                 Some((_, width)) => width.max(widest_laid_out_line),
                 None => {
                     let longest_line: SharedString = longest_line.to_string().into();
-                    let tab_stop =
-                        tab_stop_width(window.text_system(), &key.font, text_size, key.tab_size);
                     let shaped = window.text_system().shape_line(
                         longest_line.clone(),
                         text_size,
@@ -3500,10 +3453,10 @@ impl<M: InputModeKind> Element for TextElement<M> {
                             background_color: None,
                             underline: None,
                             strikethrough: None,
+                            letter_spacing: Default::default(),
                         }],
-                        wrap_width,
                     );
-                    expanded_width(&shaped, &longest_line, tab_stop).max(widest_laid_out_line)
+                    shaped.width.max(widest_laid_out_line)
                 }
             };
             state
@@ -3671,6 +3624,7 @@ impl<M: InputModeKind> Element for TextElement<M> {
                 background_color: None,
                 underline: None,
                 strikethrough: None,
+                letter_spacing: Default::default(),
             }];
             let current_line_runs = vec![TextRun {
                 len: line_number_len,
@@ -3679,6 +3633,7 @@ impl<M: InputModeKind> Element for TextElement<M> {
                 background_color: None,
                 underline: None,
                 strikethrough: None,
+                letter_spacing: Default::default(),
             }];
 
             // build line numbers
@@ -3700,9 +3655,7 @@ impl<M: InputModeKind> Element for TextElement<M> {
                     &other_line_runs
                 };
 
-                let line_no = window
-                    .text_system()
-                    .shape_line(line_no, text_size, &runs, None);
+                let line_no = window.text_system().shape_line(line_no, text_size, &runs);
                 line_numbers.push((line_no, line.wrapped_lines.len()));
             }
             Some(line_numbers)
@@ -4004,10 +3957,8 @@ impl<M: InputModeKind> Element for TextElement<M> {
 
         // Paint selections
         if window.is_window_active() {
-            let secondary_selection = Hsla {
-                s: 0.1,
-                ..editor_style.selection
-            };
+            let mut secondary_selection = editor_style.selection;
+            secondary_selection.color.saturation = 0.1;
             for (path, is_active) in prepaint.search_match_paths.iter() {
                 window.paint_path(path.clone(), secondary_selection);
 
@@ -4452,7 +4403,7 @@ fn split_runs_by_bg_segments(
             // Add the overlapping part with background color
             let overlap_start = run_start.max(bg_range.start);
             let overlap_end = run_end.min(bg_range.end);
-            let text_color = if bg_color.l >= 0.5 {
+            let text_color = if bg_color.l() >= 0.5 {
                 gpui::black()
             } else {
                 gpui::white()
@@ -4539,84 +4490,6 @@ mod tests {
         let h = ceil_to_device_pixel(px(20.), 5. / 3.);
         assert!(h >= px(20.), "{h:?}");
         assert_eq!((f32::from(h) * 5. / 3.).round(), 34.);
-    }
-
-    struct ScaledTextareaHarness(Entity<crate::input::TextareaState>);
-
-    impl Render for ScaledTextareaHarness {
-        fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
-            div().child(
-                div()
-                    .w(px(240.))
-                    .child(crate::input::Textarea::new(&self.0)),
-            )
-        }
-    }
-
-    fn textarea_layout(
-        cx: &mut TestAppContext,
-        scale: f32,
-        text: &str,
-        min_rows: usize,
-        max_rows: usize,
-    ) -> (Pixels, Pixels, Pixels) {
-        cx.update(crate::init);
-        let text = text.to_string();
-        let (view, cx) = cx.add_window_view(move |window, cx| {
-            ScaledTextareaHarness(cx.new(|cx| {
-                crate::input::TextareaState::new(window, cx)
-                    .auto_grow(min_rows, max_rows)
-                    .default_value(text)
-            }))
-        });
-        cx.simulate_scale_factor_change(scale);
-        let field = view.read_with(cx, |view, _| view.0.clone());
-        for _ in 0..2 {
-            cx.update(|window, cx| {
-                window.refresh();
-                window.draw(cx).clear(cx);
-            });
-        }
-        field.read_with(cx, |field, _| {
-            (
-                field.text_bounds().unwrap().size.height,
-                field.scroll_size.height,
-                field.line_height().unwrap(),
-            )
-        })
-    }
-
-    #[gpui::test]
-    fn empty_auto_grow_textarea_fits_its_line_at_fractional_scale(cx: &mut TestAppContext) {
-        let (height, scroll, line) = textarea_layout(cx, 5. / 3., "", 1, 8);
-        assert!(
-            height >= line && height < line * 2.,
-            "{height:?} for {line:?}"
-        );
-        assert!(scroll <= height, "scrollable {scroll:?} in {height:?}");
-    }
-
-    #[gpui::test]
-    fn multi_line_auto_grow_textarea_does_not_scroll_at_1_2(cx: &mut TestAppContext) {
-        let (height, scroll, line) = textarea_layout(cx, 1.2, "a\nb\nc", 1, 8);
-        assert!(
-            height >= line * 3. - px(0.01) && height < line * 4.,
-            "{height:?}"
-        );
-        assert!(scroll <= height, "scrollable {scroll:?} in {height:?}");
-    }
-
-    #[gpui::test]
-    fn auto_grow_textarea_at_its_cap_does_not_scroll(cx: &mut TestAppContext) {
-        let (height, scroll, _) = textarea_layout(cx, 5. / 3., "1\n2\n3", 1, 3);
-        assert!(scroll <= height, "scrollable {scroll:?} in {height:?}");
-    }
-
-    #[gpui::test]
-    fn auto_grow_textarea_past_its_cap_still_scrolls(cx: &mut TestAppContext) {
-        let (height, scroll, line) = textarea_layout(cx, 5. / 3., "1\n2\n3\n4\n5", 1, 3);
-        assert!(height < line * 4., "{height:?}");
-        assert!(scroll > height, "scrollable {scroll:?} in {height:?}");
     }
 
     struct DecorationHarness(Entity<EditorState>);
@@ -4833,7 +4706,7 @@ mod tests {
         let input = input.unwrap();
         let view = window.root(cx).unwrap();
         let mut cx = VisualTestContext::from_window(window.into(), cx);
-        cx.update(|window, _| window.activate_window());
+        cx.update(|window, _| window.activate());
         cx.run_until_parked();
         let draw = |cx: &mut VisualTestContext| {
             cx.update(|window, cx| {
@@ -4928,7 +4801,7 @@ mod tests {
             editor.update(cx, |state, cx| {
                 state.set_scroll_bounce(true, cx);
                 state.on_scroll_wheel(
-                    &gpui::ScrollEvent {
+                    &gpui::ScrollWheelEvent {
                         delta: gpui::ScrollDelta::Pixels(point(px(0.), px(60.))),
                         touch_phase: gpui::TouchPhase::Started,
                         ..Default::default()
@@ -4985,7 +4858,7 @@ mod tests {
             window.draw(cx).clear(cx);
             editor.update(cx, |state, cx| {
                 state.on_scroll_wheel(
-                    &gpui::ScrollEvent {
+                    &gpui::ScrollWheelEvent {
                         delta: gpui::ScrollDelta::Pixels(point(px(0.), px(-10_000.))),
                         touch_phase: gpui::TouchPhase::Moved,
                         ..Default::default()
@@ -5081,7 +4954,7 @@ mod tests {
         let mut cx = VisualTestContext::from_window(window.into(), cx);
         cx.update(|window, cx| window.draw(cx).clear(cx));
         let swipe = |cx: &mut VisualTestContext, y: f32| {
-            cx.simulate_event(gpui::ScrollEvent {
+            cx.simulate_event(gpui::ScrollWheelEvent {
                 position: point(px(100.), px(y)),
                 delta: gpui::ScrollDelta::Pixels(point(px(0.), px(-40.))),
                 touch_phase: gpui::TouchPhase::Moved,
@@ -5217,8 +5090,6 @@ mod tests {
             assert!(selection_paths(window, cx).is_empty());
         });
     }
-
-
 
     #[gpui::test]
     fn a_focused_input_reports_a_moved_caret_to_the_platform(cx: &mut TestAppContext) {
@@ -6510,6 +6381,7 @@ mod tests {
             background_color: None,
             underline: None,
             strikethrough: None,
+            letter_spacing: Default::default(),
         };
 
         // use hello this-is-test
@@ -6568,6 +6440,7 @@ mod tests {
                 background_color: None,
                 underline: None,
                 strikethrough: None,
+                letter_spacing: Default::default(),
             })
             .collect();
         let total: usize = lens.iter().sum();
@@ -6687,6 +6560,7 @@ mod tests {
             background_color: None,
             underline: None,
             strikethrough: None,
+            letter_spacing: Default::default(),
         };
 
         let runs = vec![
@@ -6725,6 +6599,7 @@ mod tests {
             background_color: None,
             underline: None,
             strikethrough: None,
+            letter_spacing: Default::default(),
         };
         let runs = |lens: &[usize]| {
             lens.iter()
@@ -6804,6 +6679,7 @@ mod tests {
             background_color: None,
             underline: None,
             strikethrough: None,
+            letter_spacing: Default::default(),
         };
 
         let runs = vec![

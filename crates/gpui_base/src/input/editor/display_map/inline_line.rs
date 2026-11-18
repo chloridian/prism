@@ -1,4 +1,5 @@
 //! A visual row whose offsets remain in source UTF-8 bytes.
+use crate::text_compat::ShapedLineExt as _;
 use gpui::{App, Pixels, Point, ShapedLine, SharedString, TextAlign, Window, point, px};
 use std::ops::Range;
 

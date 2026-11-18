@@ -735,11 +735,6 @@ mod tests {
         (cx, state, resizes)
     }
 
-
-
-
-
-
     #[gpui::test]
     fn dynamic_panel_lifecycle_is_owned_by_resizable_state(cx: &mut TestAppContext) {
         let state = cx.update(|cx| cx.new(|_| ResizableState::default()));

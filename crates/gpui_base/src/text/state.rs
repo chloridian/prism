@@ -34,7 +34,7 @@ use crate::{
         selection_adapter::TextViewSelectionAdapter,
         stream_fade::{StreamFadeTracker, TextViewMotion},
     },
-    touch_selection::caret_line_box,
+    text_selection::caret_line_box,
     v_flex,
 };
 
@@ -1456,7 +1456,6 @@ mod tests {
         node::{BlockNode, Span},
     };
     use gpui::{Entity, TestAppContext};
-
 
     mod stream_fade {
         use std::{cell::Cell, ops::Range, rc::Rc, time::Duration};

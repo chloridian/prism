@@ -132,8 +132,8 @@ impl PlotTheme {
 /// while dragging -- which are the tokens those two states already mean
 /// everywhere else.
 ///
-/// These were plain colors, so the Base default was `Hsla::default()`: fully
-/// transparent. That reads as a deliberate choice next to a styled façade,
+/// These were plain colors, so the Base default was a fully
+/// transparent color. That reads as a deliberate choice next to a styled façade,
 /// which projects its own values and never sees it, and as a missing divider
 /// to anything that does not -- and a consumer with no façade has no way to
 /// project anything. Making them optional keeps the projection exactly as it

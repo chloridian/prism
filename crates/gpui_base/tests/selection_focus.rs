@@ -64,8 +64,7 @@ impl Render for DisableDuringFocus {
 }
 
 fn press_key(cx: &mut VisualTestContext, key: &str) {
-    let keystroke =
-        cx.update(|_, cx| Keystroke::parse_with_os(key, cx.platform_info().os).unwrap());
+    let keystroke = Keystroke::parse(key).unwrap();
     cx.simulate_event(KeyDownEvent {
         keystroke: keystroke.clone(),
         is_held: false,
@@ -94,7 +93,7 @@ fn check_disabled_focus(cx: &mut TestAppContext, control: Control) {
             changes: 0,
         });
         let (_, cx) = cx.add_window_view(|window, cx| Root::new(controls.clone(), window, cx));
-        cx.update(|window, _| window.activate_window());
+        cx.update(|window, _| window.activate());
         cx.executor().run_until_parked();
         cx.update(|window, cx| {
             window.draw(cx).clear(cx);

@@ -97,12 +97,23 @@ pub trait SyntaxContextProvider {
     fn context_at(&self, text: &Rope, offset: usize) -> SyntaxContext;
 }
 
-#[derive(Clone, Copy, Default)]
+#[derive(Clone, Copy)]
 pub struct DiagnosticColors {
     pub error: Hsla,
     pub warning: Hsla,
     pub info: Hsla,
     pub hint: Hsla,
+}
+
+impl Default for DiagnosticColors {
+    fn default() -> Self {
+        Self {
+            error: gpui::transparent_black(),
+            warning: gpui::transparent_black(),
+            info: gpui::transparent_black(),
+            hint: gpui::transparent_black(),
+        }
+    }
 }
 
 /// Application-owned colors and highlight resolver consumed by editor painting.
@@ -125,7 +136,7 @@ pub struct InputEditorStyle {
 impl InputEditorStyle {
     /// Fills in every colour that was left unset, from the active palette.
     ///
-    /// `Hsla::default()` is fully transparent, and every colour on `Default` is
+    /// `gpui::transparent_black()` is fully transparent, and every colour on `Default` is
     /// that — so an input nothing projected onto painted its glyphs, its caret
     /// and its selection in nothing at all. Transparent is not a colour anyone
     /// means for ink, which is what makes it usable as "unset" here.
@@ -137,7 +148,7 @@ impl InputEditorStyle {
     /// installed when the state was built.
     pub fn resolved(&self, tokens: &SemanticThemeTokens) -> Self {
         let colors = &tokens.colors;
-        let unset = |value: Hsla| value.a == 0.;
+        let unset = |value: Hsla| value.alpha == 0.;
         let or = |value: Hsla, fallback: Hsla| if unset(value) { fallback } else { value };
 
         let foreground = or(self.foreground, colors.foreground);
@@ -145,7 +156,7 @@ impl InputEditorStyle {
         if unset(selection) {
             selection = colors.accent;
             // A selection must not hide the glyphs it selects.
-            selection.a = 0.4;
+            selection.alpha = 0.4;
         }
 
         Self {
@@ -163,12 +174,12 @@ impl InputEditorStyle {
 impl Default for InputEditorStyle {
     fn default() -> Self {
         Self {
-            foreground: Hsla::default(),
-            muted_foreground: Hsla::default(),
-            background: Hsla::default(),
-            border: Hsla::default(),
-            selection: Hsla::default(),
-            caret: Hsla::default(),
+            foreground: gpui::transparent_black(),
+            muted_foreground: gpui::transparent_black(),
+            background: gpui::transparent_black(),
+            border: gpui::transparent_black(),
+            selection: gpui::transparent_black(),
+            caret: gpui::transparent_black(),
             diagnostics: DiagnosticColors::default(),
             highlight_styles: Arc::new(NoHighlightStyles),
             editor_invisible: None,
@@ -181,6 +192,7 @@ impl Default for InputEditorStyle {
 
 #[cfg(test)]
 mod tests {
+    use crate::HslaExt as _;
     use gpui::hsla;
 
     use super::InputEditorStyle;
@@ -214,14 +226,14 @@ mod tests {
             resolved.muted_foreground,
             resolved.selection,
         ] {
-            assert!(colour.a > 0., "{colour:?} is still invisible");
+            assert!(colour.a() > 0., "{colour:?} is still invisible");
         }
     }
 
     #[test]
     fn a_selection_stays_translucent_enough_to_read_through() {
         let resolved = InputEditorStyle::default().resolved(&dark());
-        assert_eq!(resolved.selection.a, 0.4);
+        assert_eq!(resolved.selection.a(), 0.4);
     }
 
     #[test]

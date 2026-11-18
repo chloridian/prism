@@ -3,6 +3,7 @@ mod selection_paint;
 use super::state::ParagraphRows;
 #[cfg(target_family = "wasm")]
 use async_channel::bounded;
+use gpui::ColorExt as _;
 use gpui::Corners;
 #[cfg(not(target_family = "wasm"))]
 use smol::channel::bounded;
@@ -19,11 +20,11 @@ use std::{
 };
 
 use gpui::{
-    AnyTooltip, App, BorderStyle, Bounds, ClickEvent, CursorStyle, Edges, Element, ElementId,
-    ForegroundExecutor, Global, GlobalElementId, Half, HighlightStyle, Hitbox, HitboxBehavior,
-    Hsla, InspectorElementId, LayoutId, MouseButton, MouseClickEvent, MouseDownEvent,
-    MouseMoveEvent, MouseUpEvent, Pixels, Point, SharedString, StyleRefinement, StyledText, Task,
-    TextAlign, TextLayout, TextRun, TextStyle, Window, point, px, size,
+    AnyTooltip, App, AppContext as _, BorderStyle, Bounds, ClickEvent, CursorStyle, Edges, Element,
+    ElementId, ForegroundExecutor, Global, GlobalElementId, Half, HighlightStyle, Hitbox,
+    HitboxBehavior, Hsla, InspectorElementId, LayoutId, MouseButton, MouseClickEvent,
+    MouseDownEvent, MouseMoveEvent, MouseUpEvent, Pixels, Point, SharedString, StyleRefinement,
+    StyledText, Task, TextAlign, TextLayout, TextRun, TextStyle, Window, point, px, size,
 };
 
 use crate::{
@@ -253,7 +254,7 @@ pub(super) fn fade_highlights(
                 code.background = Some(background.opacity(1. - fade_out).into());
             }
             if let Some(border) = &mut code.border_color {
-                border.fade_out(fade_out);
+                *border = border.opacity(1. - fade_out);
             }
         }
         let style = &mut highlight.style;
@@ -585,7 +586,7 @@ impl InlineState {
 /// The native lines and placement of a completed paint. `TextLayout::clone`
 /// shares mutable measurement state; these immutable shaped lines do not.
 struct PaintedSelectionLayout {
-    lines: smallvec::SmallVec<[Arc<gpui::WrappedLineLayout>; 1]>,
+    lines: smallvec::SmallVec<[Arc<gpui::ShapedTextLayout>; 1]>,
     bounds: Bounds<Pixels>,
     line_height: Pixels,
     len: usize,
@@ -610,7 +611,10 @@ impl PaintedSelectionLayout {
                 break;
             }
             if index <= end {
-                return Some(origin + line.position_for_index(index - start, self.line_height)?);
+                return Some(
+                    origin
+                        + line.visual_position_for_byte_index(index - start, self.line_height)?,
+                );
             }
             origin.y += line.size(self.line_height).height;
             start = end + 1;
@@ -625,7 +629,7 @@ impl PaintedSelectionLayout {
             last_line_top += line.size(self.line_height).height;
         }
         let last_row_top = self.lines.last().map_or(top, |line| {
-            last_line_top + line.wrap_boundaries.len() as f32 * self.line_height
+            last_line_top + line.line_count().saturating_sub(1) as f32 * self.line_height
         });
         (top, last_row_top + self.line_height)
     }
@@ -970,9 +974,12 @@ impl Inline {
             bounds,
             background: gpui::hsla(0.58, 0.85, 0.62, 0.01).into(),
             corner_radii: Corners::default(),
-            border_color: gpui::transparent_black(),
+            border_color: gpui::transparent_black().into(),
             border_style: BorderStyle::default(),
             border_widths: gpui::Edges::all(px(0.)),
+            border_dashed_gap: Default::default(),
+            border_dashed_length: Default::default(),
+            corner_smoothing: Default::default(),
         });
     }
 
@@ -1076,60 +1083,29 @@ impl Inline {
     ) -> Vec<Bounds<Pixels>> {
         let origin = text_layout.bounds.origin;
         let lines = &text_layout.lines;
-        let row_count: usize = lines
-            .iter()
-            .map(|line| line.wrap_boundaries.len() + 1)
-            .sum();
+        let row_count: usize = lines.iter().map(|line| line.line_count()).sum();
         let mut line_bounds = Vec::with_capacity(row_count);
         let mut row_ix = 0;
         let mut y = origin.y;
         for line in lines {
-            let layout = &line.unwrapped_layout;
-            let mut row_start = 0;
-            let row_ends = line
-                .wrap_boundaries
-                .iter()
-                .map(|boundary| layout.runs[boundary.run_ix].glyphs[boundary.glyph_ix].index)
-                .chain([line.len()]);
-            for row_end in row_ends {
-                let mut width = layout.x_for_index(row_end) - layout.x_for_index(row_start);
+            for visual_line in line.visual_lines() {
+                let mut width = visual_line.advance_width;
                 row_ix += 1;
                 if row_ix < row_count {
                     width += line_height.half();
                 }
-                let bounds = Bounds::new(point(origin.x, y), size(width, line_height))
-                    .intersect(&mask_bounds);
+                let bounds = Bounds::new(
+                    point(origin.x + visual_line.offset, y),
+                    size(width, line_height),
+                )
+                .intersect(&mask_bounds);
                 if bounds.size.width > px(0.) && bounds.size.height > px(0.) {
                     line_bounds.push(bounds);
                 }
                 y += line_height;
-                row_start = row_end;
             }
         }
         line_bounds
-    }
-
-    /// The caret line boxes at the two ends of a painted selection, where the
-    /// touch handles are drawn.
-    fn selection_edges(
-        selection: &Selection,
-        text_layout: &TextLayout,
-    ) -> Option<(Bounds<Pixels>, Bounds<Pixels>)> {
-        let (start, end) = (
-            selection.start.min(selection.end),
-            selection.start.max(selection.end),
-        );
-        let line_height = text_layout.line_height();
-        Some((
-            crate::touch_selection::caret_line_box(
-                text_layout.position_for_index(start)?,
-                line_height,
-            ),
-            crate::touch_selection::caret_line_box(
-                text_layout.position_for_index(end)?,
-                line_height,
-            ),
-        ))
     }
 
     /// Paint each range highlight behind the text of its range.
@@ -1247,8 +1223,8 @@ impl Element for Inline {
 
     fn paint(
         &mut self,
-        _: Option<&GlobalElementId>,
-        _: Option<&InspectorElementId>,
+        id: Option<&GlobalElementId>,
+        inspector_id: Option<&InspectorElementId>,
         bounds: Bounds<Pixels>,
         _: &mut Self::RequestLayoutState,
         prepaint: &mut Self::PrepaintState,
@@ -1270,14 +1246,14 @@ impl Element for Inline {
         if !self.range_backgrounds.is_empty() {
             self.paint_range_highlights(&text_layout, window);
         }
-        _ = text_layout.paint_background(window, cx);
 
         // layout selections
         let (is_selectable, is_selection, selection) =
             self.layout_selections(&text_layout, &bounds, cx);
 
         let Ok(mut state) = self.state.lock() else {
-            _ = text_layout.paint_foreground(window, cx);
+            self.styled_text
+                .paint(id, inspector_id, bounds, &mut (), &mut (), window, cx);
             return;
         };
 
@@ -1356,19 +1332,12 @@ impl Element for Inline {
                 &mut state.selection_rows,
                 |rect| window.paint_quad(gpui::fill(rect, color)),
             );
-            if let Some((start, end)) = Self::selection_edges(&selection, &text_layout)
-                && let Some(text_view_state) = GlobalState::global(cx).text_view_state()
-            {
-                text_view_state
-                    .read(cx)
-                    .selection_adapter
-                    .register_selection_edges(start, end);
-            }
         } else {
             state.selection_rows = None;
         }
 
-        _ = text_layout.paint_foreground(window, cx);
+        self.styled_text
+            .paint(id, inspector_id, bounds, &mut (), &mut (), window, cx);
 
         if is_selectable {
             if let Some(text_view_state) = GlobalState::global(cx).text_view_state() {
@@ -1431,15 +1400,6 @@ impl Element for Inline {
                             view.update(cx, |state, cx| state.set_multi_click_line(rows, cx));
                         }
                         cx.notify(current_view);
-                        return;
-                    }
-
-                    // A finger selects read-only text with a long press only;
-                    // a double tap selects nothing here, neither the mouse's
-                    // plain word nor the window layer's touch selection. The
-                    // handles and the menu on a double tap belong to `Input`.
-                    if event.click_count == 2 && GlobalState::is_touch_press(cx) {
-                        GlobalState::suppress_text_selection(cx);
                         return;
                     }
 
@@ -1575,92 +1535,58 @@ struct GlyphBox {
     right: Pixels,
 }
 
-/// The glyphs of `text_layout`, sorted by the text they draw, each placed
-/// the way GPUI paints it: every row aligned in `align_width` by `align`,
-/// and a glyph reaching to the next one on its row, or to the row's end.
-///
-/// Glyphs are read in the order they paint, so right-to-left text, whose
-/// glyphs paint in the reverse order of its text, is placed as it shows.
+/// Backend cluster geometry in logical text order, including bidi placement.
+/// Prism's painted glyphs carry no source byte index, so clusters come from the layout.
 fn glyph_boxes(text_layout: &TextLayout, align: TextAlign, align_width: Pixels) -> Vec<GlyphBox> {
     let mut boxes = Vec::new();
-    let mut row = 0;
-    let mut line_start = 0;
+    let line_height = text_layout.line_height();
+    let mut row_offset = 0;
+    let mut text_offset = 0;
     for line in text_layout.line_layouts() {
-        let layout = &line.unwrapped_layout;
-        let glyphs = layout
-            .runs
-            .iter()
-            .flat_map(|run| run.glyphs.iter())
-            .collect::<Vec<_>>();
-        // Each row starts at a wrap boundary glyph, and ends where the next
-        // row starts, or at the end of the line.
-        let run_offsets = layout
-            .runs
-            .iter()
-            .scan(0, |offset, run| {
-                let start = *offset;
-                *offset += run.glyphs.len();
-                Some(start)
-            })
-            .collect::<Vec<_>>();
-        let row_starts = line
-            .wrap_boundaries
-            .iter()
-            .map(|boundary| run_offsets[boundary.run_ix] + boundary.glyph_ix)
-            .collect::<Vec<_>>();
-        let line_boxes = boxes.len();
-        let mut from = 0;
-        for (row_in_line, to) in row_starts.iter().copied().chain([glyphs.len()]).enumerate() {
-            let start_x = if row_in_line == 0 {
-                Pixels::ZERO
-            } else {
-                glyphs[from].position.x
-            };
-            let end_x = glyphs
-                .get(to)
-                .map_or(layout.width, |glyph| glyph.position.x);
-            let shift = aligned_row_left(align, align_width, end_x - start_x) - start_x;
-            for ix in from..to {
-                let glyph = glyphs[ix];
-                let right = if ix + 1 < to {
-                    glyphs[ix + 1].position.x
-                } else {
-                    end_x
-                };
-                boxes.push(GlyphBox {
-                    text: line_start + glyph.index..line_start + glyph.index,
-                    row: row + row_in_line,
-                    left: shift + glyph.position.x,
-                    right: shift + right,
-                });
+        let mut index = 0;
+        while let Some(range) =
+            line.logical_cluster_after(gpui::CaretPosition::attached_to_next_cluster(index))
+        {
+            if range.end <= index {
+                break;
             }
-            from = to;
+            for bounds in line.selection_bounds(range.clone(), line_height) {
+                let row = (f32::from(bounds.origin.y) / f32::from(line_height)).round() as usize;
+                if let Some(visual_line) = line.visual_lines().get(row) {
+                    let shift = aligned_row_left(
+                        align,
+                        align_width,
+                        visual_line.advance_width,
+                        visual_line.direction,
+                    ) - visual_line.offset;
+                    boxes.push(GlyphBox {
+                        text: text_offset + range.start..text_offset + range.end,
+                        row: row_offset + row,
+                        left: shift + bounds.origin.x,
+                        right: shift + bounds.right(),
+                    });
+                }
+            }
+            index = range.end;
         }
-
-        // A glyph draws its text up to where the next glyph's text starts.
-        let line_boxes = &mut boxes[line_boxes..];
-        line_boxes.sort_by_key(|glyph| glyph.text.start);
-        let line_end = line_start + line.len();
-        for ix in 0..line_boxes.len() {
-            let start = line_boxes[ix].text.start;
-            line_boxes[ix].text.end = line_boxes[ix + 1..]
-                .iter()
-                .map(|glyph| glyph.text.start)
-                .find(|next| *next > start)
-                .unwrap_or(line_end);
-        }
-
-        row += line.wrap_boundaries.len() + 1;
-        line_start = line_end + 1;
+        row_offset += line.line_count();
+        text_offset += line.len();
     }
     boxes
 }
 
-fn aligned_row_left(align: TextAlign, align_width: Pixels, width: Pixels) -> Pixels {
+fn aligned_row_left(
+    align: TextAlign,
+    align_width: Pixels,
+    width: Pixels,
+    direction: gpui::ResolvedDirection,
+) -> Pixels {
     match align {
-        TextAlign::Left => Pixels::ZERO,
+        TextAlign::Start if direction.is_rtl() => align_width - width,
+        TextAlign::Start | TextAlign::Left => Pixels::ZERO,
+        TextAlign::End if direction.is_rtl() => Pixels::ZERO,
         TextAlign::Center => (align_width - width) / 2.,
-        TextAlign::Right => align_width - width,
+        TextAlign::End | TextAlign::Right => align_width - width,
     }
 }
 
@@ -1724,11 +1650,10 @@ fn range_carets(
     let caret = |index| {
         let position = text_layout.position_for_index(index)?;
         Some(match row {
-            Some(row) => crate::touch_selection::caret_line_box(
-                point(position.x, row.top()),
-                row.size.height,
-            ),
-            None => crate::touch_selection::caret_line_box(position, text_layout.line_height()),
+            Some(row) => {
+                crate::text_selection::caret_line_box(point(position.x, row.top()), row.size.height)
+            }
+            None => crate::text_selection::caret_line_box(position, text_layout.line_height()),
         })
     };
     Some((caret(range.start)?, caret(range.end)?))
@@ -1878,6 +1803,7 @@ pub(super) fn point_in_text_selection(
 #[cfg(test)]
 mod fade_highlights_tests {
     use super::*;
+    use crate::HslaExt as _;
     use gpui::Styled as _;
 
     #[test]
@@ -1893,11 +1819,11 @@ mod fade_highlights_tests {
 
         let (_, untouched) = &combined[0];
         assert_eq!(untouched.style.fade_out, None);
-        assert_eq!(untouched.style.background_color.unwrap().a, 1.0);
+        assert_eq!(untouched.style.background_color.unwrap().a(), 1.0);
 
         let (_, faded_code) = &combined[1];
         assert_eq!(faded_code.style.fade_out, Some(0.5));
-        assert_eq!(faded_code.style.background_color.unwrap().a, 0.5);
+        assert_eq!(faded_code.style.background_color.unwrap().a(), 0.5);
 
         let (_, faded_text) = &combined[2];
         assert_eq!(faded_text.style.fade_out, Some(0.5));
@@ -1920,8 +1846,8 @@ mod fade_highlights_tests {
         let combined = fade_highlights(vec![(0..4, link)], &[(0..4, 0.75)]);
 
         let (_, faded) = &combined[0];
-        assert_eq!(faded.style.underline.unwrap().color.unwrap().a, 0.25);
-        assert_eq!(faded.style.strikethrough.unwrap().color.unwrap().a, 0.25);
+        assert_eq!(faded.style.underline.unwrap().color.unwrap().a(), 0.25);
+        assert_eq!(faded.style.strikethrough.unwrap().color.unwrap().a(), 0.25);
     }
 
     #[test]
@@ -1940,7 +1866,7 @@ mod fade_highlights_tests {
         let combined = fade_highlights(vec![(0..4, code)], &[(0..4, 0.75)]);
 
         let (_, faded) = &combined[0];
-        assert_eq!(faded.style.background_color.unwrap().a, 0.25);
+        assert_eq!(faded.style.background_color.unwrap().a(), 0.25);
         assert_eq!(
             faded
                 .code_style
@@ -1953,11 +1879,19 @@ mod fade_highlights_tests {
                 .unwrap()
                 .as_solid()
                 .unwrap()
-                .a,
+                .a(),
             0.25
         );
         assert_eq!(
-            faded.code_style.as_ref().unwrap().border_color.unwrap().a,
+            faded
+                .code_style
+                .as_ref()
+                .unwrap()
+                .border_color
+                .unwrap()
+                .as_solid()
+                .unwrap()
+                .a(),
             0.25
         );
     }
@@ -2031,7 +1965,7 @@ mod line_bounds_tests {
 
     #[test]
     fn row_walk_matches_the_character_walk() {
-        let mut app = TestApp::with_text_system(Arc::new(WideMonoTextSystem));
+        let mut app = TestApp::with_text_system(Arc::new(WideMonoTextSystem::default()));
         in_prepaint(&mut app, |window, cx| {
             let style = TextStyle {
                 font_family: BODY.into(),
@@ -2125,25 +2059,16 @@ mod row_selection_tests {
 
     /// The byte range each laid-out row holds, a row's trailing space included.
     fn rows(layout: &TextLayout) -> Vec<Range<usize>> {
-        let mut rows = Vec::new();
-        let mut line_start = 0;
-        for line in layout.line_layouts() {
-            let shaped = &line.unwrapped_layout;
-            let mut row_start = line_start;
-            for boundary in &line.wrap_boundaries {
-                let end = line_start + shaped.runs[boundary.run_ix].glyphs[boundary.glyph_ix].index;
-                rows.push(row_start..end);
-                row_start = end;
-            }
-            rows.push(row_start..line_start + line.len());
-            line_start += line.len() + 1;
-        }
-        rows
+        layout
+            .line_layouts()
+            .iter()
+            .flat_map(|line| line.visual_lines().iter().map(|row| row.text_range.clone()))
+            .collect()
     }
 
     #[test]
     fn dragging_across_a_row_selects_its_first_character() {
-        let mut app = TestApp::with_text_system(Arc::new(WideMonoTextSystem));
+        let mut app = TestApp::with_text_system(Arc::new(WideMonoTextSystem::default()));
         in_prepaint(&mut app, |window, cx| {
             let style = TextStyle {
                 font_family: BODY.into(),
@@ -2216,7 +2141,7 @@ mod range_highlight_tests {
         align: TextAlign,
         range: Range<usize>,
     ) -> Vec<(Pixels, Pixels, usize)> {
-        let mut app = TestApp::with_text_system(Arc::new(WideMonoTextSystem));
+        let mut app = TestApp::with_text_system(Arc::new(WideMonoTextSystem::default()));
         in_prepaint(&mut app, move |window, cx| {
             let style = TextStyle {
                 font_family: BODY.into(),
@@ -2262,7 +2187,7 @@ mod range_highlight_tests {
     /// places at the end of the row before it, holds no row the walk tests.
     #[test]
     fn text_rows_extent_matches_the_character_walk() {
-        let mut app = TestApp::with_text_system(Arc::new(WideMonoTextSystem));
+        let mut app = TestApp::with_text_system(Arc::new(WideMonoTextSystem::default()));
         in_prepaint(&mut app, |window, cx| {
             let style = TextStyle {
                 font_family: BODY.into(),
@@ -2437,39 +2362,32 @@ pub(super) mod test_draw {
 
 #[cfg(test)]
 pub(super) mod test_fonts {
+    use anyhow::Result;
     use gpui::{
-        Bounds, DevicePixels, Font, FontId, FontMetrics, FontRun, FontWeight, GlyphId, LineLayout,
-        Pixels, PlatformTextSystem, RenderGlyphParams, ShapedGlyph, ShapedRun, Size,
-        TextRenderingMode, point, px, size,
+        Bounds, Font, FontId, FontMetrics, GlyphId, InlineLayout, InlineLayoutRequest, LineLayout,
+        Pixels, PlatformTextSystem, RasterizedGlyph, RenderGlyphParams, Size, TestTextSystem,
+        TextLayoutRequest, TextRenderingMode,
     };
     use std::{borrow::Cow, cell::RefCell};
 
     pub(crate) const BODY: &str = "Body";
     pub(crate) const MONO: &str = "Mono";
-    const BODY_ID: FontId = FontId(1);
-    const MONO_ID: FontId = FontId(2);
-    const BOLD_BODY_ID: FontId = FontId(3);
-    const BOLD_MONO_ID: FontId = FontId(4);
-    const UNITS_PER_EM: f32 = 1000.;
 
-    pub(crate) struct WideMonoTextSystem;
+    pub(crate) struct WideMonoTextSystem {
+        inner: TestTextSystem,
+    }
 
-    impl WideMonoTextSystem {
-        /// Advance of one glyph in `font_id`, in em units.
-        fn advance_units(font_id: FontId) -> f32 {
-            match font_id {
-                MONO_ID => 1000.,
-                BOLD_MONO_ID => 1250.,
-                BODY_ID => 500.,
-                BOLD_BODY_ID => 750.,
-                _ => 500.,
+    impl Default for WideMonoTextSystem {
+        fn default() -> Self {
+            Self {
+                inner: TestTextSystem::new(),
             }
         }
+    }
 
-        /// Width of `text` shaped entirely in `family` at `font_size`.
-        pub(crate) fn width_of(text: &str, family: &str, font_size: Pixels) -> Pixels {
-            let font_id = if family == MONO { MONO_ID } else { BODY_ID };
-            font_size * (Self::advance_units(font_id) / UNITS_PER_EM) * text.chars().count() as f32
+    impl WideMonoTextSystem {
+        pub(crate) fn width_of(text: &str, _family: &str, font_size: Pixels) -> Pixels {
+            font_size * 0.6 * text.chars().map(char::len_utf16).sum::<usize>() as f32
         }
     }
 
@@ -2485,7 +2403,6 @@ pub(super) mod test_fonts {
         }
     }
 
-    /// Runs `f` while recording text submitted to [`PlatformTextSystem::layout_line`].
     pub(crate) fn record_shaped_lines<R>(f: impl FnOnce() -> R) -> (R, Vec<String>) {
         SHAPED_LINE_RECORDER.with(|recorder| *recorder.borrow_mut() = Some(Vec::new()));
         let _guard = ShapeRecorderGuard;
@@ -2496,126 +2413,57 @@ pub(super) mod test_fonts {
     }
 
     impl PlatformTextSystem for WideMonoTextSystem {
-        fn add_fonts(&self, _fonts: Vec<Cow<'static, [u8]>>) -> anyhow::Result<()> {
-            Ok(())
+        fn add_fonts(&self, fonts: Vec<Cow<'static, [u8]>>) -> Result<()> {
+            self.inner.add_fonts(fonts)
         }
 
         fn all_font_names(&self) -> Vec<String> {
             vec![BODY.into(), MONO.into()]
         }
 
-        fn font_id(&self, descriptor: &Font) -> anyhow::Result<FontId> {
-            Ok(
-                match (
-                    descriptor.family.as_ref() == MONO,
-                    descriptor.weight == FontWeight::BOLD,
-                ) {
-                    (true, true) => BOLD_MONO_ID,
-                    (true, false) => MONO_ID,
-                    (false, true) => BOLD_BODY_ID,
-                    (false, false) => BODY_ID,
-                },
-            )
+        fn font_id(&self, descriptor: &Font) -> Result<FontId> {
+            self.inner.font_id(descriptor)
         }
 
-        fn font_metrics(&self, _font_id: FontId) -> FontMetrics {
-            FontMetrics {
-                units_per_em: UNITS_PER_EM as u32,
-                ascent: 800.,
-                descent: -200.,
-                line_gap: 0.,
-                underline_position: -100.,
-                underline_thickness: 50.,
-                cap_height: 700.,
-                x_height: 500.,
-                bounding_box: Bounds {
-                    origin: point(0., -200.),
-                    size: size(1000., 1000.),
-                },
-            }
+        fn font_metrics(&self, font_id: FontId) -> FontMetrics {
+            self.inner.font_metrics(font_id)
         }
 
-        fn typographic_bounds(
-            &self,
-            font_id: FontId,
-            _glyph_id: GlyphId,
-        ) -> anyhow::Result<Bounds<f32>> {
-            Ok(Bounds {
-                origin: point(0., 0.),
-                size: size(Self::advance_units(font_id), 700.),
-            })
+        fn typographic_bounds(&self, font_id: FontId, glyph_id: GlyphId) -> Result<Bounds<f32>> {
+            self.inner.typographic_bounds(font_id, glyph_id)
         }
 
-        fn advance(&self, font_id: FontId, _glyph_id: GlyphId) -> anyhow::Result<Size<f32>> {
-            Ok(size(Self::advance_units(font_id), 0.))
+        fn advance(&self, font_id: FontId, glyph_id: GlyphId) -> Result<Size<f32>> {
+            self.inner.advance(font_id, glyph_id)
         }
 
-        fn glyph_for_char(&self, _font_id: FontId, ch: char) -> Option<GlyphId> {
-            Some(GlyphId(ch as u32))
+        fn glyph_for_char(&self, font_id: FontId, ch: char) -> Option<GlyphId> {
+            self.inner.glyph_for_char(font_id, ch)
         }
 
-        fn glyph_raster_bounds(
-            &self,
-            _params: &RenderGlyphParams,
-        ) -> anyhow::Result<Bounds<DevicePixels>> {
-            Ok(Bounds::default())
+        fn rasterize_glyph(&self, params: &RenderGlyphParams) -> Result<RasterizedGlyph> {
+            self.inner.rasterize_glyph(params)
         }
 
-        fn rasterize_glyph(
-            &self,
-            _params: &RenderGlyphParams,
-            raster_bounds: Bounds<DevicePixels>,
-        ) -> anyhow::Result<(Size<DevicePixels>, Vec<u8>)> {
-            Ok((raster_bounds.size, Vec::new()))
-        }
-
-        fn layout_line(&self, text: &str, font_size: Pixels, runs: &[FontRun]) -> LineLayout {
+        fn layout_text(&self, request: TextLayoutRequest<'_>) -> LineLayout {
             SHAPED_LINE_RECORDER.with(|recorder| {
                 if let Some(lines) = recorder.borrow_mut().as_mut() {
-                    lines.push(text.to_string());
+                    lines.push(request.text.to_string());
                 }
             });
+            self.inner.layout_text(request)
+        }
 
-            let mut position = px(0.);
-            let mut shaped_runs = Vec::new();
-            let mut run_start = 0;
-            for run in runs {
-                let run_text = &text[run_start..run_start + run.len];
-                let advance = font_size * (Self::advance_units(run.font_id) / UNITS_PER_EM);
-                let mut glyphs = Vec::new();
-                for (ix, ch) in run_text.char_indices() {
-                    glyphs.push(ShapedGlyph {
-                        id: GlyphId(ch as u32),
-                        position: point(position, px(0.)),
-                        index: run_start + ix,
-                        is_emoji: false,
-                    });
-                    position += advance;
-                }
-                shaped_runs.push(ShapedRun {
-                    font_id: run.font_id,
-                    glyphs,
-                });
-                run_start += run.len;
-            }
-            let metrics = self.font_metrics(BODY_ID);
-            LineLayout {
-                font_size,
-                width: position,
-                ascent: font_size * (metrics.ascent / UNITS_PER_EM),
-                // Native backends normalize the signed font metric for shaped lines.
-                descent: font_size * (-metrics.descent / UNITS_PER_EM),
-                runs: shaped_runs,
-                len: text.len(),
-            }
+        fn layout_inline(&self, request: InlineLayoutRequest<'_>) -> InlineLayout {
+            self.inner.layout_inline(request)
         }
 
         fn recommended_rendering_mode(
             &self,
-            _font_id: FontId,
-            _font_size: Pixels,
+            font_id: FontId,
+            font_size: Pixels,
         ) -> TextRenderingMode {
-            TextRenderingMode::Grayscale
+            self.inner.recommended_rendering_mode(font_id, font_size)
         }
     }
 }
@@ -2658,9 +2506,33 @@ mod tests {
     #[test]
     fn rows_align_the_way_gpui_paints_them() {
         let width = px(100.);
-        assert_eq!(aligned_row_left(TextAlign::Left, width, px(40.)), px(0.));
-        assert_eq!(aligned_row_left(TextAlign::Center, width, px(40.)), px(30.));
-        assert_eq!(aligned_row_left(TextAlign::Right, width, px(40.)), px(60.));
+        assert_eq!(
+            aligned_row_left(
+                TextAlign::Left,
+                width,
+                px(40.),
+                gpui::ResolvedDirection::LeftToRight
+            ),
+            px(0.)
+        );
+        assert_eq!(
+            aligned_row_left(
+                TextAlign::Center,
+                width,
+                px(40.),
+                gpui::ResolvedDirection::LeftToRight
+            ),
+            px(30.)
+        );
+        assert_eq!(
+            aligned_row_left(
+                TextAlign::Right,
+                width,
+                px(40.),
+                gpui::ResolvedDirection::LeftToRight
+            ),
+            px(60.)
+        );
     }
 
     fn glyph(text: Range<usize>, row: usize, left: f32, right: f32) -> GlyphBox {
