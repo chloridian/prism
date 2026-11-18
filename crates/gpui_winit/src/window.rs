@@ -399,8 +399,10 @@ impl WindowInner {
             return;
         };
         f(&mut handler);
-        if self.input_handler.take().is_none() {
-            self.input_handler.set(Some(handler));
+        // A frame drawn during `f` installs a fresher handler, which wins over this one.
+        match self.input_handler.take() {
+            Some(fresh) => self.input_handler.set(Some(fresh)),
+            None => self.input_handler.set(Some(handler)),
         }
     }
 
