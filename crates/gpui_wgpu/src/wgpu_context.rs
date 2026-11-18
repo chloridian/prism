@@ -83,12 +83,35 @@ impl NativeBackend {
         }
     }
 
+    /// The preferred backends the application allows, in preference order.
+    ///
+    /// `None` allows every backend. A set that excludes every backend this
+    /// platform can initialize is an error.
+    fn allowed(allowed: Option<wgpu::Backends>) -> anyhow::Result<SmallVec<[Self; 3]>> {
+        let Some(set) = allowed else {
+            return Ok(Self::PREFERENCE.iter().copied().collect());
+        };
+        let backends: SmallVec<[Self; 3]> = Self::PREFERENCE
+            .iter()
+            .copied()
+            .filter(|&backend| set.contains(backend.into()))
+            .collect();
+        if backends.is_empty() {
+            anyhow::bail!(
+                "none of the requested GPU backends {set:?} can be used on this platform; available backends: {:?}",
+                Self::PREFERENCE
+            );
+        }
+        Ok(backends)
+    }
+
     pub(crate) fn try_in_preference_order<T>(
         operation: &'static str,
+        allowed: Option<wgpu::Backends>,
         mut attempt: impl FnMut(Self) -> anyhow::Result<T>,
     ) -> anyhow::Result<T> {
         let mut failures = SmallVec::<[NativeBackendFailure; 3]>::new();
-        for &backend in Self::PREFERENCE {
+        for backend in Self::allowed(allowed)? {
             match attempt(backend) {
                 Ok(value) => return Ok(value),
                 Err(source) => failures.push(NativeBackendFailure { backend, source }),
@@ -472,6 +495,11 @@ pub struct WgpuDeviceRequirements {
     /// `max(gpui_limit, app_limit)` for upper-bound limits and
     /// `min(gpui_limit, app_limit)` for alignment/lower-bound limits.
     pub limits: Option<wgpu::Limits>,
+    /// The [`wgpu::Backends`] the application accepts.  `None` keeps gpui's
+    /// platform preference order.  `Some(set)` keeps only the preferred
+    /// backends contained in `set`, in preference order, and fails when none
+    /// of them remain.
+    pub backends: Option<wgpu::Backends>,
 }
 
 impl WgpuContext {
@@ -491,7 +519,8 @@ impl WgpuContext {
     pub fn new_headless(
         extra_requirements: Option<&WgpuDeviceRequirements>,
     ) -> anyhow::Result<Self> {
-        NativeBackend::try_in_preference_order("a headless GPU context", |backend| {
+        let backends = extra_requirements.and_then(|reqs| reqs.backends);
+        NativeBackend::try_in_preference_order("a headless GPU context", backends, |backend| {
             let instance = backend.instance(None);
             let adapter =
                 gpui::block_on(instance.raw.request_adapter(&wgpu::RequestAdapterOptions {
@@ -1064,7 +1093,7 @@ mod tests {
     #[test]
     fn native_backend_fallback_preserves_ordered_failures() {
         let mut attempted = Vec::new();
-        let error = NativeBackend::try_in_preference_order::<()>("test context", |backend| {
+        let error = NativeBackend::try_in_preference_order::<()>("test context", None, |backend| {
             attempted.push(backend);
             anyhow::bail!("unavailable")
         })
@@ -1079,6 +1108,83 @@ mod tests {
                 .expect("each backend failure should be reported in preference order");
             previous += index;
         }
+    }
+
+    #[test]
+    fn allowed_backends_default_to_the_full_preference_order() {
+        assert_eq!(
+            NativeBackend::allowed(None).unwrap().as_slice(),
+            NativeBackend::PREFERENCE
+        );
+    }
+
+    #[test]
+    #[cfg(target_os = "windows")]
+    fn allowed_backends_keep_preference_order() {
+        assert_eq!(
+            NativeBackend::allowed(Some(wgpu::Backends::VULKAN))
+                .unwrap()
+                .as_slice(),
+            &[NativeBackend::Vulkan]
+        );
+        assert_eq!(
+            NativeBackend::allowed(Some(wgpu::Backends::VULKAN | wgpu::Backends::DX12))
+                .unwrap()
+                .as_slice(),
+            &[NativeBackend::Dx12, NativeBackend::Vulkan]
+        );
+    }
+
+    #[test]
+    #[cfg(target_os = "linux")]
+    fn allowed_backends_keep_preference_order() {
+        assert_eq!(
+            NativeBackend::allowed(Some(wgpu::Backends::GL | wgpu::Backends::VULKAN))
+                .unwrap()
+                .as_slice(),
+            &[NativeBackend::Vulkan, NativeBackend::Gl]
+        );
+        assert_eq!(
+            NativeBackend::allowed(Some(wgpu::Backends::GL))
+                .unwrap()
+                .as_slice(),
+            &[NativeBackend::Gl]
+        );
+    }
+
+    #[test]
+    fn allowed_backends_reject_a_set_with_no_usable_backend() {
+        #[cfg(target_vendor = "apple")]
+        let unusable = wgpu::Backends::VULKAN;
+        #[cfg(not(target_vendor = "apple"))]
+        let unusable = wgpu::Backends::METAL;
+
+        let message = NativeBackend::allowed(Some(unusable))
+            .unwrap_err()
+            .to_string();
+        assert!(message.contains(&format!("{unusable:?}")), "{message}");
+        assert!(
+            message.contains(&format!("{:?}", NativeBackend::PREFERENCE)),
+            "{message}"
+        );
+    }
+
+    #[test]
+    fn fallback_attempts_only_allowed_backends_in_preference_order() {
+        let mut attempted = Vec::new();
+        #[cfg(target_vendor = "apple")]
+        let allowed = wgpu::Backends::METAL;
+        #[cfg(not(target_vendor = "apple"))]
+        let allowed = wgpu::Backends::VULKAN;
+
+        NativeBackend::try_in_preference_order::<()>("test context", Some(allowed), |backend| {
+            attempted.push(backend);
+            anyhow::bail!("unavailable")
+        })
+        .unwrap_err();
+
+        assert_eq!(attempted.len(), 1);
+        assert_eq!(wgpu::Backends::from(attempted[0]), allowed);
     }
 
     #[test]
