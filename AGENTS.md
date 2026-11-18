@@ -1,4 +1,4 @@
-Prism is Radia's fork of gpui-ce (`gpui-ce/gpui-ce`). Radia is a Second Life viewer that draws its 3D scene on the same wgpu device as its UI, so Prism renders through `gpui_wgpu` on every platform. The DirectX and Metal renderers are gone, and wgpu is a plain dependency, never a feature. The native platform crates for Windows, macOS, Linux and the web still handle windows, input, IME, text and clipboard. Beyond that, Prism carries what Radia needs from its UI framework and merges upstream regularly.
+Prism is Radia's fork of gpui-ce (`gpui-ce/gpui-ce`). Radia is a Second Life viewer that draws its 3D scene on the same wgpu device as its UI, so Prism renders through `gpui_wgpu` on every platform. The DirectX and Metal renderers are gone, and wgpu is a plain dependency, never a feature. On Windows, `gpui_winit` runs windows and input on winit and has no IME composition yet. The native platform crates for macOS, Linux and the web still handle windows, input, IME, text and clipboard. Beyond that, Prism carries what Radia needs from its UI framework and merges upstream regularly.
 
 ## Radia
 

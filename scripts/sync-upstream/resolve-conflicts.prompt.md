@@ -6,7 +6,7 @@ monorepo (`zed-industries/zed`). Two groups:
 **Same relative path** (upstream dir == fork dir; dirs, not package names — packages are
 `gpui-ce` / `gpui_ce_*`): `crates/gpui`, `crates/gpui_linux`,
 `crates/gpui_macos`, `crates/gpui_macros`, `crates/gpui_platform`, `crates/gpui_shared_string`,
-`crates/gpui_tokio`, `crates/gpui_web`, `crates/gpui_wgpu`, `crates/gpui_windows`.
+`crates/gpui_tokio`, `crates/gpui_web`, `crates/gpui_wgpu`.
 
 **Vendored + renamed** (upstream dir → fork dir; dirs, not package names), formerly pulled as
 `zed-industries/zed` git deps but now vendored in-tree by the fork:

@@ -59,7 +59,7 @@ fn renderer_backends_share_rust_authored_shaders() {
     let root = workspace_root();
 
     let mut platform_shader_sources = Vec::new();
-    for relative in ["crates/gpui_macos/src", "crates/gpui_windows/src"] {
+    for relative in ["crates/gpui_macos/src", "crates/gpui_winit/src"] {
         let path = root.join(relative);
         if path.exists() {
             collect_renderer_shader_sources(&path, &mut platform_shader_sources);

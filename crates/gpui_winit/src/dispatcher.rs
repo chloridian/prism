@@ -1,15 +1,24 @@
+//! Task dispatch: background work on the Windows thread pool, main-thread work on a priority queue drained by the winit loop.
+
 use std::{
     ffi::c_void,
     ptr::NonNull,
-    sync::atomic::{AtomicBool, Ordering},
-    thread::{ThreadId, current},
+    sync::{
+        OnceLock,
+        atomic::{AtomicBool, Ordering},
+    },
+    thread::{self, ThreadId},
     time::Duration,
 };
 
-use anyhow::Context;
-use gpui_util::ResultExt;
+use anyhow::Context as _;
+use gpui::{
+    PlatformDispatcher, Priority, PriorityQueueReceiver, PriorityQueueSender, RunnableVariant,
+    TimerResolutionGuard,
+};
+use gpui_util::ResultExt as _;
 use windows::Win32::{
-    Foundation::{FILETIME, LPARAM, WPARAM},
+    Foundation::FILETIME,
     Media::{timeBeginPeriod, timeEndPeriod},
     System::Threading::{
         CloseThreadpoolTimer, CreateThreadpoolTimer, GetCurrentThread, PTP_CALLBACK_INSTANCE,
@@ -17,37 +26,63 @@ use windows::Win32::{
         TP_CALLBACK_ENVIRON_V3, TP_CALLBACK_PRIORITY, TP_CALLBACK_PRIORITY_HIGH,
         TP_CALLBACK_PRIORITY_LOW, TP_CALLBACK_PRIORITY_NORMAL, TrySubmitThreadpoolCallback,
     },
-    UI::WindowsAndMessaging::PostMessageW,
 };
+use winit::event_loop::EventLoopProxy;
 
-use crate::{HWND, SafeHwnd, WM_GPUI_TASK_DISPATCHED_ON_MAIN_THREAD};
-use gpui::{
-    PlatformDispatcher, Priority, PriorityQueueSender, RunnableVariant, TimerResolutionGuard,
-};
+/// How long the main thread may run queued tasks before it yields to window events.
+pub(crate) const MAIN_TASK_BUDGET: Duration = Duration::from_millis(10);
 
-pub(crate) struct WindowsDispatcher {
-    pub(crate) wake_posted: AtomicBool,
+/// The event posted to the winit loop to drain the main-thread queue.
+#[derive(Debug)]
+pub(crate) struct Wake;
+
+pub(crate) struct WinitDispatcher {
     main_sender: PriorityQueueSender<RunnableVariant>,
     main_thread_id: ThreadId,
-    pub(crate) platform_window_handle: SafeHwnd,
-    validation_number: usize,
+    proxy: OnceLock<EventLoopProxy<Wake>>,
+    wake_posted: AtomicBool,
 }
 
-impl WindowsDispatcher {
-    pub(crate) fn new(
-        main_sender: PriorityQueueSender<RunnableVariant>,
-        platform_window_handle: HWND,
-        validation_number: usize,
-    ) -> Self {
-        let main_thread_id = current().id();
-        let platform_window_handle = platform_window_handle.into();
-
-        WindowsDispatcher {
+impl WinitDispatcher {
+    pub(crate) fn new() -> (Self, PriorityQueueReceiver<RunnableVariant>) {
+        let (main_sender, main_receiver) = PriorityQueueReceiver::new();
+        let dispatcher = Self {
             main_sender,
-            main_thread_id,
-            platform_window_handle,
-            validation_number,
+            main_thread_id: thread::current().id(),
+            proxy: OnceLock::new(),
             wake_posted: AtomicBool::new(false),
+        };
+        (dispatcher, main_receiver)
+    }
+
+    /// Connects the dispatcher to the event loop. Tasks queued before this call run on the first wake.
+    pub(crate) fn attach(&self, proxy: EventLoopProxy<Wake>) {
+        if self.proxy.set(proxy).is_ok() {
+            self.wake_posted.store(false, Ordering::Release);
+            self.post_wake();
+        }
+    }
+
+    /// Allows the next main-thread dispatch to wake the loop again.
+    pub(crate) fn clear_wake(&self) {
+        self.wake_posted.store(false, Ordering::Release);
+    }
+
+    /// Wakes the loop again without waiting for new work, so leftover tasks run after pending window events.
+    pub(crate) fn rewake(&self) {
+        self.wake_posted.store(true, Ordering::Release);
+        self.post_wake();
+    }
+
+    pub(crate) fn mark_woken(&self) {
+        self.wake_posted.store(true, Ordering::Release);
+    }
+
+    fn post_wake(&self) {
+        if let Some(proxy) = self.proxy.get()
+            && proxy.send_event(Wake).is_err()
+        {
+            log::debug!("event loop closed before the main thread was woken");
         }
     }
 
@@ -59,11 +94,9 @@ impl WindowsDispatcher {
             ..Default::default()
         };
 
-        // If the thread pool never runs our callback, the matching `from_raw` is never called, which leaks the runnable.
-        // Dropping the scheduled runnable would cancel its task and make the next poll of any awaiter panic. Since we expect
-        // the scenario to usually happen during shutdown, this leak is acceptable.
+        // A callback the pool never runs leaks the runnable. Dropping it instead would cancel its
+        // task and panic the next awaiter, and the pool only skips callbacks during shutdown.
         let context = runnable.into_raw().as_ptr() as *mut c_void;
-
         unsafe {
             TrySubmitThreadpoolCallback(Some(run_work_callback), Some(context), Some(&environ))
                 .log_err();
@@ -72,11 +105,9 @@ impl WindowsDispatcher {
 
     fn dispatch_on_threadpool_after(&self, runnable: RunnableVariant, duration: Duration) {
         let context = runnable.into_raw().as_ptr() as *mut c_void;
-
         unsafe {
             if let Ok(timer) = CreateThreadpoolTimer(Some(run_timer_callback), Some(context), None)
             {
-                // Negative FILETIME expresses a relative delay in 100ns ticks
                 let ticks = (duration.as_nanos() / 100).min(i64::MAX as u128) as i64;
                 let due = (-ticks) as u64;
                 let due_time = FILETIME {
@@ -87,20 +118,19 @@ impl WindowsDispatcher {
             }
         }
     }
-
-    #[inline(always)]
-    pub(crate) fn execute_runnable(runnable: RunnableVariant) {
-        let location = runnable.metadata().location;
-        let spawned = runnable.metadata().spawned;
-        gpui::profiler::update_running_task(spawned, location);
-        runnable.run();
-        gpui::profiler::save_task_timing();
-    }
 }
 
-impl PlatformDispatcher for WindowsDispatcher {
+pub(crate) fn execute_runnable(runnable: RunnableVariant) {
+    let location = runnable.metadata().location;
+    let spawned = runnable.metadata().spawned;
+    gpui::profiler::update_running_task(spawned, location);
+    runnable.run();
+    gpui::profiler::save_task_timing();
+}
+
+impl PlatformDispatcher for WinitDispatcher {
     fn is_main_thread(&self) -> bool {
-        current().id() == self.main_thread_id
+        thread::current().id() == self.main_thread_id
     }
 
     fn dispatch(&self, runnable: RunnableVariant, priority: Priority) {
@@ -117,28 +147,14 @@ impl PlatformDispatcher for WindowsDispatcher {
 
     fn dispatch_on_main_thread(&self, runnable: RunnableVariant, priority: Priority) {
         match self.main_sender.send(priority, runnable) {
-            Ok(_) => {
+            Ok(()) => {
                 if !self.wake_posted.swap(true, Ordering::AcqRel) {
-                    unsafe {
-                        PostMessageW(
-                            Some(self.platform_window_handle.as_raw()),
-                            WM_GPUI_TASK_DISPATCHED_ON_MAIN_THREAD,
-                            WPARAM(self.validation_number),
-                            LPARAM(0),
-                        )
-                        .log_err();
-                    }
+                    self.post_wake();
                 }
             }
             Err(runnable) => {
-                // NOTE: Runnable may wrap a Future that is !Send.
-                //
-                // This is usually safe because we only poll it on the main thread.
-                // However if the send fails, we know that:
-                // 1. main_receiver has been dropped (which implies the app is shutting down)
-                // 2. we are on a background thread.
-                // It is not safe to drop something !Send on the wrong thread, and
-                // the app will exit soon anyway, so we must forget the runnable.
+                // The receiver is gone, so the app is shutting down. The runnable may wrap a !Send
+                // future and this may not be the main thread, so it must not be dropped here.
                 std::mem::forget(runnable);
             }
         }
@@ -149,15 +165,10 @@ impl PlatformDispatcher for WindowsDispatcher {
     }
 
     fn spawn_realtime(&self, f: Box<dyn FnOnce() + Send>) {
-        std::thread::spawn(move || {
-            // SAFETY: always safe to call
-            let thread_handle = unsafe { GetCurrentThread() };
-
-            // SAFETY: thread_handle is a valid handle to the current thread
-            unsafe { SetThreadPriority(thread_handle, THREAD_PRIORITY_TIME_CRITICAL) }
+        thread::spawn(move || {
+            unsafe { SetThreadPriority(GetCurrentThread(), THREAD_PRIORITY_TIME_CRITICAL) }
                 .context("thread priority")
                 .log_err();
-
             f();
         });
     }
@@ -177,7 +188,7 @@ unsafe extern "system" fn run_work_callback(
     context: *mut c_void,
 ) {
     let runnable = unsafe { RunnableVariant::from_raw(NonNull::new_unchecked(context as *mut ())) };
-    WindowsDispatcher::execute_runnable(runnable);
+    execute_runnable(runnable);
 }
 
 unsafe extern "system" fn run_timer_callback(
@@ -186,6 +197,6 @@ unsafe extern "system" fn run_timer_callback(
     timer: PTP_TIMER,
 ) {
     let runnable = unsafe { RunnableVariant::from_raw(NonNull::new_unchecked(context as *mut ())) };
-    WindowsDispatcher::execute_runnable(runnable);
+    execute_runnable(runnable);
     unsafe { CloseThreadpoolTimer(timer) };
 }

@@ -517,6 +517,24 @@ impl MouseMoveEvent {
     }
 }
 
+/// Unaccelerated mouse motion straight from the device.
+///
+/// The platform sends this only while the pointer is captured with
+/// [`Window::capture_cursor`](crate::Window::capture_cursor), because the cursor does not move then.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct RawMouseMotionEvent {
+    /// The device movement since the previous event, in device units.
+    pub delta: Point<f64>,
+}
+
+impl Sealed for RawMouseMotionEvent {}
+impl InputEvent for RawMouseMotionEvent {
+    fn to_platform_input(self) -> PlatformInput {
+        PlatformInput::RawMouseMotion(self)
+    }
+}
+impl MouseEvent for RawMouseMotionEvent {}
+
 /// A mouse wheel event from the platform.
 #[derive(Clone, Debug, Default)]
 pub struct ScrollWheelEvent {
@@ -783,6 +801,8 @@ pub enum PlatformInput {
     MousePressure(MousePressureEvent),
     /// The mouse was moved.
     MouseMove(MouseMoveEvent),
+    /// The mouse moved while the pointer was captured.
+    RawMouseMotion(RawMouseMotionEvent),
     /// The mouse exited the window.
     MouseExited(MouseExitEvent),
     /// The scroll wheel was used.
@@ -809,6 +829,7 @@ impl PlatformInput {
             PlatformInput::MouseUp(event) => Some(event),
             PlatformInput::MouseMove(event) => Some(event),
             PlatformInput::MousePressure(event) => Some(event),
+            PlatformInput::RawMouseMotion(event) => Some(event),
             PlatformInput::MouseExited(event) => Some(event),
             PlatformInput::ScrollWheel(event) => Some(event),
             PlatformInput::Pinch(event) => Some(event),
@@ -828,6 +849,7 @@ impl PlatformInput {
             PlatformInput::MouseUp(_) => None,
             PlatformInput::MouseMove(_) => None,
             PlatformInput::MousePressure(_) => None,
+            PlatformInput::RawMouseMotion(_) => None,
             PlatformInput::MouseExited(_) => None,
             PlatformInput::ScrollWheel(_) => None,
             PlatformInput::Pinch(_) => None,
@@ -849,6 +871,7 @@ impl PlatformInput {
             PlatformInput::MouseUp(_) => "mouse_up",
             PlatformInput::MousePressure(_) => "mouse_pressure",
             PlatformInput::MouseMove(_) => "mouse_move",
+            PlatformInput::RawMouseMotion(_) => "raw_mouse_motion",
             PlatformInput::MouseExited(_) => "mouse_exited",
             PlatformInput::ScrollWheel(_) => "scroll_wheel",
             PlatformInput::Pinch(_) => "pinch",
