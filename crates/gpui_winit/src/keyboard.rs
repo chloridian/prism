@@ -145,20 +145,6 @@ impl WindowsKeyboardMapper {
     }
 }
 
-pub(crate) fn get_keystroke_key(
-    vkey: VIRTUAL_KEY,
-    scan_code: u32,
-    modifiers: &mut Modifiers,
-) -> Option<String> {
-    if modifiers.shift && need_to_convert_to_shifted_key(vkey) {
-        get_shifted_key(vkey, scan_code).inspect(|_| {
-            modifiers.shift = false;
-        })
-    } else {
-        get_key_from_vkey(vkey)
-    }
-}
-
 fn get_key_from_vkey(vkey: VIRTUAL_KEY) -> Option<String> {
     let key_data = unsafe { MapVirtualKeyW(vkey.0 as u32, MAPVK_VK_TO_CHAR) };
     if key_data == 0 {
@@ -169,37 +155,6 @@ fn get_key_from_vkey(vkey: VIRTUAL_KEY) -> Option<String> {
     let key = char::from_u32(key_data & 0xFFFF)?;
 
     Some(key.to_ascii_lowercase().to_string())
-}
-
-#[inline]
-fn need_to_convert_to_shifted_key(vkey: VIRTUAL_KEY) -> bool {
-    matches!(
-        vkey,
-        VK_OEM_3
-            | VK_OEM_MINUS
-            | VK_OEM_PLUS
-            | VK_OEM_4
-            | VK_OEM_5
-            | VK_OEM_6
-            | VK_OEM_1
-            | VK_OEM_7
-            | VK_OEM_COMMA
-            | VK_OEM_PERIOD
-            | VK_OEM_2
-            | VK_OEM_102
-            | VK_OEM_8
-            | VK_ABNT_C1
-            | VK_0
-            | VK_1
-            | VK_2
-            | VK_3
-            | VK_4
-            | VK_5
-            | VK_6
-            | VK_7
-            | VK_8
-            | VK_9
-    )
 }
 
 fn get_shifted_key(vkey: VIRTUAL_KEY, scan_code: u32) -> Option<String> {
@@ -316,7 +271,7 @@ const CANDIDATE_VKEYS: &[VIRTUAL_KEY] = &[
 
 #[cfg(test)]
 mod tests {
-    use crate::WindowsKeyboardMapper;
+    use super::WindowsKeyboardMapper;
     use gpui::{Keystroke, Modifiers, PlatformKeyboardMapper};
 
     #[test]

@@ -63,7 +63,7 @@ pub fn current_platform(headless: bool) -> Rc<dyn Platform> {
     #[cfg(target_os = "windows")]
     {
         Rc::new(
-            gpui_windows::WindowsPlatform::new(headless)
+            gpui_winit::WinitPlatform::new(headless)
                 .expect("failed to initialize Windows platform"),
         )
     }

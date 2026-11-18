@@ -43,7 +43,7 @@ GPUI uses Parley for shaping, wrapping, hit testing, and font fallback on every 
     gpui_platform = { version = "*", features = ["wayland", "x11"] }
     ```
 
-- **Windows.** No features are required. Windowing uses Win32, rendering uses DirectX, and text uses the shared Parley backend.
+- **Windows.** No features are required. Windowing uses winit, rendering uses wgpu, and text uses the shared Parley backend.
 
 ### Additional Topics
 
