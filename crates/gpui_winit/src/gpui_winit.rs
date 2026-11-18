@@ -6,3 +6,5 @@
 #![cfg(target_os = "windows")]
 
 mod dispatcher;
+mod display;
+mod input;
