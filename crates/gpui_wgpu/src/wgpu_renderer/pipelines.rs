@@ -405,9 +405,6 @@ impl WgpuPipelines {
             shader::DataLayout::TexturedInstances => &textured_layout,
             shader::DataLayout::MonochromeSprites => &monochrome_layout,
             shader::DataLayout::SubpixelSprites => &subpixel_layout,
-            shader::DataLayout::NativeOnly => {
-                panic!("native-only shader pipeline cannot be created by wgpu")
-            }
             shader::DataLayout::Surface => &surface_layout,
             shader::DataLayout::Blur => &blur_layout,
         };

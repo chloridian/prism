@@ -2763,7 +2763,6 @@ dependencies = [
  "thiserror 2.0.20",
  "unicode-segmentation",
  "wgsl-rs",
- "windows 0.62.2",
 ]
 
 [[package]]
