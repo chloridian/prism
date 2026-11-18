@@ -708,6 +708,14 @@ impl WindowInner {
     }
 }
 
+impl Drop for WindowInner {
+    fn drop(&mut self) {
+        // The renderer drops before the window is destroyed. Hiding the window first lets the
+        // compositor capture the last frame instead of the blank surface left behind.
+        self.window.set_visible(false);
+    }
+}
+
 #[derive(Clone, Copy)]
 struct Reveal {
     focus: bool,
