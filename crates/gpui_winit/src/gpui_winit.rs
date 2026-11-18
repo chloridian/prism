@@ -12,6 +12,7 @@ mod clipboard;
 mod credentials;
 mod dispatcher;
 mod display;
+mod frame;
 mod input;
 mod keyboard;
 mod platform;
