@@ -10,6 +10,7 @@ members = [
   "./crates/gpui_tokio/",
   "./crates/gpui_macros/",
   "./crates/gpui_windows/",
+  "./crates/gpui_winit/",
   "./crates/gpui_platform/",
   "./crates/gpui_shared_string/",
   "./crates/gpui_elements/",
@@ -245,6 +246,7 @@ gpui_platform = { path = "./crates/gpui_platform/", version = "0.4.0", package =
 gpui_linux = { path = "./crates/gpui_linux/", version = "0.4.0", package = "gpui_ce_linux", default-features = false }
 gpui_macos = { path = "./crates/gpui_macos/", version = "0.4.0", package = "gpui_ce_macos" }
 gpui_windows = { path = "./crates/gpui_windows/", version = "0.4.0", package = "gpui_ce_windows" }
+gpui_winit = { path = "./crates/gpui_winit/", version = "0.4.0", package = "gpui_ce_winit" }
 gpui_web = { path = "./crates/gpui_web/", version = "0.4.0", package = "gpui_ce_web" }
 gpui_parley = { path = "./crates/gpui_ce_parley/", version = "0.4.0", package = "gpui_ce_parley", default-features = false }
 
