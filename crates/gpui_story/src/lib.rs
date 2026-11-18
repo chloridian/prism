@@ -24,7 +24,6 @@ use serde::{Deserialize, Serialize};
 use std::{cell::Cell, rc::Rc};
 
 mod app_menus;
-mod embedded_themes;
 mod gallery;
 #[cfg(not(target_family = "wasm"))]
 pub mod http_client;
