@@ -1,0 +1,36 @@
+[package]
+name = "gpui_ce_winit"
+version = "0.4.0"
+description.workspace = true
+edition.workspace = true
+publish.workspace = true
+license = "Apache-2.0"
+
+[lints]
+workspace = true
+
+[lib]
+path = "src/gpui_winit.rs"
+
+[dependencies]
+gpui = { path = "../gpui", version = "0.4.0", package = "gpui-ce", default-features = false }
+
+[target.'cfg(target_os = "windows")'.dependencies]
+anyhow.workspace = true
+arboard = { version = "3", default-features = false }
+collections.workspace = true
+futures.workspace = true
+gpui_parley = { workspace = true, features = ["system-fonts"] }
+gpui_render = { workspace = true, features = ["swash"] }
+gpui_util.workspace = true
+gpui_wgpu.workspace = true
+itertools.workspace = true
+log.workspace = true
+parking_lot.workspace = true
+raw-window-handle.workspace = true
+uuid.workspace = true
+windows.workspace = true
+windows-core.workspace = true
+windows-numerics = "0.3"
+windows-registry = "0.6.1"
+winit = "0.30.13"
