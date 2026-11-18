@@ -36,10 +36,9 @@ use windows::{
 };
 use windows_numerics::{Matrix3x2, Vector2};
 
-use crate::*;
-
 pub(crate) struct DirectWriteTextSystem {
     parley: ParleyTextSystem,
+    #[cfg(test)]
     renderer: Arc<RwLock<DirectWriteGlyphRenderer>>,
 }
 
@@ -74,16 +73,8 @@ struct FontDataOwner {
 }
 
 impl DirectWriteTextSystem {
-    pub(crate) fn new(directx_devices: &DirectXDevices) -> Result<Self> {
-        Self::new_inner(Some(directx_devices))
-    }
-
-    pub(crate) fn new_headless() -> Result<Self> {
-        Self::new_inner(None)
-    }
-
-    fn new_inner(directx_devices: Option<&DirectXDevices>) -> Result<Self> {
-        let renderer = Arc::new(RwLock::new(DirectWriteGlyphRenderer::new(directx_devices)?));
+    pub(crate) fn new() -> Result<Self> {
+        let renderer = Arc::new(RwLock::new(DirectWriteGlyphRenderer::new()?));
         let parley = ParleyTextSystem::new(BitmapFallbackGlyphRasterizer::new(
             SharedDirectWriteRenderer(renderer.clone()),
         ))
@@ -91,11 +82,11 @@ impl DirectWriteTextSystem {
         .with_fallback_families(["Segoe UI", "Lilex", "IBM Plex Sans", "Arial"])
         .with_system_fonts();
 
-        Ok(Self { parley, renderer })
-    }
-
-    pub(crate) fn handle_gpu_lost(&self, directx_devices: &DirectXDevices) -> Result<()> {
-        self.renderer.write().handle_gpu_lost(directx_devices)
+        Ok(Self {
+            parley,
+            #[cfg(test)]
+            renderer,
+        })
     }
 }
 
@@ -180,7 +171,7 @@ impl GlyphRasterizer for SharedDirectWriteRenderer {
 }
 
 impl DirectWriteGlyphRenderer {
-    fn new(_directx_devices: Option<&DirectXDevices>) -> Result<Self> {
+    fn new() -> Result<Self> {
         let factory: IDWriteFactory5 = unsafe { DWriteCreateFactory(DWRITE_FACTORY_TYPE_SHARED) }
             .context("creating the DirectWrite factory")?;
         let variable_factory = factory.cast().ok();
@@ -642,11 +633,6 @@ impl DirectWriteGlyphRenderer {
 
         Ok(rasterized)
     }
-
-    fn handle_gpu_lost(&mut self, _directx_devices: &DirectXDevices) -> Result<()> {
-        // Color targets are software bitmaps owned by each raster call.
-        Ok(())
-    }
 }
 
 impl Drop for DirectWriteGlyphRenderer {
@@ -955,7 +941,7 @@ mod tests {
 
     #[test]
     fn fixed_fonts_cover_native_modes_instances_and_empty_glyphs() -> Result<()> {
-        let system = DirectWriteTextSystem::new_headless()?;
+        let system = DirectWriteTextSystem::new()?;
         system.add_fonts(vec![
             Cow::Borrowed(*gpui_fonts::IBM_PLEX),
             Cow::Borrowed(*gpui_fonts::SOURCE_SERIF),
@@ -1091,7 +1077,7 @@ mod tests {
             *gpui_fonts::IBM_PLEX_ITALIC,
         ]);
         let source = FontDataBlob::from(collection);
-        let mut renderer = DirectWriteGlyphRenderer::new(None)?;
+        let mut renderer = DirectWriteGlyphRenderer::new()?;
         renderer.load_face(RasterFace {
             font_id: FontId(1),
             source_id: source.id(),
@@ -1112,49 +1098,6 @@ mod tests {
             )?;
         }
         assert_ne!(glyph_id, 0);
-
-        Ok(())
-    }
-
-    #[test]
-    fn native_color_survives_device_recovery() -> Result<()> {
-        let devices = DirectXDevices::new()?;
-        let system = DirectWriteTextSystem::new(&devices)?;
-        let font_id = system.font_id(&font("Segoe UI Emoji"))?;
-        let glyph_id = system
-            .glyph_for_char(font_id, '😀')
-            .context("Segoe UI Emoji has no grinning-face glyph")?;
-        let before = rasterize(
-            &system,
-            font_id,
-            glyph_id,
-            GlyphRenderMode::Color,
-            point(0, 0),
-            2.0,
-        )?;
-        assert_eq!(before.format, RasterizedGlyphFormat::BgraColor);
-        assert!(before.pixels.chunks_exact(4).any(|pixel| {
-            pixel[3] > 128
-                && (pixel[0].abs_diff(pixel[1]) > 20
-                    || pixel[1].abs_diff(pixel[2]) > 20
-                    || pixel[0].abs_diff(pixel[2]) > 20)
-        }));
-        before.validate()?;
-
-        let replacement_devices = DirectXDevices::new()?;
-        system.handle_gpu_lost(&replacement_devices)?;
-        let after = rasterize(
-            &system,
-            font_id,
-            glyph_id,
-            GlyphRenderMode::Color,
-            point(0, 0),
-            2.0,
-        )?;
-        after.validate()?;
-        assert_eq!(before.bounds, after.bounds);
-        assert_eq!(before.format, after.format);
-        assert_eq!(before.pixels, after.pixels);
 
         Ok(())
     }
@@ -1332,7 +1275,7 @@ mod tests {
 
     #[test]
     fn color_fallback_bakes_foreground_and_bitmap_fonts_keep_portable_routing() -> Result<()> {
-        let system = DirectWriteTextSystem::new_headless()?;
+        let system = DirectWriteTextSystem::new()?;
         system.add_fonts(vec![Cow::Borrowed(*gpui_fonts::IBM_PLEX)])?;
         let font_id = system.font_id(&font("IBM Plex Sans"))?;
         let glyph_id = system.glyph_for_char(font_id, 'A').unwrap();
@@ -1361,7 +1304,7 @@ mod tests {
             );
         }
 
-        let bitmap_system = DirectWriteTextSystem::new_headless()?;
+        let bitmap_system = DirectWriteTextSystem::new()?;
         bitmap_system.add_fonts(vec![Cow::Borrowed(*gpui_fonts::NOTO_COLOR_EMOJI)])?;
         let font_id = bitmap_system.font_id(&font("Noto Color Emoji"))?;
         let glyph_id = bitmap_system.glyph_for_char(font_id, '😀').unwrap();
@@ -1648,7 +1591,7 @@ mod tests {
     }
 
     fn color_test_system() -> Result<(DirectWriteTextSystem, FontId)> {
-        let outline_system = DirectWriteTextSystem::new_headless()?;
+        let outline_system = DirectWriteTextSystem::new()?;
         outline_system.add_fonts(vec![Cow::Borrowed(*gpui_fonts::IBM_PLEX)])?;
         let font_id = outline_system.font_id(&font("IBM Plex Sans"))?;
         let mut glyphs = [0; 6];
@@ -1657,7 +1600,7 @@ mod tests {
             glyphs[index] = outline_system.glyph_for_char(font_id, character).unwrap().0 as u16;
         }
 
-        let system = DirectWriteTextSystem::new_headless()?;
+        let system = DirectWriteTextSystem::new()?;
         system.add_fonts(vec![Cow::Owned(test_color_font(glyphs))])?;
         let font_id = system.font_id(&font("IBM Plex Sans"))?;
 

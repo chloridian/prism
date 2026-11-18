@@ -61,14 +61,13 @@ pub struct WindowsWindowState {
     pub hovered: Cell<bool>,
     pub direct_manipulation: DirectManipulationHandler,
 
-    pub renderer: RefCell<DirectXRenderer>,
+    pub renderer: RefCell<Renderer>,
     /// Set when the next `draw_window` call must be treated as a forced
     /// render. Used after a GPU device-lost recovery, where the next frame
-    /// must both re-enable drawing (via `mark_drawable`) and bypass the GPUI
-    /// view cache (which would otherwise replay stale atlas tile references
-    /// from the previous frame and panic in `DirectXAtlasState::texture`),
-    /// and when a forced render was requested while another draw was in
-    /// progress and had to be deferred.
+    /// must bypass the GPUI view cache (which would otherwise replay stale
+    /// atlas tile references from the previous frame), and when a forced
+    /// render was requested while another draw was in progress and had to be
+    /// deferred.
     pub force_render_pending: Cell<bool>,
 
     pub click_state: ClickState,
@@ -79,9 +78,6 @@ pub struct WindowsWindowState {
     pub dragging: Cell<bool>,
 
     pub display: Cell<WindowsDisplay>,
-    /// Flag to instruct the `VSyncProvider` thread to invalidate the directx devices
-    /// as resizing them has failed, causing us to have lost at least the render target.
-    pub invalidate_devices: Arc<AtomicBool>,
     /// Shared with [`WindowsPlatformState::draw_coordinator`] and every other window.
     pub(crate) draw_coordinator: Rc<DrawCoordinator>,
     fullscreen: Cell<Option<StyleAndBounds>>,
@@ -110,15 +106,13 @@ pub(crate) struct WindowsWindowInner {
 impl WindowsWindowState {
     fn new(
         hwnd: HWND,
-        directx_devices: &DirectXDevices,
+        renderer_context: RendererContext,
         window_params: &CREATESTRUCTW,
         current_cursor: Option<HCURSOR>,
         cursor_visible: Arc<AtomicBool>,
         display: WindowsDisplay,
         min_size: Option<Size<Pixels>>,
         appearance: WindowAppearance,
-        disable_direct_composition: bool,
-        invalidate_devices: Arc<AtomicBool>,
         draw_coordinator: Rc<DrawCoordinator>,
     ) -> Result<Self> {
         let scale_factor = {
@@ -137,8 +131,8 @@ impl WindowsWindowState {
         };
         let border_offset = WindowBorderOffset::default();
         let restore_from_minimized = None;
-        let renderer = DirectXRenderer::new(hwnd, directx_devices, disable_direct_composition)
-            .context("Creating DirectX renderer")?;
+        let renderer = Renderer::new(renderer_context, hwnd, physical_size)
+            .context("Creating wgpu renderer")?;
         let callbacks = Callbacks::default();
         let input_handler = None;
         let pending_surrogate = None;
@@ -181,7 +175,6 @@ impl WindowsWindowState {
             fullscreen: Cell::new(fullscreen),
             initial_placement: Cell::new(initial_placement),
             hwnd,
-            invalidate_devices,
             draw_coordinator,
             direct_manipulation,
             a11y: RefCell::new(None),
@@ -251,15 +244,13 @@ impl WindowsWindowInner {
     fn new(context: &mut WindowCreateContext, hwnd: HWND, cs: &CREATESTRUCTW) -> Result<Rc<Self>> {
         let state = WindowsWindowState::new(
             hwnd,
-            &context.directx_devices,
+            context.renderer_context.clone(),
             cs,
             context.current_cursor,
             context.cursor_visible.clone(),
             context.display,
             context.min_size,
             context.appearance,
-            context.disable_direct_composition,
-            context.invalidate_devices.clone(),
             context.draw_coordinator.clone(),
         )?;
 
@@ -405,9 +396,7 @@ struct WindowCreateContext {
     main_receiver: PriorityQueueReceiver<RunnableVariant>,
     platform_window_handle: HWND,
     appearance: WindowAppearance,
-    disable_direct_composition: bool,
-    directx_devices: DirectXDevices,
-    invalidate_devices: Arc<AtomicBool>,
+    renderer_context: RendererContext,
     draw_coordinator: Rc<DrawCoordinator>,
     parent_hwnd: Option<HWND>,
 }
@@ -434,8 +423,7 @@ impl WindowsWindow {
             main_receiver,
             platform_window_handle,
             disable_direct_composition,
-            directx_devices,
-            invalidate_devices,
+            renderer_context,
             draw_coordinator,
         } = creation_info;
         register_window_class(icon);
@@ -518,9 +506,7 @@ impl WindowsWindow {
             main_receiver,
             platform_window_handle,
             appearance,
-            disable_direct_composition,
-            directx_devices,
-            invalidate_devices,
+            renderer_context,
             draw_coordinator,
             parent_hwnd,
         };
@@ -922,6 +908,10 @@ impl PlatformWindow for WindowsWindow {
 
     fn set_background_appearance(&self, background_appearance: WindowBackgroundAppearance) {
         self.state.background_appearance.set(background_appearance);
+        self.state
+            .renderer
+            .borrow_mut()
+            .update_transparency(!background_appearance.is_opaque());
         let hwnd = self.0.hwnd;
 
         // using Dwm APIs for Mica and MicaAlt backdrops.
@@ -1095,19 +1085,14 @@ impl PlatformWindow for WindowsWindow {
     }
 
     fn draw(&self, scene: &Scene) {
-        self.state
-            .renderer
-            .borrow_mut()
-            .draw(scene, self.state.background_appearance.get())
-            .log_err();
+        if self.state.renderer.borrow_mut().draw(scene) {
+            self.state.force_render_pending.set(true);
+        }
     }
 
     #[cfg(any(test, feature = "test-support"))]
     fn render_to_image(&self, scene: &Scene) -> anyhow::Result<image::RgbaImage> {
-        self.state
-            .renderer
-            .borrow_mut()
-            .render_to_image(scene, self.state.background_appearance.get())
+        self.state.renderer.borrow_mut().render_to_image(scene)
     }
 
     fn sprite_atlas(&self) -> Arc<dyn PlatformAtlas> {
@@ -1119,7 +1104,7 @@ impl PlatformWindow for WindowsWindow {
     }
 
     fn gpu_specs(&self) -> Option<GpuSpecs> {
-        self.state.renderer.borrow().gpu_specs().log_err()
+        Some(self.state.renderer.borrow().gpu_specs())
     }
 
     fn update_ime_position(&self, bounds: Bounds<Pixels>) {

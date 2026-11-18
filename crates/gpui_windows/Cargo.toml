@@ -14,7 +14,7 @@ path = "src/gpui_windows.rs"
 
 [features]
 default = ["gpui/default"]
-test-support = ["gpui/test-support"]
+test-support = ["gpui/test-support", "gpui_wgpu/test-support"]
 screen-capture = ["gpui/screen-capture"]
 
 [dependencies]
@@ -32,6 +32,7 @@ etagere.workspace = true
 futures.workspace = true
 gpui_util.workspace = true
 gpui_parley = { workspace = true, features = ["system-fonts"] }
+gpui_wgpu.workspace = true
 image.workspace = true
 itertools.workspace = true
 log.workspace = true

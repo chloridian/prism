@@ -16,6 +16,7 @@ mod system_notifications;
 mod system_settings;
 mod util;
 mod vsync;
+mod wgpu_renderer;
 mod window;
 mod wrapper;
 
@@ -34,6 +35,7 @@ pub(crate) use system_notifications::*;
 pub(crate) use system_settings::*;
 pub(crate) use util::*;
 pub(crate) use vsync::*;
+pub(crate) use wgpu_renderer::*;
 pub(crate) use window::*;
 pub(crate) use wrapper::*;
 
