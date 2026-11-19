@@ -3092,7 +3092,6 @@ dependencies = [
  "gpui_ce_sum_tree",
  "indoc",
  "jiff 1.0.1",
- "log",
  "lsp-types 0.97.0",
  "markdown",
  "objc2 0.6.5",
@@ -3117,8 +3116,6 @@ dependencies = [
  "tree-sitter-md",
  "tree-sitter-toml-ng",
  "tree-sitter-yaml",
- "unicode-segmentation",
- "unicode-width 0.2.2",
  "web-time",
  "windows 0.62.2",
 ]
@@ -3162,7 +3159,6 @@ dependencies = [
 name = "gpui-kit"
 version = "0.10.0"
 dependencies = [
- "anyhow",
  "gpui-base",
  "gpui-ce",
  "gpui-component",
