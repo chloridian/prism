@@ -7539,17 +7539,26 @@ impl Window {
         inspector: &Inspector,
         frame: &Frame,
     ) -> Option<(HitboxId, crate::InspectorElementId)> {
-        if let Some(pick_depth) = inspector.pick_depth {
-            let depth = (pick_depth as i64).try_into().unwrap_or(0);
-            let max_skipped = self.mouse_hit_test.entries.len().saturating_sub(1);
-            let skip_count = (depth as usize).min(max_skipped);
-            for hitbox_id in self.mouse_hit_test.ordered_ids.iter().skip(skip_count) {
-                if let Some(inspector_id) = frame.inspector_hitboxes.get(hitbox_id) {
-                    return Some((*hitbox_id, inspector_id.clone()));
-                }
-            }
-        }
-        None
+        let pick_depth = inspector.pick_depth?;
+        let mut candidates: Vec<(f32, usize, HitboxId)> = self
+            .mouse_hit_test
+            .ordered_ids
+            .iter()
+            .enumerate()
+            .filter(|(_, id)| frame.inspector_hitboxes.contains_key(id))
+            .filter_map(|(order, id)| {
+                let hitbox = frame.hitboxes.iter().find(|hitbox| hitbox.id == *id)?;
+                let size = hitbox.bounds.size;
+                Some((f32::from(size.width) * f32::from(size.height), order, *id))
+            })
+            .collect();
+        candidates.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)));
+
+        let depth = (pick_depth as i64).try_into().unwrap_or(0);
+        let skip_count = (depth as usize).min(candidates.len().saturating_sub(1));
+        let (_, _, hitbox_id) = *candidates.get(skip_count)?;
+        let inspector_id = frame.inspector_hitboxes.get(&hitbox_id)?;
+        Some((hitbox_id, inspector_id.clone()))
     }
 
     /// For testing: set the current modifier keys state.
