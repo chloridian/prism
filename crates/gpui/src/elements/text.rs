@@ -2043,7 +2043,8 @@ mod tests {
 
                     assert_eq!(document.text, text);
                     assert_eq!(state.len, text.len());
-                    assert_eq!(state.size, bounds.size);
+                    assert_eq!(state.size.height, bounds.size.height);
+                    assert!(state.size.width <= bounds.size.width);
                     assert_eq!(state.size, document.size(state.line_height));
                     assert_eq!(state.options.wrap_width, Some(px(width)));
                     assert_eq!(state.truncate_width, None);
@@ -2058,6 +2059,40 @@ mod tests {
 
                 assert_eq!(layout.bounds(), bounds);
             }
+
+            div()
+        });
+    }
+
+    #[gpui::test]
+    fn test_platform_wraps_text_at_the_available_width(cx: &mut TestAppContext) {
+        let cx = cx.add_empty_window();
+
+        cx.draw(Point::default(), size(px(240.), px(200.)), |window, cx| {
+            let text = SharedString::from("Wrap these words across several narrow lines");
+            let mut line_counts = Vec::new();
+
+            for width in [1000., 120., 60.] {
+                let layout = TextLayout::default();
+                let layout_id = layout.layout(text.clone(), None, window, cx);
+                window.compute_layout(
+                    layout_id,
+                    size(
+                        AvailableSpace::Definite(px(width)),
+                        AvailableSpace::MaxContent,
+                    ),
+                    cx,
+                );
+                let bounds = window.layout_bounds(layout_id);
+                let state = layout.0.layout.borrow();
+                let state = state.as_ref().unwrap();
+                assert!(bounds.size.width <= px(width));
+                line_counts.push((bounds.size.height / state.line_height).round() as usize);
+            }
+
+            assert_eq!(line_counts[0], 1);
+            assert!(line_counts[1] > 1, "{line_counts:?}");
+            assert!(line_counts[2] > line_counts[1], "{line_counts:?}");
 
             div()
         });

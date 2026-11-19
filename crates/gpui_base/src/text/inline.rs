@@ -2366,14 +2366,19 @@ pub(super) mod test_draw {
 pub(super) mod test_fonts {
     use anyhow::Result;
     use gpui::{
-        Bounds, Font, FontId, FontMetrics, GlyphId, InlineLayout, InlineLayoutRequest, LineLayout,
-        Pixels, PlatformTextSystem, RasterizedGlyph, RenderGlyphParams, Size, TestTextSystem,
-        TextLayoutRequest, TextRenderingMode,
+        Bounds, Font, FontId, FontMetrics, FontWeight, GlyphId, InlineLayout, InlineLayoutRequest,
+        LineLayout, Pixels, PlatformTextSystem, RasterizedGlyph, RenderGlyphParams, Size,
+        TestTextSystem, TextLayoutRequest, TextRenderingMode, point, size,
     };
     use std::{borrow::Cow, cell::RefCell};
 
     pub(crate) const BODY: &str = "Body";
     pub(crate) const MONO: &str = "Mono";
+    const BODY_ID: FontId = FontId(1);
+    const MONO_ID: FontId = FontId(2);
+    const BOLD_BODY_ID: FontId = FontId(3);
+    const BOLD_MONO_ID: FontId = FontId(4);
+    const UNITS_PER_EM: f32 = 1000.;
 
     pub(crate) struct WideMonoTextSystem {
         inner: TestTextSystem,
@@ -2388,8 +2393,21 @@ pub(super) mod test_fonts {
     }
 
     impl WideMonoTextSystem {
-        pub(crate) fn width_of(text: &str, _family: &str, font_size: Pixels) -> Pixels {
-            font_size * 0.6 * text.chars().map(char::len_utf16).sum::<usize>() as f32
+        fn advance_units(font_id: FontId) -> f32 {
+            match font_id {
+                MONO_ID => 1000.,
+                BOLD_MONO_ID => 1250.,
+                BODY_ID => 500.,
+                BOLD_BODY_ID => 750.,
+                _ => 500.,
+            }
+        }
+
+        pub(crate) fn width_of(text: &str, family: &str, font_size: Pixels) -> Pixels {
+            let font_id = if family == MONO { MONO_ID } else { BODY_ID };
+            font_size
+                * (Self::advance_units(font_id) / UNITS_PER_EM)
+                * text.chars().map(char::len_utf16).sum::<usize>() as f32
         }
     }
 
@@ -2424,19 +2442,45 @@ pub(super) mod test_fonts {
         }
 
         fn font_id(&self, descriptor: &Font) -> Result<FontId> {
-            self.inner.font_id(descriptor)
+            Ok(
+                match (
+                    descriptor.family.as_ref() == MONO,
+                    descriptor.weight == FontWeight::BOLD,
+                ) {
+                    (true, true) => BOLD_MONO_ID,
+                    (true, false) => MONO_ID,
+                    (false, true) => BOLD_BODY_ID,
+                    (false, false) => BODY_ID,
+                },
+            )
         }
 
-        fn font_metrics(&self, font_id: FontId) -> FontMetrics {
-            self.inner.font_metrics(font_id)
+        fn font_metrics(&self, _font_id: FontId) -> FontMetrics {
+            FontMetrics {
+                units_per_em: UNITS_PER_EM as u32,
+                ascent: 800.,
+                descent: -200.,
+                line_gap: 0.,
+                underline_position: -100.,
+                underline_thickness: 50.,
+                cap_height: 700.,
+                x_height: 500.,
+                bounding_box: Bounds {
+                    origin: point(0., -200.),
+                    size: size(1000., 1000.),
+                },
+            }
         }
 
-        fn typographic_bounds(&self, font_id: FontId, glyph_id: GlyphId) -> Result<Bounds<f32>> {
-            self.inner.typographic_bounds(font_id, glyph_id)
+        fn typographic_bounds(&self, font_id: FontId, _glyph_id: GlyphId) -> Result<Bounds<f32>> {
+            Ok(Bounds {
+                origin: point(0., 0.),
+                size: size(Self::advance_units(font_id), 700.),
+            })
         }
 
-        fn advance(&self, font_id: FontId, glyph_id: GlyphId) -> Result<Size<f32>> {
-            self.inner.advance(font_id, glyph_id)
+        fn advance(&self, font_id: FontId, _glyph_id: GlyphId) -> Result<Size<f32>> {
+            Ok(size(Self::advance_units(font_id), 0.))
         }
 
         fn glyph_for_char(&self, font_id: FontId, ch: char) -> Option<GlyphId> {
@@ -2453,11 +2497,16 @@ pub(super) mod test_fonts {
                     lines.push(request.text.to_string());
                 }
             });
-            self.inner.layout_text(request)
+            TestTextSystem::layout_text_with(self, request)
         }
 
         fn layout_inline(&self, request: InlineLayoutRequest<'_>) -> InlineLayout {
-            self.inner.layout_inline(request)
+            SHAPED_LINE_RECORDER.with(|recorder| {
+                if let Some(lines) = recorder.borrow_mut().as_mut() {
+                    lines.push(request.text.to_string());
+                }
+            });
+            TestTextSystem::layout_inline_with(self, request)
         }
 
         fn recommended_rendering_mode(
