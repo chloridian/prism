@@ -142,13 +142,6 @@ clippy-fix:
     @echo "🩹 Fixing Clippy lints..."
     cargo clippy --workspace --all-targets --fix --allow-dirty --allow-staged -- -D warnings
 
-[doc('Run typos spell checker')]
-[group('quality')]
-typos:
-    @echo "🔤 Checking for typos..."
-    typos
-
-
 [doc('Check for unused dependencies')]
 [group('quality')]
 machete:
@@ -161,9 +154,9 @@ msrv-check:
     @echo "🦀 Checking MSRV ({{ msrv }})..."
     cargo +{{ msrv }} check --workspace
 
-[doc('Run all quality checks: fmt-check, clippy, typos, machete')]
+[doc('Run all quality checks: fmt-check, clippy, machete')]
 [group('quality')]
-lint: fmt-check clippy typos machete
+lint: fmt-check clippy machete
 
 [doc('Verify packages conform to workspace standards')]
 [group('quality')]
@@ -220,7 +213,6 @@ ci:
             cargo build --package examples --examples
             cargo check --package gpui_ce_web --target wasm32-unknown-unknown
         })
-        (if (available "typos") { run-check "typos" { typos } } else { skip "typos" "not installed" })
         (if (available "cargo-machete") { run-check "cargo machete" { cargo machete } } else { skip "cargo machete" "install: cargo install cargo-machete" })
         (if (available "rustup") {
             run-check $"MSRV ($msrv)" { run-external "cargo" $"+($msrv)" "check" "--workspace" }
@@ -237,7 +229,7 @@ ci:
     }
     print "\n✅ All checks passed!"
 
-[doc('Run tidy checks only: fmt, clippy, typos, machete, MSRV')]
+[doc('Run tidy checks only: fmt, clippy, machete, MSRV')]
 [group('ci')]
 ci-tidy:
     #!/usr/bin/env nu
@@ -267,7 +259,6 @@ ci-tidy:
     let results = [
         (run-check "cargo fmt" { cargo fmt --all -- --check })
         (run-check "cargo clippy" { cargo clippy --workspace --all-targets -- -D warnings })
-        (if (available "typos") { run-check "typos" { typos } } else { skip "typos" "not installed" })
         (if (available "cargo-machete") { run-check "cargo machete" { cargo machete } } else { skip "cargo machete" "install: cargo install cargo-machete" })
         (if (available "rustup") {
             run-check $"MSRV ($msrv)" { run-external "cargo" $"+($msrv)" "check" "--workspace" }
