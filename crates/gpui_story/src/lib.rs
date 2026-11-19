@@ -144,8 +144,6 @@ pub fn create_new_window_with_size<F, E>(
             }),
             kind: WindowKind::Normal,
             #[cfg(target_os = "linux")]
-            window_background: story_window_background(),
-            #[cfg(target_os = "linux")]
             window_decorations: Some(gpui_kit::WindowDecorations::Client),
             ..TitleBar::window_options()
         };
@@ -177,14 +175,6 @@ pub fn create_new_window_with_size<F, E>(
         Ok::<_, anyhow::Error>(())
     })
     .detach();
-}
-
-#[cfg(target_os = "linux")]
-fn story_window_background() -> gpui_kit::WindowBackgroundAppearance {
-    // The component gallery is a normal application window. Advertising an
-    // alpha surface lets compositors show the desktop through light themes,
-    // even though every story is designed against an opaque canvas.
-    gpui_kit::WindowBackgroundAppearance::Opaque
 }
 
 impl Global for AppState {}
@@ -1229,15 +1219,6 @@ impl Render for StoryRoot {
 
 #[cfg(test)]
 mod tests {
-    #[cfg(target_os = "linux")]
-    #[test]
-    fn component_story_window_is_opaque() {
-        assert_eq!(
-            super::story_window_background(),
-            gpui_kit::WindowBackgroundAppearance::Opaque
-        );
-    }
-
     #[test]
     fn extends_component_translations_with_story_locales() {
         super::extend_component_translations();
