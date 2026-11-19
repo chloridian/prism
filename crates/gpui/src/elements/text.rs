@@ -6,7 +6,6 @@ use crate::{
     TextOverflow, TextRangeExt, TextRun, TextStyle, TextTransform, TooltipId, UnicodeBidi,
     WhiteSpace, Window, px, register_tooltip_mouse_handlers, set_tooltip_on_window,
 };
-use anyhow::Context as _;
 use gpui_util::ResultExt;
 use smallvec::SmallVec;
 use std::{
@@ -285,7 +284,7 @@ impl Element for &'static str {
         window: &mut Window,
         _cx: &mut App,
     ) {
-        text_layout.prepaint(bounds, self, window)
+        text_layout.prepaint(bounds, window)
     }
 
     fn paint(
@@ -298,7 +297,7 @@ impl Element for &'static str {
         window: &mut Window,
         cx: &mut App,
     ) {
-        text_layout.paint(self, window, cx)
+        text_layout.paint(window, cx)
     }
 }
 
@@ -359,7 +358,7 @@ impl Element for SharedString {
         window: &mut Window,
         _cx: &mut App,
     ) {
-        text_layout.prepaint(bounds, self.as_ref(), window)
+        text_layout.prepaint(bounds, window)
     }
 
     fn paint(
@@ -372,7 +371,7 @@ impl Element for SharedString {
         window: &mut Window,
         cx: &mut App,
     ) {
-        text_layout.paint(self.as_ref(), window, cx)
+        text_layout.paint(window, cx)
     }
 }
 
@@ -589,7 +588,7 @@ impl Element for StyledText {
         window: &mut Window,
         _cx: &mut App,
     ) {
-        self.layout.prepaint(bounds, &self.text, window)
+        self.layout.prepaint(bounds, window)
     }
 
     fn paint(
@@ -602,7 +601,7 @@ impl Element for StyledText {
         window: &mut Window,
         cx: &mut App,
     ) {
-        self.layout.paint(&self.text, window, cx)
+        self.layout.paint(window, cx)
     }
 }
 
@@ -622,6 +621,7 @@ pub struct TextLayout(Rc<TextLayoutState>);
 struct TextLayoutState {
     layout_id: Cell<Option<LayoutId>>,
     layout: RefCell<Option<TextLayoutInner>>,
+    warned_unmeasured: Cell<bool>,
 }
 
 struct TextLayoutInner {
@@ -1015,7 +1015,7 @@ impl TextLayout {
         layout_id
     }
 
-    fn prepaint(&self, bounds: Bounds<Pixels>, text: &str, window: &mut Window) {
+    fn prepaint(&self, bounds: Bounds<Pixels>, window: &mut Window) {
         if window.current_inline_fragments.is_some() {
             return;
         }
@@ -1027,27 +1027,25 @@ impl TextLayout {
             .map(|layout_id| window.parent_relative_layout_bounds(layout_id))
             .unwrap_or(bounds);
         let mut element_state = self.0.layout.borrow_mut();
-        let element_state = element_state
-            .as_mut()
-            .with_context(|| format!("measurement has not been performed on {text}"))
-            .unwrap();
+        let Some(element_state) = element_state.as_mut() else {
+            self.warn_unmeasured();
+            return;
+        };
         element_state.bounds = Some(bounds);
     }
 
-    fn paint(&self, text: &str, window: &mut Window, cx: &mut App) {
+    fn paint(&self, window: &mut Window, cx: &mut App) {
         if window.current_inline_fragments.is_some() {
             return;
         }
 
-        let element_state = self.0.layout.borrow();
-        let element_state = element_state
-            .as_ref()
-            .with_context(|| format!("measurement has not been performed on {text}"))
-            .unwrap();
-        let bounds = element_state
-            .bounds
-            .with_context(|| format!("prepaint has not been performed on {text}"))
-            .unwrap();
+        let Some(element_state) = self.measured() else {
+            return;
+        };
+        let Some(bounds) = element_state.bounds else {
+            self.warn_unmeasured();
+            return;
+        };
 
         let line_height = element_state.line_height;
         if let Some(document) = &element_state.document {
@@ -1074,18 +1072,29 @@ impl TextLayout {
         }
     }
 
-    fn measured(&self) -> Ref<'_, TextLayoutInner> {
-        Ref::map(self.0.layout.borrow(), |layout| {
-            layout.as_ref().expect("measurement has not been performed")
-        })
+    fn measured(&self) -> Option<Ref<'_, TextLayoutInner>> {
+        let measured = Ref::filter_map(self.0.layout.borrow(), Option::as_ref).ok();
+        if measured.is_none() {
+            self.warn_unmeasured();
+        }
+        measured
+    }
+
+    fn warn_unmeasured(&self) {
+        if !self.0.warned_unmeasured.replace(true) {
+            log::warn!("a text layout was read before it was measured and prepainted");
+        }
     }
 
     /// Get the byte index into the input of the pixel position.
     pub fn index_for_position(&self, pixel_point: Point<Pixels>) -> Result<usize, usize> {
-        let element_state = self.measured();
-        let bounds = element_state
-            .bounds
-            .expect("prepaint has not been performed");
+        let Some(element_state) = self.measured() else {
+            return Err(0);
+        };
+        let Some(bounds) = element_state.bounds else {
+            self.warn_unmeasured();
+            return Err(0);
+        };
 
         if pixel_point.y < bounds.top() {
             return Err(0);
@@ -1101,10 +1110,11 @@ impl TextLayout {
 
     /// Get the pixel position for the given byte index.
     pub fn position_for_index(&self, byte_index: usize) -> Option<Point<Pixels>> {
-        let element_state = self.measured();
-        let bounds = element_state
-            .bounds
-            .expect("prepaint has not been performed");
+        let element_state = self.measured()?;
+        let Some(bounds) = element_state.bounds else {
+            self.warn_unmeasured();
+            return None;
+        };
         let line_height = element_state.line_height;
 
         let document = element_state.document.as_ref()?;
@@ -1113,7 +1123,7 @@ impl TextLayout {
 
     /// Retrieve the layout for the line containing the given byte index.
     pub fn line_layout_for_index(&self, index: usize) -> Option<Arc<ShapedTextLayout>> {
-        let element_state = self.measured();
+        let element_state = self.measured()?;
         let document = element_state.document.as_ref()?;
         (index <= document.len()).then(|| document.layout.clone())
     }
@@ -1121,39 +1131,50 @@ impl TextLayout {
     /// Retrieve all line layouts in source order.
     pub fn line_layouts(&self) -> SmallVec<[Arc<ShapedTextLayout>; 1]> {
         self.measured()
-            .document
             .iter()
+            .filter_map(|measured| measured.document.as_ref())
             .map(|document| document.layout.clone())
             .collect()
     }
 
-    /// The bounds of this layout.
+    /// The bounds of this layout, empty until it has been measured and prepainted.
     pub fn bounds(&self) -> Bounds<Pixels> {
-        self.measured().bounds.unwrap()
+        let bounds = self.measured().and_then(|measured| measured.bounds);
+        if bounds.is_none() {
+            self.warn_unmeasured();
+        }
+        bounds.unwrap_or_default()
     }
 
-    /// The line height for this layout.
+    /// The line height for this layout, zero until it has been measured.
     pub fn line_height(&self) -> Pixels {
-        self.measured().line_height
+        self.measured()
+            .map_or(Pixels::ZERO, |measured| measured.line_height)
     }
 
-    /// The UTF-8 length of the underlying text.
+    /// The UTF-8 length of the underlying text, zero until it has been measured.
     pub fn len(&self) -> usize {
-        self.measured().len
+        self.measured().map_or(0, |measured| measured.len)
     }
 
     /// The text for this layout.
     pub fn text(&self) -> String {
         self.measured()
-            .document
-            .as_ref()
-            .map_or_else(String::new, |document| document.text.to_string())
+            .and_then(|measured| {
+                measured
+                    .document
+                    .as_ref()
+                    .map(|document| document.text.to_string())
+            })
+            .unwrap_or_default()
     }
 
     /// The text for this layout (with soft-wraps as newlines)
     pub fn wrapped_text(&self) -> String {
         let mut accumulator = String::new();
-        let element_state = self.measured();
+        let Some(element_state) = self.measured() else {
+            return accumulator;
+        };
 
         if let Some(document) = &element_state.document {
             for visual_line in document.layout.visual_lines() {
@@ -2043,7 +2064,8 @@ mod tests {
 
                     assert_eq!(document.text, text);
                     assert_eq!(state.len, text.len());
-                    assert_eq!(state.size, bounds.size);
+                    assert_eq!(state.size.height, bounds.size.height);
+                    assert!(state.size.width <= bounds.size.width);
                     assert_eq!(state.size, document.size(state.line_height));
                     assert_eq!(state.options.wrap_width, Some(px(width)));
                     assert_eq!(state.truncate_width, None);
@@ -2054,13 +2076,134 @@ mod tests {
                     }
                 }
 
-                layout.prepaint(bounds, &text, window);
+                layout.prepaint(bounds, window);
 
                 assert_eq!(layout.bounds(), bounds);
             }
 
             div()
         });
+    }
+
+    #[gpui::test]
+    fn test_platform_wraps_text_at_the_available_width(cx: &mut TestAppContext) {
+        let cx = cx.add_empty_window();
+
+        cx.draw(Point::default(), size(px(240.), px(200.)), |window, cx| {
+            let text = SharedString::from("Wrap these words across several narrow lines");
+            let mut line_counts = Vec::new();
+
+            for width in [1000., 120., 60.] {
+                let layout = TextLayout::default();
+                let layout_id = layout.layout(text.clone(), None, window, cx);
+                window.compute_layout(
+                    layout_id,
+                    size(
+                        AvailableSpace::Definite(px(width)),
+                        AvailableSpace::MaxContent,
+                    ),
+                    cx,
+                );
+                let bounds = window.layout_bounds(layout_id);
+                let state = layout.0.layout.borrow();
+                let state = state.as_ref().unwrap();
+                assert!(bounds.size.width <= px(width));
+                line_counts.push((bounds.size.height / state.line_height).round() as usize);
+            }
+
+            assert_eq!(line_counts[0], 1);
+            assert!(line_counts[1] > 1, "{line_counts:?}");
+            assert!(line_counts[2] > line_counts[1], "{line_counts:?}");
+
+            div()
+        });
+    }
+
+    struct ReadsLayoutWhilePainting {
+        layout: TextLayout,
+        reads: Rc<Cell<usize>>,
+    }
+
+    impl IntoElement for ReadsLayoutWhilePainting {
+        type Element = Self;
+
+        fn into_element(self) -> Self::Element {
+            self
+        }
+    }
+
+    impl Element for ReadsLayoutWhilePainting {
+        type RequestLayoutState = ();
+        type PrepaintState = ();
+
+        fn id(&self) -> Option<ElementId> {
+            None
+        }
+
+        fn source_location(&self) -> Option<&'static std::panic::Location<'static>> {
+            None
+        }
+
+        fn request_layout(
+            &mut self,
+            _: Option<&GlobalElementId>,
+            _: Option<&InspectorElementId>,
+            window: &mut Window,
+            cx: &mut App,
+        ) -> (LayoutId, ()) {
+            (window.request_layout(Default::default(), [], cx), ())
+        }
+
+        fn prepaint(
+            &mut self,
+            _: Option<&GlobalElementId>,
+            _: Option<&InspectorElementId>,
+            _: Bounds<Pixels>,
+            _: &mut (),
+            _: &mut Window,
+            _: &mut App,
+        ) {
+        }
+
+        fn paint(
+            &mut self,
+            _: Option<&GlobalElementId>,
+            _: Option<&InspectorElementId>,
+            _: Bounds<Pixels>,
+            _: &mut (),
+            _: &mut (),
+            _: &mut Window,
+            _: &mut App,
+        ) {
+            let layout = &self.layout;
+            let _ = layout.position_for_index(0);
+            let _ = layout.index_for_position(Point::default());
+            let _ = layout.line_layout_for_index(0);
+            let _ = layout.line_layouts();
+            let _ = layout.bounds();
+            let _ = layout.line_height();
+            let _ = layout.len();
+            let _ = layout.text();
+            let _ = layout.wrapped_text();
+            self.reads.set(self.reads.get() + 1);
+        }
+    }
+
+    #[gpui::test]
+    fn reading_an_unmeasured_text_layout_while_painting_does_not_panic(cx: &mut TestAppContext) {
+        let cx = cx.add_empty_window();
+        let reads = Rc::new(Cell::new(0));
+
+        cx.draw(Point::default(), size(px(240.), px(100.)), |_, _| {
+            let text = StyledText::new("raw styled text in a block div");
+            let layout = text.layout().clone();
+            div().child(text).child(ReadsLayoutWhilePainting {
+                layout,
+                reads: reads.clone(),
+            })
+        });
+
+        assert_eq!(reads.get(), 1);
     }
 
     struct CenteredTextView {

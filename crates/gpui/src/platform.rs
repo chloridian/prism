@@ -1252,47 +1252,130 @@ pub trait PlatformTextSystem: Send + Sync {
 mod tests {
     use crate::{
         Bounds, CaretAffinity, CaretMovement, CaretPosition, ColorGlyphKind, Font, FontId,
-        FontMetrics, GlyphId, GlyphRasterizer, InlineLayout, InlineLayoutRequest, InlineVisualLine,
-        LineLayout, PaintFragment, PaintStyle, Pixels, PlatformTextLayout, PlatformTextSystem,
-        Point, PositionedInlineBox, PreparedRasterStyle, RasterFace, RasterStyleRequest,
-        RasterizedGlyph, RasterizedGlyphFormat, RenderGlyphParams, ResolvedDirection, ShapedGlyph,
-        Size, TextAlign, TextBoundary, TextDirection, TextLayoutRequest, TextMovement,
-        TextRenderingMode, TextSelectionKind, VisualDirection, VisualLine, align_inline_boxes,
-        point, px, size,
+        FontMetrics, GlyphId, GlyphRasterizer, InlineBoxRequest, InlineLayout, InlineLayoutRequest,
+        InlineTextStyle, InlineVisualLine, LineLayout, PaintFragment, PaintStyle, Pixels,
+        PlatformTextLayout, PlatformTextSystem, Point, PositionedInlineBox, PreparedRasterStyle,
+        RasterFace, RasterStyleRequest, RasterizedGlyph, RasterizedGlyphFormat, RenderGlyphParams,
+        ResolvedDirection, ShapedGlyph, Size, TextAlign, TextBoundary, TextDirection,
+        TextLayoutOptions, TextLayoutRequest, TextMovement, TextRenderingMode, TextRun,
+        TextSelectionKind, VisualDirection, VisualLine, align_inline_boxes, point, px, size,
     };
     use anyhow::Result;
-    use std::{borrow::Cow, ops::Range, sync::Arc};
+    use std::{borrow::Cow, mem, ops::Range, sync::Arc};
+
+    #[derive(Clone, Copy, Debug)]
+    struct TestStop {
+        index: usize,
+        x: Pixels,
+        row: usize,
+        trailing: bool,
+    }
 
     #[derive(Debug)]
-    /// A deterministic test layout with exactly one visual and hard line.
+    /// A deterministic test layout whose rows come from hard breaks and wrapping.
     struct TestPlatformTextLayout {
         /// Source text.
         text: String,
-        /// Ordered (byte index, x position) caret stops.
-        stops: Vec<(usize, Pixels)>,
-        /// Size of the single visual line.
+        /// Caret stops in logical order. A soft wrap repeats its byte index: first as the
+        /// trailing stop of the row it ends, then as the leading stop of the next row.
+        stops: Vec<TestStop>,
+        /// Byte range of each visual row.
+        rows: Vec<Range<usize>>,
+        /// Size of all rows at a row height equal to the font size.
         size: Size<Pixels>,
     }
 
     impl TestPlatformTextLayout {
-        fn caret_stop(&self, byte_offset: usize) -> (usize, Pixels) {
-            let stop_index = self
-                .stops
-                .partition_point(|(index, _position)| *index <= byte_offset)
-                .saturating_sub(1);
+        fn row_at(&self, y: Pixels, line_height: Pixels) -> usize {
+            let row = (f32::from(y) / f32::from(line_height)).floor();
+            (row.max(0.0) as usize).min(self.rows.len().saturating_sub(1))
+        }
 
-            self.stops[stop_index]
+        fn row_stops(&self, row: usize) -> impl Iterator<Item = &TestStop> {
+            self.stops.iter().filter(move |stop| stop.row == row)
+        }
+
+        fn stop_position(&self, byte_offset: usize, affinity: CaretAffinity) -> usize {
+            let first = self.stops.partition_point(|stop| stop.index < byte_offset);
+            let end = self.stops.partition_point(|stop| stop.index <= byte_offset);
+            if first < end {
+                match affinity {
+                    CaretAffinity::Downstream => end - 1,
+                    CaretAffinity::Upstream => first,
+                }
+            } else {
+                end.saturating_sub(1)
+            }
+        }
+
+        fn caret_stop(&self, byte_offset: usize, affinity: CaretAffinity) -> TestStop {
+            self.stops[self.stop_position(byte_offset, affinity)]
+        }
+
+        fn nearest_stop(&self, row: usize, x: Pixels) -> TestStop {
+            let stops = self.row_stops(row).collect::<Vec<_>>();
+            let distance = |stop: &TestStop| (f32::from(stop.x) - f32::from(x)).abs();
+            let nearest = stops
+                .iter()
+                .map(|stop| distance(stop))
+                .fold(f32::INFINITY, f32::min);
+            let mut tied = stops.into_iter().filter(|stop| distance(stop) == nearest);
+            let first = tied.next();
+            let stop = if first.is_some_and(|stop| x > stop.x) {
+                tied.next_back().or(first)
+            } else {
+                first
+            };
+            stop.copied().unwrap_or(self.stops[0])
+        }
+
+        fn caret_at(&self, stop: TestStop) -> CaretPosition {
+            self.normalized_caret(CaretPosition {
+                index: stop.index,
+                affinity: if stop.trailing {
+                    CaretAffinity::Upstream
+                } else {
+                    CaretAffinity::Downstream
+                },
+            })
+        }
+
+        fn row_content(&self, row: usize) -> Range<usize> {
+            let range = &self.rows[row];
+            let end = if self.text[range.clone()].ends_with('\n') {
+                range.end - 1
+            } else {
+                range.end
+            };
+            range.start..end
+        }
+
+        fn hard_line_rows(&self, row: usize) -> Range<usize> {
+            let starts_line =
+                |row: usize| row == 0 || self.text[..self.rows[row].start].ends_with('\n');
+            let first = (0..=row).rev().find(|row| starts_line(*row)).unwrap_or(0);
+            let last = (row..self.rows.len())
+                .find(|row| row + 1 == self.rows.len() || starts_line(row + 1))
+                .unwrap_or(row);
+            first..last + 1
+        }
+
+        fn char_boundary_floor(&self, index: usize) -> usize {
+            let mut index = index.min(self.text.len());
+            while !self.text.is_char_boundary(index) {
+                index -= 1;
+            }
+            index
         }
     }
 
     impl PlatformTextLayout for TestPlatformTextLayout {
         fn len(&self) -> usize {
-            self.stops.last().map_or(0, |(index, _)| *index)
+            self.text.len()
         }
 
         fn line_count(&self) -> usize {
-            // This test layout deliberately reports its single visual line.
-            1
+            self.rows.len()
         }
 
         fn size(&self) -> Size<Pixels> {
@@ -1308,15 +1391,16 @@ mod tests {
                 .caret_from_pixel_point(pixel_point, line_height)
                 .unwrap_or_else(|caret| caret)
                 .index;
-            self.stops
+            let row = self.row_at(pixel_point.y, line_height);
+            let stops = self.row_stops(row).collect::<Vec<_>>();
+            stops
                 .windows(2)
                 .find_map(|stops| {
-                    let [(start_index, start_x), (_end_index, end_x)] = stops else {
+                    let [start, end] = stops else {
                         return None;
                     };
 
-                    (pixel_point.x >= *start_x && pixel_point.x < *end_x)
-                        .then_some(Ok(*start_index))
+                    (pixel_point.x >= start.x && pixel_point.x < end.x).then_some(Ok(start.index))
                 })
                 .unwrap_or(Err(closest))
         }
@@ -1326,22 +1410,11 @@ mod tests {
             pixel_point: Point<Pixels>,
             line_height: Pixels,
         ) -> Result<CaretPosition, CaretPosition> {
-            let index = self
-                .stops
-                .iter()
-                .min_by(|(_, left), (_, right)| {
-                    (f32::from(*left) - f32::from(pixel_point.x))
-                        .abs()
-                        .total_cmp(&(f32::from(*right) - f32::from(pixel_point.x)).abs())
-                })
-                .map_or(0, |(index, _)| *index);
-            let caret = self.normalized_caret(CaretPosition {
-                index,
-                affinity: CaretAffinity::Downstream,
-            });
+            let row = self.row_at(pixel_point.y, line_height);
+            let caret = self.caret_at(self.nearest_stop(row, pixel_point.x));
 
             if pixel_point.y >= Pixels::ZERO
-                && pixel_point.y < line_height
+                && pixel_point.y < line_height * self.rows.len() as f32
                 && pixel_point.x >= Pixels::ZERO
                 && pixel_point.x < self.size.width
             {
@@ -1357,23 +1430,26 @@ mod tests {
             line_height: Pixels,
         ) -> Option<Bounds<Pixels>> {
             let caret = self.normalized_caret(caret);
-            let (_index, position) = self.caret_stop(caret.index);
+            let stop = self.caret_stop(caret.index, caret.affinity);
 
             Some(Bounds::new(
-                point(position, Pixels::ZERO),
+                point(stop.x, line_height * stop.row as f32),
                 size(Pixels::ZERO, line_height),
             ))
         }
 
         fn normalized_caret(&self, caret: CaretPosition) -> CaretPosition {
-            let (index, _position) = self.caret_stop(caret.index);
-            let affinity = if index == self.len() && index != 0 {
+            let stop = self.caret_stop(caret.index, caret.affinity);
+            let affinity = if stop.index == self.len() && stop.index != 0 {
                 CaretAffinity::Upstream
             } else {
                 caret.affinity
             };
 
-            CaretPosition { index, affinity }
+            CaretPosition {
+                index: stop.index,
+                affinity,
+            }
         }
 
         fn adjacent_visual_caret(
@@ -1382,18 +1458,22 @@ mod tests {
             direction: VisualDirection,
         ) -> Option<CaretPosition> {
             let caret = self.normalized_caret(caret);
-            let position = self
-                .stops
-                .iter()
-                .position(|(index, _)| *index == caret.index)?;
-            let position = match direction {
-                VisualDirection::Left => position.checked_sub(1)?,
-                VisualDirection::Right => position.checked_add(1)?,
+            let position = self.stop_position(caret.index, caret.affinity);
+            let target = match direction {
+                VisualDirection::Left => self.stops[..position]
+                    .iter()
+                    .rposition(|stop| stop.index != caret.index)?,
+                VisualDirection::Right => {
+                    position
+                        + 1
+                        + self.stops[position + 1..]
+                            .iter()
+                            .position(|stop| stop.index != caret.index)?
+                }
             };
 
-            let index = self.stops.get(position)?.0;
             Some(self.normalized_caret(CaretPosition {
-                index,
+                index: self.stops[target].index,
                 affinity: CaretAffinity::Downstream,
             }))
         }
@@ -1407,30 +1487,44 @@ mod tests {
                 return Vec::new();
             }
 
-            let (_start_index, start) = self.caret_stop(byte_range.start);
-            let (_end_index, end) = self.caret_stop(byte_range.end);
+            (0..self.rows.len())
+                .filter_map(|row| {
+                    let range = self.row_content(row);
+                    let start = byte_range.start.max(range.start);
+                    let end = byte_range.end.min(range.end);
+                    if start >= end {
+                        return None;
+                    }
 
-            // The platform contract returns one bound per visual line. Since this test
-            // layout has exactly one visual line, every non-empty selection has one bound.
-            vec![Bounds::from_corners(
-                point(start.min(end), Pixels::ZERO),
-                point(start.max(end), line_height),
-            )]
+                    let x_at = |index: usize| {
+                        self.row_stops(row)
+                            .take_while(|stop| stop.index <= index)
+                            .last()
+                            .map_or(Pixels::ZERO, |stop| stop.x)
+                    };
+                    let (left, right) = (x_at(start), x_at(end));
+
+                    Some(Bounds::from_corners(
+                        point(left.min(right), line_height * row as f32),
+                        point(left.max(right), line_height * (row + 1) as f32),
+                    ))
+                })
+                .collect()
         }
 
         fn logical_cluster_before(&self, caret: CaretPosition) -> Option<Range<usize>> {
-            self.stops
-                .windows(2)
-                .rev()
-                .find(|stops| stops[1].0 <= caret.index)
-                .map(|stops| stops[0].0..stops[1].0)
+            let index = self.char_boundary_floor(caret.index);
+            let (start, character) = self.text[..index].char_indices().next_back()?;
+            Some(start..start + character.len_utf8())
         }
 
         fn logical_cluster_after(&self, caret: CaretPosition) -> Option<Range<usize>> {
-            self.stops
-                .windows(2)
-                .find(|stops| stops[0].0 >= caret.index)
-                .map(|stops| stops[0].0..stops[1].0)
+            let mut index = self.char_boundary_floor(caret.index);
+            if index < caret.index {
+                index += self.text[index..].chars().next()?.len_utf8();
+            }
+            let character = self.text[index..].chars().next()?;
+            Some(index..index + character.len_utf8())
         }
 
         fn caret_movement(
@@ -1442,55 +1536,65 @@ mod tests {
             use TextBoundary::*;
             use TextDirection::*;
 
-            let index = match (movement.direction, movement.boundary) {
-                (Left, Cluster) => {
-                    self.adjacent_visual_caret(caret, VisualDirection::Left)
-                        .unwrap_or(caret)
-                        .index
-                }
-                (Right, Cluster) => {
-                    self.adjacent_visual_caret(caret, VisualDirection::Right)
-                        .unwrap_or(caret)
-                        .index
-                }
+            let stop = self.caret_stop(caret.index, caret.affinity);
+            let row = stop.row;
+            let last_row = self.rows.len() - 1;
+            let at_index = |index: usize| CaretPosition {
+                index,
+                affinity: CaretAffinity::Downstream,
+            };
+            let row_edge = |row: usize, end: bool| {
+                let mut stops = self.row_stops(row);
+                let edge = if end { stops.last() } else { stops.next() };
+                edge.map_or_else(|| at_index(0), |stop| self.caret_at(*stop))
+            };
+
+            let vertical_x = vertical_navigation_x.unwrap_or(stop.x);
+            let target = match (movement.direction, movement.boundary) {
+                (Left, Cluster) => self
+                    .adjacent_visual_caret(caret, VisualDirection::Left)
+                    .unwrap_or(caret),
+                (Right, Cluster) => self
+                    .adjacent_visual_caret(caret, VisualDirection::Right)
+                    .unwrap_or(caret),
                 (Left, Word) => {
                     let prefix = &self.text[..caret.index.min(self.text.len())];
                     let trimmed = prefix.trim_end_matches(char::is_whitespace);
-                    trimmed.rfind(char::is_whitespace).map_or(0, |index| {
+                    at_index(trimmed.rfind(char::is_whitespace).map_or(0, |index| {
                         index + trimmed[index..].chars().next().unwrap().len_utf8()
-                    })
+                    }))
                 }
                 (Right, Word) => {
                     let start = caret.index.min(self.text.len());
                     let suffix = &self.text[start..];
                     let word_end = suffix.find(char::is_whitespace).unwrap_or(suffix.len());
                     let rest = &suffix[word_end..];
-                    start
-                        + word_end
-                        + rest
-                            .find(|character: char| !character.is_whitespace())
-                            .unwrap_or(rest.len())
+                    at_index(
+                        start
+                            + word_end
+                            + rest
+                                .find(|character: char| !character.is_whitespace())
+                                .unwrap_or(rest.len()),
+                    )
                 }
-                // This test layout has one visual and hard line. Without wrapping or
-                // additional hard lines, these movements resolve to the document endpoints.
-                (Up | Start, VisualLine) | (Start, HardLine | Document) => 0,
-                (Down | End, VisualLine) | (End, HardLine | Document) => self.len(),
-                _ => caret.index,
+                (Up, VisualLine) if row == 0 => at_index(0),
+                (Up, VisualLine) => self.caret_at(self.nearest_stop(row - 1, vertical_x)),
+                (Down, VisualLine) if row == last_row => at_index(self.len()),
+                (Down, VisualLine) => self.caret_at(self.nearest_stop(row + 1, vertical_x)),
+                (Start, VisualLine) => row_edge(row, false),
+                (End, VisualLine) => row_edge(row, true),
+                (Start, HardLine) => row_edge(self.hard_line_rows(row).start, false),
+                (End, HardLine) => row_edge(self.hard_line_rows(row).end - 1, true),
+                (Start, Document) => at_index(0),
+                (End, Document) => at_index(self.len()),
+                _ => at_index(caret.index),
             };
 
             let vertical_navigation_x =
-                matches!(movement.direction, TextDirection::Up | TextDirection::Down).then(|| {
-                    vertical_navigation_x.unwrap_or_else(|| {
-                        self.caret_bounds(caret, self.size.height)
-                            .map_or(Pixels::ZERO, |bounds| bounds.origin.x)
-                    })
-                });
+                matches!(movement.direction, Up | Down).then_some(vertical_x);
 
             CaretMovement {
-                result: self.normalized_caret(CaretPosition {
-                    index,
-                    affinity: CaretAffinity::Downstream,
-                }),
+                result: self.normalized_caret(target),
                 vertical_navigation_x,
             }
         }
@@ -1501,91 +1605,140 @@ mod tests {
             line_height: Pixels,
             kind: TextSelectionKind,
         ) -> Range<usize> {
-            if !matches!(kind, TextSelectionKind::Word) {
-                return 0..self.len();
+            let row = self.row_at(pixel_point.y, line_height);
+            match kind {
+                TextSelectionKind::VisualLine => self.row_content(row),
+                TextSelectionKind::HardLine => {
+                    let rows = self.hard_line_rows(row);
+                    self.row_content(rows.start).start..self.row_content(rows.end - 1).end
+                }
+                TextSelectionKind::Word => {
+                    let index = self
+                        .caret_from_pixel_point(pixel_point, line_height)
+                        .unwrap_or_else(|caret| caret)
+                        .index
+                        .min(self.text.len());
+                    let start = self.text[..index]
+                        .rfind(char::is_whitespace)
+                        .map_or(0, |offset| {
+                            offset + self.text[offset..].chars().next().unwrap().len_utf8()
+                        });
+                    let end = self.text[index..]
+                        .find(char::is_whitespace)
+                        .map_or(self.text.len(), |offset| index + offset);
+                    start..end
+                }
             }
-
-            let index = self
-                .caret_from_pixel_point(pixel_point, line_height)
-                .unwrap_or_else(|caret| caret)
-                .index
-                .min(self.text.len());
-            let start = self.text[..index]
-                .rfind(char::is_whitespace)
-                .map_or(0, |offset| {
-                    offset + self.text[offset..].chars().next().unwrap().len_utf8()
-                });
-            let end = self.text[index..]
-                .find(char::is_whitespace)
-                .map_or(self.text.len(), |offset| index + offset);
-            start..end
         }
     }
 
-    fn position_test_inline_boxes(
-        request: InlineLayoutRequest<'_>,
-        em_width: Pixels,
-        baseline: Pixels,
-    ) -> Vec<PositionedInlineBox> {
-        let mut preceding_width = Pixels::ZERO;
-        request
-            .boxes
-            .iter()
-            .map(|inline_box| {
-                let text_width = em_width
-                    * request.text[..inline_box.index]
-                        .chars()
-                        .map(|character| character.len_utf16() as f32)
-                        .sum::<f32>();
-                let positioned = PositionedInlineBox {
-                    id: inline_box.id,
-                    line_index: 0,
-                    bounds: Bounds::new(
-                        point(
-                            text_width + preceding_width,
-                            baseline - inline_box.size.height,
-                        ),
-                        inline_box.size,
-                    ),
-                };
-
-                preceding_width += inline_box.size.width;
-                positioned
-            })
-            .collect()
+    struct TestChar {
+        index: usize,
+        ch: char,
+        x_start: Pixels,
+        x: Pixels,
     }
 
-    fn add_test_inline_box_advances(layout: &mut LineLayout, request: InlineLayoutRequest<'_>) {
-        for fragment in &mut layout.paint_fragments {
-            // This layout owns its freshly built glyphs. If they become shared,
-            // make_mut copies the slice before changing their positions.
-            for (glyph, (index, _)) in Arc::make_mut(&mut fragment.glyphs)
-                .iter_mut()
-                .zip(request.text.char_indices())
-            {
-                glyph.position.x += request
-                    .boxes
-                    .iter()
-                    .filter(|inline_box| inline_box.index <= index)
-                    .map(|inline_box| inline_box.size.width)
-                    .sum::<Pixels>();
+    struct TestLine {
+        chars: Vec<TestChar>,
+        start: usize,
+        end: usize,
+        newline: Option<usize>,
+        end_x: Pixels,
+    }
+
+    struct TestRow {
+        line: usize,
+        chars: Range<usize>,
+        range: Range<usize>,
+        x0: Pixels,
+        advance: Pixels,
+        painted_advance: Pixels,
+        hang_start: usize,
+        ends_line: bool,
+    }
+
+    fn is_word_char(c: char) -> bool {
+        c.is_ascii_alphanumeric()
+            || matches!(c, '\u{00C0}'..='\u{00FF}')
+            || matches!(c, '\u{0100}'..='\u{017F}')
+            || matches!(c, '\u{0180}'..='\u{024F}')
+            || matches!(c, '\u{0400}'..='\u{04FF}')
+            || matches!(c, '\u{1E00}'..='\u{1EFF}')
+            || matches!(c, '\u{0300}'..='\u{036F}')
+            || matches!(c, '\u{0980}'..='\u{09FF}')
+            || matches!(
+                c,
+                '-' | '_'
+                    | '.'
+                    | '\''
+                    | '’'
+                    | '‘'
+                    | '$'
+                    | '%'
+                    | '@'
+                    | '#'
+                    | '^'
+                    | '~'
+                    | ','
+                    | '='
+                    | ':'
+                    | ';'
+            )
+            || matches!(c, '!' | ')' | ']' | '}' | '"' | '”' | '»' | '…')
+            || matches!(c, '⋯')
+            || matches!(c, '\u{202F}' | '\u{00A0}' | '\u{2011}')
+    }
+
+    fn wrap_boundaries(
+        chars: &[TestChar],
+        end_x: Pixels,
+        wrap_width: Pixels,
+        max_rows: Option<usize>,
+    ) -> Vec<usize> {
+        let mut boundaries = Vec::new();
+        let mut first_non_whitespace = None;
+        let mut candidate = None;
+        let mut candidate_x = Pixels::ZERO;
+        let mut last_boundary = 0;
+        let mut last_boundary_x = Pixels::ZERO;
+        let mut previous = '\0';
+
+        for (position, character) in chars.iter().enumerate() {
+            let ch = character.ch;
+            if is_word_char(ch) {
+                if previous == ' ' && ch != ' ' && first_non_whitespace.is_some() {
+                    candidate = Some(position);
+                    candidate_x = character.x_start;
+                }
+            } else if ch != ' ' && first_non_whitespace.is_some() {
+                candidate = Some(position);
+                candidate_x = character.x_start;
             }
+
+            if ch != ' ' && first_non_whitespace.is_none() {
+                first_non_whitespace = Some(position);
+            }
+
+            let next_x = chars.get(position + 1).map_or(end_x, |next| next.x_start);
+            if ch != ' ' && next_x - last_boundary_x > wrap_width && position > last_boundary {
+                if max_rows.is_some_and(|max| boundaries.len() >= max.saturating_sub(1)) {
+                    break;
+                }
+
+                if let Some(candidate) = candidate.take() {
+                    last_boundary = candidate;
+                    last_boundary_x = candidate_x;
+                } else {
+                    last_boundary = position;
+                    last_boundary_x = character.x_start;
+                }
+                boundaries.push(last_boundary);
+            }
+            previous = ch;
         }
 
-        let box_width = request
-            .boxes
-            .iter()
-            .map(|inline_box| inline_box.size.width)
-            .sum::<Pixels>();
-        for fragment in &mut layout.paint_fragments {
-            fragment.x_range.end += box_width;
-        }
-
-        layout.width += box_width;
-
-        if let Some(line) = layout.visual_lines.first_mut() {
-            line.advance_width += box_width;
-        }
+        boundaries
     }
 
     #[expect(missing_docs)]
@@ -1598,13 +1751,391 @@ mod tests {
             Self
         }
 
-        fn em_width(&self, font_size: Pixels) -> Pixels {
-            let metrics = self.font_metrics(FontId(0));
-            let advance = self
-                .advance(FontId(0), self.glyph_for_char(FontId(0), 'm').unwrap())
-                .unwrap();
+        fn em_fraction(system: &dyn PlatformTextSystem, font_id: FontId) -> f32 {
+            let metrics = system.font_metrics(font_id);
+            let advance = system
+                .glyph_for_char(font_id, 'm')
+                .and_then(|glyph| system.advance(font_id, glyph).ok())
+                .map_or(0.0, |advance| advance.width);
+            advance / metrics.units_per_em as f32
+        }
 
-            font_size * advance.width / metrics.units_per_em as f32
+        /// Lays out `text` with `system`'s font metrics and advances, wrapping at the
+        /// request's wrap width and splitting hard lines. Wrapping follows the legacy
+        /// `LineWrapper` break rules, and trailing spaces hang past the wrapped edge.
+        pub fn layout_text_with(
+            system: &dyn PlatformTextSystem,
+            request: TextLayoutRequest<'_>,
+        ) -> LineLayout {
+            Self::layout_rows(
+                system,
+                request.text,
+                request.font_size,
+                request.runs,
+                &[],
+                request.options,
+                &[],
+            )
+            .0
+        }
+
+        /// Lays out an inline paragraph like [`Self::layout_text_with`], placing boxes on rows.
+        pub fn layout_inline_with(
+            system: &dyn PlatformTextSystem,
+            request: InlineLayoutRequest<'_>,
+        ) -> InlineLayout {
+            let (layout, positions) = Self::layout_rows(
+                system,
+                request.text,
+                request.font_size,
+                request.runs,
+                request.text_styles,
+                request.options,
+                request.boxes,
+            );
+
+            let baseline = request
+                .boxes
+                .iter()
+                .map(|inline_box| inline_box.size.height)
+                .fold(request.line_height, Pixels::max);
+            let positioned_boxes = request
+                .boxes
+                .iter()
+                .zip(positions)
+                .map(|(inline_box, (line_index, x))| PositionedInlineBox {
+                    id: inline_box.id,
+                    line_index,
+                    bounds: Bounds::new(
+                        point(x, baseline - inline_box.size.height),
+                        inline_box.size,
+                    ),
+                })
+                .collect();
+            let mut inline = InlineLayout {
+                size: size(layout.width, baseline * layout.visual_lines.len() as f32),
+                lines: layout
+                    .visual_lines
+                    .iter()
+                    .map(|row| InlineVisualLine {
+                        origin: point(row.offset, Pixels::ZERO),
+                        size: size(row.advance_width, baseline),
+                        baseline,
+                    })
+                    .collect(),
+                layout: Arc::new(layout),
+                boxes: positioned_boxes,
+                alignment_offset: Pixels::ZERO,
+            };
+
+            align_inline_boxes(
+                &mut inline.lines,
+                &mut inline.boxes,
+                &mut inline.size,
+                request.boxes,
+                &[request.text_metrics],
+                &[],
+                request.text_metrics,
+                request.line_height,
+            );
+            inline
+        }
+
+        fn layout_rows(
+            system: &dyn PlatformTextSystem,
+            text: &str,
+            font_size: Pixels,
+            shaping_runs: &[TextRun],
+            text_styles: &[InlineTextStyle],
+            options: TextLayoutOptions,
+            boxes: &[InlineBoxRequest],
+        ) -> (LineLayout, Vec<(usize, Pixels)>) {
+            let first_font = shaping_runs
+                .first()
+                .and_then(|run| system.font_id(&run.font).ok())
+                .unwrap_or(FontId(0));
+            let metrics = system.font_metrics(first_font);
+            let mut run_ends = Vec::with_capacity(shaping_runs.len());
+            let mut covered = 0;
+            for run in shaping_runs {
+                covered += run.len;
+                let font_id = system.font_id(&run.font).unwrap_or(first_font);
+                run_ends.push((covered, Self::em_fraction(system, font_id)));
+            }
+            let fallback_em = Self::em_fraction(system, first_font);
+            let em_width_at = |index: usize| {
+                let em = run_ends
+                    .iter()
+                    .find(|(end, _)| index < *end)
+                    .map_or(fallback_em, |(_, em)| *em);
+                let size = text_styles
+                    .iter()
+                    .find(|style| style.range.contains(&index))
+                    .map_or(font_size, |style| style.font_size);
+                size * em
+            };
+
+            let mut order = (0..boxes.len()).collect::<Vec<_>>();
+            order.sort_by_key(|&box_index| boxes[box_index].index);
+            let mut next_box = 0;
+            let mut box_places = vec![(0, 0, Pixels::ZERO); boxes.len()];
+
+            let mut lines = Vec::new();
+            let mut current = TestLine {
+                chars: Vec::new(),
+                start: 0,
+                end: 0,
+                newline: None,
+                end_x: Pixels::ZERO,
+            };
+            let mut x = Pixels::ZERO;
+            for (index, ch) in text.char_indices() {
+                let x_start = x;
+                while let Some(&box_index) = order.get(next_box) {
+                    if boxes[box_index].index > index {
+                        break;
+                    }
+                    box_places[box_index] = (lines.len(), current.chars.len(), x);
+                    x += boxes[box_index].size.width;
+                    next_box += 1;
+                }
+
+                if ch == '\n' {
+                    current.newline = Some(index);
+                    current.end = index + 1;
+                    current.end_x = x;
+                    let start = current.end;
+                    lines.push(mem::replace(
+                        &mut current,
+                        TestLine {
+                            chars: Vec::new(),
+                            start,
+                            end: start,
+                            newline: None,
+                            end_x: Pixels::ZERO,
+                        },
+                    ));
+                    x = Pixels::ZERO;
+                } else {
+                    current.chars.push(TestChar {
+                        index,
+                        ch,
+                        x_start,
+                        x,
+                    });
+                    x += em_width_at(index) * ch.len_utf16() as f32;
+                }
+            }
+            for &box_index in &order[next_box..] {
+                box_places[box_index] = (lines.len(), current.chars.len(), x);
+                x += boxes[box_index].size.width;
+            }
+            current.end = text.len();
+            current.end_x = x;
+            lines.push(current);
+
+            let max_rows = options.line_clamp.map(|max| max.max(1));
+            let mut rows = Vec::new();
+            for (line_index, line) in lines.iter().enumerate() {
+                let remaining = max_rows.map(|max| max.saturating_sub(rows.len()));
+                if remaining == Some(0) {
+                    break;
+                }
+                let mut starts = vec![0];
+                if let Some(wrap_width) = options.wrap_width {
+                    starts.extend(wrap_boundaries(
+                        &line.chars,
+                        line.end_x,
+                        wrap_width,
+                        remaining,
+                    ));
+                }
+                for (row_index, &first) in starts.iter().enumerate() {
+                    let ends_line = row_index + 1 == starts.len();
+                    let end = starts
+                        .get(row_index + 1)
+                        .copied()
+                        .unwrap_or(line.chars.len());
+                    let hang_start = end
+                        - line.chars[first..end]
+                            .iter()
+                            .rev()
+                            .take_while(|character| character.ch == ' ')
+                            .count();
+                    let x0 = if first == 0 {
+                        Pixels::ZERO
+                    } else {
+                        line.chars[first].x_start
+                    };
+                    let (end_x, byte_end) = if ends_line {
+                        (line.end_x, line.end)
+                    } else {
+                        (line.chars[end].x_start, line.chars[end].index)
+                    };
+                    let byte_start = if first == 0 {
+                        line.start
+                    } else {
+                        line.chars[first].index
+                    };
+                    rows.push(TestRow {
+                        line: line_index,
+                        chars: first..end,
+                        range: byte_start..byte_end,
+                        x0,
+                        advance: end_x - x0,
+                        painted_advance: if ends_line {
+                            end_x - x0
+                        } else {
+                            line.chars[hang_start].x_start - x0
+                        },
+                        hang_start,
+                        ends_line,
+                    });
+                }
+            }
+
+            let positions = box_places
+                .iter()
+                .map(|&(line, char_position, x)| {
+                    let row = rows
+                        .iter()
+                        .rposition(|row| row.line == line && row.chars.start <= char_position)
+                        .unwrap_or(rows.len() - 1);
+                    (row, x - rows[row].x0)
+                })
+                .collect();
+
+            let mut tracking = px(0.);
+            let mut tracking_covered = 0usize;
+            for run in shaping_runs {
+                let start = tracking_covered.min(text.len());
+                let end = start.saturating_add(run.len).min(text.len()).max(start);
+                let slice = text.get(start..end).unwrap_or("");
+                let n = slice.chars().count();
+                if n > 1 {
+                    if let Some(spacing) = run.letter_spacing {
+                        tracking += spacing * (n - 1) as f32;
+                    }
+                }
+                tracking_covered = end;
+            }
+            if rows.len() != 1 {
+                tracking = Pixels::ZERO;
+            }
+
+            let direction = match options.direction {
+                crate::ParagraphDirection::LeftToRight => ResolvedDirection::LeftToRight,
+                crate::ParagraphDirection::RightToLeft => ResolvedDirection::RightToLeft,
+                crate::ParagraphDirection::Auto => {
+                    ResolvedDirection::from_first_strong(text).unwrap_or_default()
+                }
+            };
+            let width = rows
+                .iter()
+                .map(|row| row.painted_advance + tracking)
+                .fold(Pixels::ZERO, Pixels::max);
+            let alignment_width = options.alignment_width.unwrap_or(width);
+
+            let mut stops = Vec::new();
+            let mut visual_lines = Vec::new();
+            let mut paint_fragments = Vec::new();
+            for (row_index, row) in rows.iter().enumerate() {
+                let line = &lines[row.line];
+                let advance = row.painted_advance + tracking;
+                let offset = match options.text_align {
+                    TextAlign::Start if direction.is_rtl() => alignment_width - advance,
+                    TextAlign::Start | TextAlign::Left => Pixels::ZERO,
+                    TextAlign::Center => (alignment_width - advance) / 2.0,
+                    TextAlign::End if direction.is_rtl() => Pixels::ZERO,
+                    TextAlign::End | TextAlign::Right => alignment_width - advance,
+                };
+
+                let row_chars = &line.chars[row.chars.clone()];
+                stops.extend(row_chars.iter().enumerate().map(|(position, character)| {
+                    let hung = !row.ends_line && row.chars.start + position >= row.hang_start;
+                    TestStop {
+                        index: character.index,
+                        x: if hung {
+                            row.painted_advance + offset
+                        } else {
+                            character.x - row.x0 + offset
+                        },
+                        row: row_index,
+                        trailing: false,
+                    }
+                }));
+                let (end_index, trailing) = match (row.ends_line, line.newline) {
+                    (true, Some(newline)) => (newline, false),
+                    (true, None) => (text.len(), false),
+                    (false, _) => (row.range.end, true),
+                };
+                stops.push(TestStop {
+                    index: end_index,
+                    x: if row.ends_line {
+                        row.advance
+                    } else {
+                        row.painted_advance
+                    } + offset,
+                    row: row_index,
+                    trailing,
+                });
+
+                let fragment_start = paint_fragments.len();
+                if !row_chars.is_empty() {
+                    let mut covered = 0;
+                    let source_run = shaping_runs
+                        .iter()
+                        .position(|run| {
+                            covered += run.len;
+                            row.range.start < covered
+                        })
+                        .unwrap_or(0);
+                    paint_fragments.push(PaintFragment {
+                        source_run,
+                        font_id: FontId(0),
+                        font_size,
+                        glyphs: row_chars
+                            .iter()
+                            .map(|character| ShapedGlyph {
+                                id: GlyphId(character.ch.len_utf16() as u32),
+                                position: point(character.x - row.x0, Pixels::ZERO),
+                                is_emoji: character.ch.len_utf16() == 2,
+                            })
+                            .collect::<Vec<_>>()
+                            .into(),
+                        x_range: Pixels::ZERO..advance,
+                        style: shaping_runs
+                            .get(source_run)
+                            .map_or_else(PaintStyle::default, PaintStyle::from),
+                        underline_offset: Some(font_size * 0.1),
+                        strikethrough_offset: Some(-font_size * 0.3),
+                    });
+                }
+                visual_lines.push(VisualLine {
+                    text_range: row.range.clone(),
+                    paint_fragment_range: fragment_start..paint_fragments.len(),
+                    advance_width: advance,
+                    offset,
+                    direction,
+                });
+            }
+
+            let layout = LineLayout {
+                font_size,
+                width,
+                ascent: font_size * (metrics.ascent / metrics.units_per_em as f32),
+                descent: font_size * (metrics.descent / metrics.units_per_em as f32),
+                visual_lines: visual_lines.into_iter().collect(),
+                paint_fragments: paint_fragments.into_iter().collect(),
+                len: text.len(),
+                platform_layout: Arc::new(TestPlatformTextLayout {
+                    text: text.to_owned(),
+                    stops,
+                    rows: rows.iter().map(|row| row.range.clone()).collect(),
+                    size: size(width, font_size * rows.len() as f32),
+                }),
+            };
+            (layout, positions)
         }
     }
 
@@ -1689,150 +2220,11 @@ mod tests {
         }
 
         fn layout_text(&self, request: TextLayoutRequest<'_>) -> LineLayout {
-            let text = request.text;
-            let font_size = request.font_size;
-            let shaping_runs = request.runs;
-            let mut position = px(0.);
-            let metrics = self.font_metrics(FontId(0));
-            let em_width = self.em_width(font_size);
-            let mut glyphs = Vec::new();
-            let mut stops = vec![(0, Pixels::ZERO)];
-
-            for (idx, character) in text.char_indices() {
-                let glyph_id = GlyphId(character.len_utf16() as u32);
-                glyphs.push(ShapedGlyph {
-                    id: glyph_id,
-                    position: point(position, Pixels::ZERO),
-                    is_emoji: glyph_id.0 == 2,
-                });
-
-                position += em_width * glyph_id.0 as f32;
-                stops.push((idx + character.len_utf8(), position));
-            }
-
-            let mut tracking = px(0.);
-            let mut tracking_covered = 0usize;
-            for run in shaping_runs {
-                let start = tracking_covered.min(text.len());
-                let end = start.saturating_add(run.len).min(text.len()).max(start);
-                let slice = text.get(start..end).unwrap_or("");
-                let n = slice.chars().count();
-                if n > 1 {
-                    if let Some(spacing) = run.letter_spacing {
-                        tracking += spacing * (n - 1) as f32;
-                    }
-                }
-                tracking_covered = end;
-            }
-
-            let direction = match request.options.direction {
-                crate::ParagraphDirection::LeftToRight => ResolvedDirection::LeftToRight,
-                crate::ParagraphDirection::RightToLeft => ResolvedDirection::RightToLeft,
-                crate::ParagraphDirection::Auto => {
-                    ResolvedDirection::from_first_strong(text).unwrap_or_default()
-                }
-            };
-            let advance = position + tracking;
-            let alignment_width = request.options.alignment_width.unwrap_or(advance);
-            let offset = match request.options.text_align {
-                TextAlign::Start if direction.is_rtl() => alignment_width - advance,
-                TextAlign::Start | TextAlign::Left => Pixels::ZERO,
-                TextAlign::Center => (alignment_width - advance) / 2.0,
-                TextAlign::End if direction.is_rtl() => Pixels::ZERO,
-                TextAlign::End | TextAlign::Right => alignment_width - advance,
-            };
-
-            for (_idx, position) in &mut stops {
-                *position += offset;
-            }
-
-            let visual_lines = [VisualLine {
-                text_range: 0..text.len(),
-                paint_fragment_range: 0..usize::from(!glyphs.is_empty()),
-                advance_width: advance,
-                offset,
-                direction,
-            }]
-            .into_iter()
-            .collect();
-            let paint_fragments = (!glyphs.is_empty())
-                .then(|| PaintFragment {
-                    source_run: 0,
-                    font_id: FontId(0),
-                    font_size,
-                    glyphs: glyphs.into(),
-                    x_range: Pixels::ZERO..advance,
-                    style: shaping_runs
-                        .first()
-                        .map_or_else(PaintStyle::default, PaintStyle::from),
-                    underline_offset: Some(font_size * 0.1),
-                    strikethrough_offset: Some(-font_size * 0.3),
-                })
-                .into_iter()
-                .collect();
-            LineLayout {
-                font_size,
-                width: advance,
-                ascent: font_size * (metrics.ascent / metrics.units_per_em as f32),
-                descent: font_size * (metrics.descent / metrics.units_per_em as f32),
-                visual_lines,
-                paint_fragments,
-                len: text.len(),
-                platform_layout: Arc::new(TestPlatformTextLayout {
-                    text: text.to_owned(),
-                    stops,
-                    size: size(advance, font_size),
-                }),
-            }
+            Self::layout_text_with(self, request)
         }
 
         fn layout_inline(&self, request: InlineLayoutRequest<'_>) -> InlineLayout {
-            let mut layout = self.layout_text(TextLayoutRequest {
-                text: request.text,
-                font_size: request.font_size,
-                runs: request.runs,
-                options: request.options,
-            });
-
-            let em_width = self.em_width(request.font_size);
-            let baseline = request
-                .boxes
-                .iter()
-                .map(|inline_box| inline_box.size.height)
-                .fold(request.line_height, Pixels::max);
-            let positioned_boxes = position_test_inline_boxes(request, em_width, baseline);
-            add_test_inline_box_advances(&mut layout, request);
-            let line_width = request
-                .options
-                .wrap_width
-                .unwrap_or(Pixels::MAX)
-                .min(layout.width);
-            let line_offset = layout.visual_lines[0].offset;
-            let mut inline = InlineLayout {
-                size: size(layout.width, baseline),
-                layout: Arc::new(layout),
-                lines: [InlineVisualLine {
-                    origin: point(line_offset, Pixels::ZERO),
-                    size: size(line_width, baseline),
-                    baseline,
-                }]
-                .into_iter()
-                .collect(),
-                boxes: positioned_boxes,
-                alignment_offset: Pixels::ZERO,
-            };
-
-            align_inline_boxes(
-                &mut inline.lines,
-                &mut inline.boxes,
-                &mut inline.size,
-                request.boxes,
-                &[request.text_metrics],
-                &[],
-                request.text_metrics,
-                request.line_height,
-            );
-            inline
+            Self::layout_inline_with(self, request)
         }
 
         fn recommended_rendering_mode(
@@ -3887,7 +4279,7 @@ mod image_tests {
     fn test_image_to_image_data_applies_exif_orientation() {
         let image = Image::from_bytes(
             ImageFormat::Jpeg,
-            include_bytes!("../examples/legacy/image/exif-orientation-rotate-180.jpg").to_vec(),
+            include_bytes!("../tests/fixtures/exif-orientation-rotate-180.jpg").to_vec(),
         );
 
         let render_image = image

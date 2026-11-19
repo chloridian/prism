@@ -18,7 +18,7 @@ use gpui::{
     PlatformInput, PlatformInputHandler, PlatformWindow, Point, PromptButton, PromptLevel,
     RawMouseMotionEvent, RequestFrameOptions, ResizeEdge, Scene, ScrollDelta, ScrollWheelEvent,
     Size, TouchPhase, WindowAppearance, WindowBackgroundAppearance, WindowBounds,
-    WindowControlArea, WindowKind, WindowParams, point, px, size,
+    WindowControlArea, WindowControls, WindowKind, WindowParams, point, px, size,
 };
 use gpui_util::ResultExt as _;
 use raw_window_handle::{
@@ -97,6 +97,7 @@ pub(crate) struct WindowInner {
     window: Window,
     handle: AnyWindowHandle,
     hwnd: HWND,
+    controls: WindowControls,
     cursor: Rc<CursorState>,
     capture: RefCell<Capture>,
     callbacks: Callbacks,
@@ -188,6 +189,11 @@ impl WindowInner {
             window,
             handle,
             hwnd,
+            controls: WindowControls {
+                maximize: params.is_resizable,
+                minimize: params.is_minimizable,
+                ..WindowControls::default()
+            },
             cursor,
             capture: RefCell::default(),
             callbacks: Callbacks::default(),
@@ -759,6 +765,10 @@ impl PlatformWindow for WinitWindow {
 
     fn is_maximized(&self) -> bool {
         self.inner.is_maximized()
+    }
+
+    fn window_controls(&self) -> WindowControls {
+        self.inner.controls
     }
 
     fn window_bounds(&self) -> WindowBounds {
