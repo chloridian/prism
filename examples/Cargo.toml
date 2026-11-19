@@ -1,0 +1,263 @@
+[package]
+name = "examples"
+version = "0.10.0"
+publish = false
+edition.workspace = true
+autoexamples = false
+
+[[example]]
+name = "hello_world"
+path = "gpui/basics/hello_world.rs"
+
+[[example]]
+name = "interactive_elements"
+path = "gpui/basics/interactive_elements.rs"
+
+[[example]]
+name = "actions_and_keybinds"
+path = "gpui/basics/actions_and_keybinds.rs"
+
+[[example]]
+name = "uniform_list"
+path = "gpui/basics/uniform_list.rs"
+
+[[example]]
+name = "creating_components"
+path = "gpui/basics/creating_components.rs"
+
+[[example]]
+name = "async_tasks"
+path = "gpui/basics/async_tasks.rs"
+
+[[example]]
+name = "tab_stop"
+path = "gpui/basics/tab_stop.rs"
+
+[[example]]
+name = "focus_visible"
+path = "gpui/basics/focus_visible.rs"
+
+[[example]]
+name = "tree"
+path = "gpui/basics/tree.rs"
+
+[[example]]
+name = "scrollable"
+path = "gpui/basics/scrollable.rs"
+
+[[example]]
+name = "layout"
+path = "gpui/layout_and_style/layout.rs"
+
+[[example]]
+name = "styling"
+path = "gpui/layout_and_style/styling.rs"
+
+[[example]]
+name = "direction"
+path = "gpui/layout_and_style/direction.rs"
+
+[[example]]
+name = "inline_layout"
+path = "gpui/layout_and_style/inline_layout.rs"
+
+[[example]]
+name = "border_and_shadow_backgrounds"
+path = "gpui/layout_and_style/border_and_shadow_backgrounds.rs"
+
+[[example]]
+name = "gradient"
+path = "gpui/layout_and_style/gradient.rs"
+
+[[example]]
+name = "opacity"
+path = "gpui/layout_and_style/opacity.rs"
+
+[[example]]
+name = "corner_smoothing"
+path = "gpui/layout_and_style/corner_smoothing.rs"
+
+[[example]]
+name = "blur"
+path = "gpui/layout_and_style/blur.rs"
+
+[[example]]
+name = "animation"
+path = "gpui/animation/animation.rs"
+
+[[example]]
+name = "transitions"
+path = "gpui/animation/transitions.rs"
+
+[[example]]
+name = "style_transitions"
+path = "gpui/animation/style_transitions.rs"
+
+[[example]]
+name = "motion_showcase"
+path = "gpui/animation/motion_showcase.rs"
+
+[[example]]
+name = "text"
+path = "gpui/text/text.rs"
+
+[[example]]
+name = "text_system"
+path = "gpui/text/text_system.rs"
+
+[[example]]
+name = "text_transform_preview"
+path = "gpui/text/text_transform_preview.rs"
+
+[[example]]
+name = "editable_text"
+path = "gpui/text/editable_text.rs"
+
+[[example]]
+name = "switch"
+path = "gpui/basics/switch.rs"
+
+[[example]]
+name = "window"
+path = "gpui/windows/window.rs"
+
+[[example]]
+name = "window_positioning"
+path = "gpui/windows/window_positioning.rs"
+
+[[example]]
+name = "window_movable"
+path = "gpui/windows/window_movable.rs"
+
+[[example]]
+name = "window_visibility"
+path = "gpui/windows/window_visibility.rs"
+
+[[example]]
+name = "window_shadow"
+path = "gpui/windows/window_shadow.rs"
+
+[[example]]
+name = "on_window_close_quit"
+path = "gpui/windows/on_window_close_quit.rs"
+
+[[example]]
+name = "custom_drawing"
+path = "gpui/graphics/custom_drawing.rs"
+
+[[example]]
+name = "custom_gpu"
+path = "gpui/graphics/custom_gpu.rs"
+
+[[example]]
+name = "svg"
+path = "gpui/graphics/svg.rs"
+
+[[example]]
+name = "image_loading"
+path = "gpui/graphics/image_loading.rs"
+
+[[example]]
+name = "image"
+path = "gpui/graphics/image.rs"
+
+[[example]]
+name = "gif_viewer"
+path = "gpui/graphics/gif_viewer.rs"
+
+[[example]]
+name = "keyring"
+path = "gpui/platform/keyring.rs"
+
+[[example]]
+name = "system_notifications"
+path = "gpui/platform/system_notifications.rs"
+
+[[example]]
+name = "data_table"
+path = "gpui/stress/data_table.rs"
+
+[[example]]
+name = "paths_bench"
+path = "gpui/stress/paths_bench.rs"
+
+[[example]]
+name = "pattern"
+path = "gpui/stress/pattern.rs"
+
+[[example]]
+name = "shadow"
+path = "gpui/stress/shadow.rs"
+
+[[example]]
+name = "input"
+path = "kit/input.rs"
+
+[[example]]
+name = "editor"
+path = "kit/editor.rs"
+
+[[example]]
+name = "dock"
+path = "kit/dock.rs"
+
+[[example]]
+name = "markdown"
+path = "kit/markdown/main.rs"
+
+[[example]]
+name = "html"
+path = "kit/html.rs"
+
+[[example]]
+name = "sidebar"
+path = "kit/sidebar.rs"
+
+[[example]]
+name = "text_selection"
+path = "kit/text_selection.rs"
+
+[[example]]
+name = "window_title"
+path = "kit/window_title.rs"
+
+[[example]]
+name = "table_in_scrollable"
+path = "kit/table_in_scrollable.rs"
+
+[features]
+inspector = ["gpui-kit/inspector"]
+
+[dependencies]
+anyhow.workspace = true
+bytemuck = { version = "1", features = ["derive"] }
+env_logger.workspace = true
+gpui = { workspace = true, features = ["image-default-formats"] }
+gpui_ce_elements = { path = "../crates/gpui_elements" }
+gpui_ce_wgpu = { path = "../crates/gpui_wgpu", version = "0.4.0" }
+gpui_fonts = { path = "../crates/gpui_ce_fonts", version = "0.4.0", package = "gpui-ce-fonts" }
+gpui_platform = { workspace = true, features = ["font-kit"] }
+log.workspace = true
+palette.workspace = true
+rand.workspace = true
+smallvec.workspace = true
+wgpu.workspace = true
+gpui-component-story = { path = "../crates/gpui_story" }
+gpui-kit = { workspace = true, features = ["tree-sitter-languages"] }
+lsp-types.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+smol.workspace = true
+
+autocorrect = "2.14.2"
+color-lsp = "0.2.0"
+jiff = "1.0"
+regex = "1"
+tree-sitter-navi = "0.2.3"
+
+[target.'cfg(target_family = "wasm")'.dependencies]
+wasm-bindgen.workspace = true
+web-sys = { version = "0.3", features = ["console"] }
+
+[lints]
+workspace = true

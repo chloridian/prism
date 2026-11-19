@@ -1146,6 +1146,8 @@ pub(crate) struct Frame {
     cursor_styles: Vec<CursorStyleRequest>,
     #[cfg(any(test, feature = "test-support"))]
     pub(crate) debug_bounds: FxHashMap<String, Bounds<Pixels>>,
+    #[cfg(any(test, feature = "test-support"))]
+    debug_bounds_history: Vec<(String, Bounds<Pixels>)>,
     #[cfg(any(feature = "inspector", debug_assertions))]
     pub(crate) next_inspector_instance_ids: FxHashMap<Rc<crate::InspectorElementPath>, usize>,
     #[cfg(any(feature = "inspector", debug_assertions))]
@@ -1173,9 +1175,17 @@ pub(crate) struct PaintIndex {
     accessed_element_states_index: usize,
     tab_handle_index: usize,
     line_layout_index: LineLayoutIndex,
+    #[cfg(any(test, feature = "test-support"))]
+    debug_bounds_index: usize,
 }
 
 impl Frame {
+    #[cfg(any(test, feature = "test-support"))]
+    pub(crate) fn record_debug_bounds(&mut self, selector: String, bounds: Bounds<Pixels>) {
+        self.debug_bounds.insert(selector.clone(), bounds);
+        self.debug_bounds_history.push((selector, bounds));
+    }
+
     pub(crate) fn new(dispatch_tree: DispatchTree) -> Self {
         Frame {
             focus: None,
@@ -1195,6 +1205,8 @@ impl Frame {
 
             #[cfg(any(test, feature = "test-support"))]
             debug_bounds: FxHashMap::default(),
+            #[cfg(any(test, feature = "test-support"))]
+            debug_bounds_history: Vec::new(),
 
             #[cfg(any(feature = "inspector", debug_assertions))]
             next_inspector_instance_ids: FxHashMap::default(),
@@ -1224,6 +1236,7 @@ impl Frame {
         #[cfg(any(test, feature = "test-support"))]
         {
             self.debug_bounds.clear();
+            self.debug_bounds_history.clear();
         }
 
         #[cfg(any(feature = "inspector", debug_assertions))]
@@ -3794,6 +3807,20 @@ impl Window {
         sorted_indices
     }
 
+    pub(crate) fn element_states_cursor(&self) -> usize {
+        self.next_frame.accessed_element_states.len()
+    }
+
+    pub(crate) fn element_states_since(&self, cursor: usize) -> Vec<(GlobalElementId, TypeId)> {
+        self.next_frame.accessed_element_states[cursor..].to_vec()
+    }
+
+    pub(crate) fn retain_element_states(&mut self, states: &[(GlobalElementId, TypeId)]) {
+        self.next_frame
+            .accessed_element_states
+            .extend_from_slice(states);
+    }
+
     pub(crate) fn prepaint_index(&self) -> PrepaintStateIndex {
         PrepaintStateIndex {
             hitboxes_index: self.next_frame.hitboxes.len(),
@@ -3866,6 +3893,8 @@ impl Window {
             accessed_element_states_index: self.next_frame.accessed_element_states.len(),
             tab_handle_index: self.next_frame.tab_stops.paint_index(),
             line_layout_index: self.text_system.layout_index(),
+            #[cfg(any(test, feature = "test-support"))]
+            debug_bounds_index: self.next_frame.debug_bounds_history.len(),
         }
     }
 
@@ -3904,6 +3933,14 @@ impl Window {
             &self.rendered_frame.tab_stops.insertion_history
                 [range.start.tab_handle_index..range.end.tab_handle_index],
         );
+
+        #[cfg(any(test, feature = "test-support"))]
+        for (selector, bounds) in &self.rendered_frame.debug_bounds_history
+            [range.start.debug_bounds_index..range.end.debug_bounds_index]
+        {
+            self.next_frame
+                .record_debug_bounds(selector.clone(), *bounds);
+        }
 
         self.text_system
             .reuse_layouts(range.start.line_layout_index..range.end.line_layout_index);
@@ -7539,17 +7576,26 @@ impl Window {
         inspector: &Inspector,
         frame: &Frame,
     ) -> Option<(HitboxId, crate::InspectorElementId)> {
-        if let Some(pick_depth) = inspector.pick_depth {
-            let depth = (pick_depth as i64).try_into().unwrap_or(0);
-            let max_skipped = self.mouse_hit_test.entries.len().saturating_sub(1);
-            let skip_count = (depth as usize).min(max_skipped);
-            for hitbox_id in self.mouse_hit_test.ordered_ids.iter().skip(skip_count) {
-                if let Some(inspector_id) = frame.inspector_hitboxes.get(hitbox_id) {
-                    return Some((*hitbox_id, inspector_id.clone()));
-                }
-            }
-        }
-        None
+        let pick_depth = inspector.pick_depth?;
+        let mut candidates: Vec<(f32, usize, HitboxId)> = self
+            .mouse_hit_test
+            .ordered_ids
+            .iter()
+            .enumerate()
+            .filter(|(_, id)| frame.inspector_hitboxes.contains_key(id))
+            .filter_map(|(order, id)| {
+                let hitbox = frame.hitboxes.iter().find(|hitbox| hitbox.id == *id)?;
+                let size = hitbox.bounds.size;
+                Some((f32::from(size.width) * f32::from(size.height), order, *id))
+            })
+            .collect();
+        candidates.sort_by(|a, b| a.0.total_cmp(&b.0).then(a.1.cmp(&b.1)));
+
+        let depth = (pick_depth as i64).try_into().unwrap_or(0);
+        let skip_count = (depth as usize).min(candidates.len().saturating_sub(1));
+        let (_, _, hitbox_id) = *candidates.get(skip_count)?;
+        let inspector_id = frame.inspector_hitboxes.get(&hitbox_id)?;
+        Some((hitbox_id, inspector_id.clone()))
     }
 
     /// For testing: set the current modifier keys state.

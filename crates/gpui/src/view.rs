@@ -385,6 +385,7 @@ impl<V: View> IntoElement for ViewElement<V> {
 }
 
 struct ViewElementState {
+    layout_states: Vec<(GlobalElementId, TypeId)>,
     prepaint_range: Range<PrepaintStateIndex>,
     paint_range: Range<PaintIndex>,
     cache_key: ViewElementCacheKey,
@@ -402,6 +403,7 @@ pub struct ViewElementRequestLayoutState {
     element: Option<AnyElement>,
     detached_layout_id: Option<LayoutId>,
     accessed_entities: FxHashSet<EntityId>,
+    layout_states: Vec<(GlobalElementId, TypeId)>,
 }
 
 #[derive(Default)]
@@ -464,6 +466,7 @@ impl<V: View> Element for ViewElement<V> {
                     !known || window.dirty_views.contains(&entity_id) || window.refreshing;
 
                 if should_probe {
+                    let states_start = window.element_states_cursor();
                     let ((element, detached_layout_id), accessed_entities) = cx
                         .detect_accessed_entities(|cx| {
                             let mut element = render_view(self.view.take().unwrap(), window, cx);
@@ -471,6 +474,7 @@ impl<V: View> Element for ViewElement<V> {
 
                             (element, detached_layout_id)
                         });
+                    let layout_states = window.element_states_since(states_start);
                     window.set_layout_logical_children(
                         layout_id,
                         std::slice::from_ref(&detached_layout_id),
@@ -482,6 +486,7 @@ impl<V: View> Element for ViewElement<V> {
                             element: Some(element),
                             detached_layout_id: Some(detached_layout_id),
                             accessed_entities,
+                            layout_states,
                         },
                     );
                 }
@@ -552,6 +557,7 @@ impl<V: View> Element for ViewElement<V> {
                         {
                             let prepaint_start = window.prepaint_index();
                             window.reuse_prepaint(element_state.prepaint_range.clone());
+                            window.retain_element_states(&element_state.layout_states);
                             cx.entities
                                 .extend_accessed(&element_state.accessed_entities);
                             let prepaint_end = window.prepaint_index();
@@ -598,6 +604,7 @@ impl<V: View> Element for ViewElement<V> {
                         (
                             Some(element),
                             ViewElementState {
+                                layout_states: mem::take(&mut request_layout.layout_states),
                                 accessed_entities,
                                 prepaint_range: prepaint_start..prepaint_end,
                                 paint_range: PaintIndex::default()..PaintIndex::default(),
@@ -684,5 +691,127 @@ pub struct EmptyView;
 impl Render for EmptyView {
     fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
         Empty
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::{cell::Cell, rc::Rc};
+
+    use crate::{
+        AnyView, App, Bounds, Context, Element, ElementId, GlobalElementId, InspectorElementId,
+        IntoElement, LayoutId, ParentElement as _, Pixels, Render, StyleRefinement, Styled as _,
+        TestAppContext, Window, div, px,
+    };
+
+    struct DropFlag(Rc<Cell<bool>>);
+
+    impl Drop for DropFlag {
+        fn drop(&mut self) {
+            self.0.set(true);
+        }
+    }
+
+    struct KeepsLayoutState(Rc<Cell<bool>>);
+
+    impl IntoElement for KeepsLayoutState {
+        type Element = Self;
+
+        fn into_element(self) -> Self::Element {
+            self
+        }
+    }
+
+    impl Element for KeepsLayoutState {
+        type RequestLayoutState = ();
+        type PrepaintState = ();
+
+        fn id(&self) -> Option<ElementId> {
+            Some("keeps-layout-state".into())
+        }
+
+        fn source_location(&self) -> Option<&'static std::panic::Location<'static>> {
+            None
+        }
+
+        fn request_layout(
+            &mut self,
+            id: Option<&GlobalElementId>,
+            _: Option<&InspectorElementId>,
+            window: &mut Window,
+            cx: &mut App,
+        ) -> (LayoutId, ()) {
+            let dropped = self.0.clone();
+            window.with_element_state(id.unwrap(), |state: Option<DropFlag>, _| {
+                ((), state.unwrap_or(DropFlag(dropped)))
+            });
+            (window.request_layout(Default::default(), [], cx), ())
+        }
+
+        fn prepaint(
+            &mut self,
+            _: Option<&GlobalElementId>,
+            _: Option<&InspectorElementId>,
+            _: Bounds<Pixels>,
+            _: &mut (),
+            _: &mut Window,
+            _: &mut App,
+        ) {
+        }
+
+        fn paint(
+            &mut self,
+            _: Option<&GlobalElementId>,
+            _: Option<&InspectorElementId>,
+            _: Bounds<Pixels>,
+            _: &mut (),
+            _: &mut (),
+            _: &mut Window,
+            _: &mut App,
+        ) {
+        }
+    }
+
+    struct Child {
+        dropped: Rc<Cell<bool>>,
+        renders: Rc<Cell<usize>>,
+    }
+
+    impl Render for Child {
+        fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+            self.renders.set(self.renders.get() + 1);
+            KeepsLayoutState(self.dropped.clone())
+        }
+    }
+
+    struct Host(crate::Entity<Child>);
+
+    impl Render for Host {
+        fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
+            div().size_full().child(
+                AnyView::from(self.0.clone())
+                    .cached(StyleRefinement::default().w(px(40.)).h(px(40.))),
+            )
+        }
+    }
+
+    #[gpui::test]
+    fn a_replayed_cached_view_keeps_the_state_its_layout_created(cx: &mut TestAppContext) {
+        let dropped = Rc::new(Cell::new(false));
+        let renders = Rc::new(Cell::new(0));
+        let (_, cx) = cx.add_window_view({
+            let dropped = dropped.clone();
+            let renders = renders.clone();
+            move |_, cx| Host(crate::AppContext::new(cx, |_| Child { dropped, renders }))
+        });
+
+        for _ in 0..3 {
+            cx.update(|window, cx| {
+                let _ = window.draw(cx);
+            });
+        }
+
+        assert_eq!(renders.get(), 1, "the child is replayed, not rendered");
+        assert!(!dropped.get());
     }
 }
