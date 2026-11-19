@@ -90,19 +90,13 @@ check-examples:
 [group('testing')]
 test *flags:
     @echo "🧪 Running workspace tests..."
-    cargo test --workspace --no-fail-fast {{ flags }}
+    cargo nextest run --workspace --no-fail-fast {{ flags }}
 
 [doc('Run all workspace doc tests')]
 [group('testing')]
 test-doc:
     @echo "🧪 Running doc tests..."
     cargo test --workspace --doc --no-fail-fast
-
-[doc('Run tests with nextest (faster parallel runner)')]
-[group('testing')]
-test-nextest:
-    @echo "🧪 Running tests with nextest..."
-    cargo nextest run --workspace
 
 [doc('Run workspace tests with a fixed seed for reproducibility')]
 [group('testing')]
