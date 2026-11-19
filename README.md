@@ -1,5 +1,3 @@
-<img src="assets/readme/banner.png" alt="GPUI Community Edition banner" width="100%">
-
 <p align="center">
   <a href="https://gpui-ce.github.io">Website</a> ​ · ​ <a href="examples">Examples</a> ​ · ​ <a href="https://discord.gg/ENGHGjrYEn">Discord</a>
 </p>
