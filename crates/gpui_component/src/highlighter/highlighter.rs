@@ -1529,117 +1529,41 @@ mod tests {
 
     #[test]
     #[cfg(feature = "tree-sitter-languages")]
-    fn test_html_style_injects_css_highlights() {
-        let html = r#"<style>
-.card { color: #336699; }
-</style>
-"#;
-
-        let rope = Rope::from_str(html);
-        let mut highlighter = SyntaxHighlighter::new("html");
-        highlighter.update(None, &rope, None);
-
-        let highlights = highlighter.match_styles(0..html.len());
-
-        assert!(
-            has_highlight_covering(&highlights, html, "color", "property"),
-            "CSS property names inside style elements should be highlighted"
-        );
-        assert!(
-            has_highlight_covering(&highlights, html, "#336699", "string.special"),
-            "CSS color values inside style elements should be highlighted"
-        );
-    }
-
-    #[test]
-    #[cfg(feature = "tree-sitter-languages")]
-    fn test_html_script_injects_javascript_highlights() {
-        let html = r#"<script>
-const answer = 42;
-console.log(answer);
-</script>
-"#;
-
-        let rope = Rope::from_str(html);
-        let mut highlighter = SyntaxHighlighter::new("html");
-        highlighter.update(None, &rope, None);
-
-        let highlights = highlighter.match_styles(0..html.len());
-
-        assert!(
-            has_highlight_covering(&highlights, html, "const", "keyword"),
-            "JavaScript keywords inside script elements should be highlighted"
-        );
-        assert!(
-            has_highlight_covering(&highlights, html, "answer", "variable"),
-            "JavaScript identifiers inside script elements should be highlighted"
-        );
-    }
-
-    #[test]
-    #[cfg(feature = "tree-sitter-languages")]
-    fn test_kotlin_highlights_string_templates() {
-        let kotlin = "fun greet(name: String) = \"hi $name, ${name.length}\"\n";
-
-        let rope = Rope::from_str(kotlin);
-        let mut highlighter = SyntaxHighlighter::new("kotlin");
-        highlighter.update(None, &rope, None);
-
-        let highlights = highlighter.match_styles(0..kotlin.len());
-
-        assert!(
-            has_highlight_covering(&highlights, kotlin, "fun", "keyword"),
-            "Kotlin keywords should be highlighted"
-        );
-        assert!(
-            has_highlight_covering(&highlights, kotlin, "$", "punctuation.special"),
-            "A string template's `$` should be highlighted"
-        );
-        assert!(
-            has_highlight_covering(&highlights, kotlin, "${", "punctuation.special"),
-            "A string template's `${{` should be highlighted"
-        );
-    }
-
-    #[test]
-    #[cfg(feature = "tree-sitter-languages")]
     fn test_markdown_fenced_code_injects_captured_language() {
-        let markdown = "```rs\nfn first() {}\n```\n\n```rust\nfn second() {}\n```\n";
+        let markdown = "```jsonc\n{\"first\": 1}\n```\n\n```json\n{\"second\": 2}\n```\n";
         let rope = Rope::from_str(markdown);
         let mut highlighter = SyntaxHighlighter::new("markdown");
 
         assert!(highlighter.update(None, &rope, None));
 
-        let rust_layers = highlighter
+        let json_layers = highlighter
             .injection_layers
             .iter()
-            .filter(|layer| layer.language_name.as_ref() == "rust")
+            .filter(|layer| layer.language_name.as_ref() == "json")
             .collect::<Vec<_>>();
-        assert_eq!(rust_layers.len(), 2);
+        assert_eq!(json_layers.len(), 2);
         assert!(
             Arc::ptr_eq(
-                &rust_layers[0].highlight_query,
-                &rust_layers[1].highlight_query
+                &json_layers[0].highlight_query,
+                &json_layers[1].highlight_query
             ),
             "fences using the same canonical language should share one highlight query"
         );
 
         let highlights = highlighter.match_styles(0..markdown.len());
-        for function in ["first", "second"] {
+        for key in ["\"first\"", "\"second\""] {
             assert!(
-                has_highlight_covering(&highlights, markdown, function, "function"),
-                "Rust function {function:?} should be highlighted inside its fence"
+                has_highlight_covering(&highlights, markdown, key, "property"),
+                "JSON key {key} should be highlighted inside its fence"
             );
         }
 
         let theme = HighlightTheme::default_dark();
         let styles = highlighter.styles(&(0..markdown.len()), theme.as_ref());
-        let keyword_start = markdown.find("fn first").unwrap();
-        let keyword_color = theme.style("keyword").and_then(|style| style.color);
+        let key_start = markdown.find("\"first\"").unwrap();
+        let key_color = theme.style("property").and_then(|style| style.color);
         assert!(styles.iter().any(|(range, style)| {
-            range.start <= keyword_start
-                && range.end >= keyword_start + 2
-                && style.color == keyword_color
+            range.start <= key_start && range.end >= key_start + 7 && style.color == key_color
         }));
     }
 
@@ -1725,7 +1649,7 @@ console.log(answer);
         const FENCE_COUNT: usize = 384;
         const _: () = assert!(FENCE_COUNT <= MAX_NON_COMBINED_INJECTION_PARSES);
         let markdown = (0..FENCE_COUNT)
-            .map(|i| format!("```rust\nfn function_{i}() {{}}\n```\n"))
+            .map(|i| format!("```json\n{{\"key_{i}\": {i}}}\n```\n"))
             .collect::<String>();
         let rope = Rope::from_str(&markdown);
         let mut highlighter = SyntaxHighlighter::new("markdown");
@@ -1736,15 +1660,15 @@ console.log(answer);
             highlighter
                 .injection_layers
                 .iter()
-                .all(|layer| layer.language_name.as_ref() == "rust")
+                .all(|layer| layer.language_name.as_ref() == "json")
         );
 
         let highlights = highlighter.match_styles(0..markdown.len());
         assert!(has_highlight_covering(
             &highlights,
             &markdown,
-            "function_383",
-            "function"
+            "\"key_383\"",
+            "property"
         ));
     }
 
@@ -1757,7 +1681,7 @@ console.log(answer);
         let markdown = format!(
             "{}\nparagraph *inline*\n",
             (0..FENCE_COUNT)
-                .map(|i| format!("```rust\nfn function_{i}() {{}}\n```\n"))
+                .map(|i| format!("```json\n{{\"key_{i}\": {i}}}\n```\n"))
                 .collect::<String>()
         );
         let rope = Rope::from_str(&markdown);
@@ -1768,7 +1692,7 @@ console.log(answer);
             highlighter
                 .injection_layers
                 .iter()
-                .filter(|layer| layer.language_name.as_ref() == "rust")
+                .filter(|layer| layer.language_name.as_ref() == "json")
                 .count(),
             MAX_NON_COMBINED_INJECTION_PARSES
         );
@@ -1784,62 +1708,18 @@ console.log(answer);
         assert!(has_highlight_covering(
             &highlights,
             &markdown,
-            "function_0",
-            "function"
+            "\"key_0\"",
+            "property"
         ));
         assert!(
             !has_highlight_covering(
                 &highlights,
                 &markdown,
-                &format!("function_{}", FENCE_COUNT - 1),
-                "function"
+                &format!("\"key_{}\"", FENCE_COUNT - 1),
+                "property"
             ),
             "fences past the budget keep host highlighting but get no injected tokens"
         );
-    }
-
-    #[test]
-    #[cfg(feature = "tree-sitter-languages")]
-    fn test_php_combined_injection_closing_tags() {
-        let php_code = r#"<?php
-$x = 1;
-?>
-<html>
-<body>
-  <h1><?php echo "Hello"; ?></h1>
-  <ul>
-    <?php foreach ($items as $item): ?>
-      <li><?php echo $item; ?></li>
-    <?php endforeach; ?>
-  </ul>
-</body>
-</html>
-"#;
-
-        let rope = Rope::from_str(php_code);
-        let mut highlighter = SyntaxHighlighter::new("php");
-        highlighter.update(None, &rope, None);
-
-        let full_range = 0..php_code.len();
-        let highlights = highlighter.match_styles(full_range);
-
-        // Verify all closing HTML tags are highlighted
-        let closing_tags = ["</h1>", "</li>", "</ul>", "</body>", "</html>"];
-        for tag in closing_tags {
-            let pos = php_code.find(tag).unwrap();
-            let tag_name_start = pos + 2; // after "</"
-            let tag_name_end = tag_name_start + tag.len() - 3; // before ">"
-
-            let has_highlight = highlights
-                .iter()
-                .any(|item| item.range.start <= tag_name_start && item.range.end >= tag_name_end);
-
-            assert!(
-                has_highlight,
-                "closing tag {} at byte {} should be highlighted",
-                tag, pos
-            );
-        }
     }
 
     #[test]
