@@ -9,8 +9,8 @@ mod tests {
         App, AppContext as _, Bounds, Context, Element, ElementId, Entity, FocusHandle,
         GlobalElementId, Hitbox, InspectorElementId, InteractiveElement as _, IntoElement,
         LayoutId, Modifiers, MouseButton, MouseDownEvent, MouseUpEvent, ParentElement as _, Pixels,
-        Render, SharedString, Styled as _, StyledText, TestAppContext, VisualTestContext, Window,
-        div, point, px, relative,
+        Render, SharedString, Style, Styled as _, StyledText, TestAppContext, VisualTestContext,
+        Window, div, point, px, relative,
     };
     use gpui_base::{
         AutoScroll, TextSelection, TextSelectionHandle, TextSelectionRegistration, TextSelectionRun,
@@ -70,8 +70,11 @@ mod tests {
             window: &mut Window,
             cx: &mut App,
         ) -> (LayoutId, Self::RequestLayoutState) {
-            self.styled_text
-                .request_layout(id, inspector_id, window, cx)
+            let (text_id, ()) = self
+                .styled_text
+                .request_layout(id, inspector_id, window, cx);
+            let layout_id = window.request_layout(Style::default(), [text_id], cx);
+            (layout_id, ())
         }
 
         fn prepaint(

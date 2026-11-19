@@ -2913,9 +2913,10 @@ mod tests {
     use super::*;
     use crate::ElementExt as _;
     use gpui::{
-        Bounds, ContentMask, Context, Hitbox, HitboxBehavior, HitboxId, InteractiveElement as _,
-        IntoElement, ParentElement as _, Render, SharedString, Styled as _, StyledText,
-        TestAppContext, TextLayout, Window, div, point, prelude::FluentBuilder as _, px, size,
+        Bounds, ContentMask, Context, Element, ElementId, GlobalElementId, Hitbox, HitboxBehavior,
+        HitboxId, InspectorElementId, InteractiveElement as _, IntoElement, LayoutId,
+        ParentElement as _, Render, SharedString, Style, Styled as _, StyledText, TestAppContext,
+        TextLayout, Window, div, point, prelude::FluentBuilder as _, px, size,
     };
     use std::{
         cell::{Cell, RefCell},
@@ -2951,6 +2952,68 @@ mod tests {
     struct PlainRunLayoutView {
         texts: Vec<SharedString>,
         layouts: Vec<TextLayout>,
+    }
+
+    struct UnfoldedText(StyledText);
+
+    impl IntoElement for UnfoldedText {
+        type Element = Self;
+
+        fn into_element(self) -> Self::Element {
+            self
+        }
+    }
+
+    impl Element for UnfoldedText {
+        type RequestLayoutState = ();
+        type PrepaintState = ();
+
+        fn id(&self) -> Option<ElementId> {
+            None
+        }
+
+        fn source_location(&self) -> Option<&'static std::panic::Location<'static>> {
+            None
+        }
+
+        fn request_layout(
+            &mut self,
+            id: Option<&GlobalElementId>,
+            inspector_id: Option<&InspectorElementId>,
+            window: &mut Window,
+            cx: &mut gpui::App,
+        ) -> (LayoutId, Self::RequestLayoutState) {
+            let (text_id, ()) = self.0.request_layout(id, inspector_id, window, cx);
+            let layout_id = window.request_layout(Style::default(), [text_id], cx);
+            (layout_id, ())
+        }
+
+        fn prepaint(
+            &mut self,
+            id: Option<&GlobalElementId>,
+            inspector_id: Option<&InspectorElementId>,
+            bounds: Bounds<Pixels>,
+            _: &mut Self::RequestLayoutState,
+            window: &mut Window,
+            cx: &mut gpui::App,
+        ) -> Self::PrepaintState {
+            self.0
+                .prepaint(id, inspector_id, bounds, &mut (), window, cx);
+        }
+
+        fn paint(
+            &mut self,
+            id: Option<&GlobalElementId>,
+            inspector_id: Option<&InspectorElementId>,
+            bounds: Bounds<Pixels>,
+            _: &mut Self::RequestLayoutState,
+            _: &mut Self::PrepaintState,
+            window: &mut Window,
+            cx: &mut gpui::App,
+        ) {
+            self.0
+                .paint(id, inspector_id, bounds, &mut (), &mut (), window, cx);
+        }
     }
 
     impl Render for WindowSelectionView {
@@ -3062,7 +3125,10 @@ mod tests {
                 .map(|(index, text)| {
                     let text = StyledText::new(text.clone());
                     self.layouts.push(text.layout().clone());
-                    div().absolute().top(px(index as f32 * 40.)).child(text)
+                    div()
+                        .absolute()
+                        .top(px(index as f32 * 40.))
+                        .child(UnfoldedText(text))
                 })
                 .collect::<Vec<_>>();
             div().size_full().children(children)
