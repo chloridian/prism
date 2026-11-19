@@ -3935,11 +3935,11 @@ impl Window {
         );
 
         #[cfg(any(test, feature = "test-support"))]
-        for (selector, bounds) in self.rendered_frame.debug_bounds_history
+        for (selector, bounds) in &self.rendered_frame.debug_bounds_history
             [range.start.debug_bounds_index..range.end.debug_bounds_index]
-            .to_vec()
         {
-            self.next_frame.record_debug_bounds(selector, bounds);
+            self.next_frame
+                .record_debug_bounds(selector.clone(), *bounds);
         }
 
         self.text_system
