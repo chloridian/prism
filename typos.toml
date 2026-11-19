@@ -13,6 +13,9 @@ extend-exclude = [
   # macOS APIs
   "crates/gpui/src/platform/mac/dispatcher.rs",
 
+  # gpui-kit story fixtures: real country and currency names and codes.
+  "crates/gpui_story/src/fixtures/",
+
 ]
 
 [default]
@@ -38,6 +41,12 @@ ba = "ba"
 scap = "scap"
 # Win32 FORMATETC struct field: Pointer to DVTARGETDEVICE
 ptd = "ptd"
+# Lucide icon name for the astroid curve.
+astroid = "astroid"
+# Portuguese for "current" in localized UI labels.
+atual = "atual"
+# Deliberate misspelling the input autocorrect test fixes.
+teh = "teh"
 # Part of mach_timebase_info_data_t (numerator)
 numer = "numer"
 # AMD GPU Services library

@@ -35,8 +35,6 @@ tree-sitter-toml = ["tree-sitter", "dep:tree-sitter-toml-ng"]
 tree-sitter-yaml = ["tree-sitter", "dep:tree-sitter-yaml"]
 
 [dependencies]
-unicode-width = "0.2"
-unicode-segmentation = "1"
 regex = "1"
 anyhow.workspace = true
 gpui = { workspace = true }
@@ -53,7 +51,6 @@ serde_json.workspace = true
 smallvec.workspace = true
 sum_tree.workspace = true
 tracing.workspace = true
-log.workspace = true
 markdown = { version = "1.0.0", features = ["serde"] }
 
 

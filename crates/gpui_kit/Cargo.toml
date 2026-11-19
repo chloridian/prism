@@ -31,4 +31,3 @@ gpui_platform = { workspace = true, features = ["font-kit"] }
 gpui-base.workspace = true
 gpui-component = { workspace = true, optional = true }
 gpui-kit-assets = { workspace = true, optional = true }
-anyhow.workspace = true
