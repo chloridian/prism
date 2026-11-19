@@ -1299,10 +1299,9 @@ mod tests {
             let first = self.stops.partition_point(|stop| stop.index < byte_offset);
             let end = self.stops.partition_point(|stop| stop.index <= byte_offset);
             if first < end {
-                let after_whitespace = self.text[..byte_offset].ends_with(char::is_whitespace);
                 match affinity {
-                    CaretAffinity::Downstream if after_whitespace => end - 1,
-                    CaretAffinity::Upstream | CaretAffinity::Downstream => first,
+                    CaretAffinity::Downstream => end - 1,
+                    CaretAffinity::Upstream => first,
                 }
             } else {
                 end.saturating_sub(1)

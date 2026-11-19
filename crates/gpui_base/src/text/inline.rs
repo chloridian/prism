@@ -1724,23 +1724,17 @@ fn project_selection(
         return Some((0..text.len()).into());
     }
 
-    let row_left = text_layout.position_for_index(0).map(|origin| origin.x);
     let mut selection: Option<Selection> = None;
     for (offset, c) in text.char_indices() {
-        let Some(mut pos) = text_layout.position_for_index(offset) else {
+        let Some(pos) = text_layout.position_for_index(offset) else {
             continue;
         };
         let next_offset = offset + c.len_utf8();
         let mut char_width = line_height.half();
-        match (text_layout.position_for_index(next_offset), row_left) {
-            (Some(next_pos), _) if next_pos.y == pos.y => char_width = next_pos.x - pos.x,
-            // GPUI places a wrap boundary at the end of the row above, but its
-            // glyph starts the next row.
-            (Some(next_pos), Some(row_left)) if c != '\n' && next_pos.y > pos.y => {
-                pos = point(row_left, next_pos.y);
-                char_width = next_pos.x - row_left;
-            }
-            _ => {}
+        if let Some(next_pos) = text_layout.position_for_index(next_offset)
+            && next_pos.y == pos.y
+        {
+            char_width = next_pos.x - pos.x;
         }
         let selection_pos = selection_bounds.map_or(pos, |bounds| point(pos.x, bounds.top()));
         let selection_height = selection_bounds.map_or(line_height, |bounds| bounds.size.height);
@@ -2006,12 +2000,13 @@ mod line_bounds_tests {
                         let expected = by_character(text, &layout, line_height, mask);
                         let actual = Inline::text_line_bounds(&painted_layout, line_height, mask);
                         let context = format!("{text:?} at {wrap_width}px in {mask:?}");
-                        // The character walk placed a wrapped row's first
-                        // character at the end of the row before it: that row's
-                        // box started one glyph in, and a row holding only that
-                        // one glyph had no box at all. The row walk covers every
-                        // row from its start, so it may see more rows, never
-                        // fewer, and agrees on every row the walk could see.
+                        // A wrapped row's first character starts that row, so the
+                        // character walk sees every row. It cannot see how wide
+                        // a row's last character is, as the next position is on
+                        // the row below, and assumes half a line. The row walk
+                        // measures the row, and adds that half line as slack
+                        // after it, so its right edge is at least the walk's and
+                        // at most half a line beyond it.
                         assert!(
                             actual.len() >= expected.len(),
                             "rows of {context}: {} < {}",
@@ -2028,7 +2023,11 @@ mod line_bounds_tests {
                                 expected.bottom(),
                                 "row {row} of {context}"
                             );
-                            assert_eq!(actual.right(), expected.right(), "row {row} of {context}");
+                            let slack = actual.right() - expected.right();
+                            assert!(
+                                slack >= Pixels::ZERO && slack <= line_height.half(),
+                                "row {row} of {context} ends {slack:?} after the character walk"
+                            );
                             assert!(
                                 actual.left() <= expected.left(),
                                 "row {row} of {context} starts at {:?}, after {:?}",
