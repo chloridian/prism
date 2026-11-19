@@ -182,6 +182,7 @@ jobs:
       - uses: hustcer/setup-nu@v3
       - uses: extractions/setup-just@v2
       - run: just build
+      - uses: taiki-e/install-action@nextest
       - run: just test
       - run: just test-doc
 
@@ -197,6 +198,7 @@ jobs:
       - uses: hustcer/setup-nu@v3
       - uses: extractions/setup-just@v2
       - run: just build
+      - uses: taiki-e/install-action@nextest
       - run: just test --features gpui_ce_wgpu/test-support
       - run: just test-doc
       - name: Test Parley rendering invariants
@@ -214,6 +216,7 @@ jobs:
       - uses: hustcer/setup-nu@v3
       - uses: extractions/setup-just@v2
       - run: just build
+      - uses: taiki-e/install-action@nextest
       - run: just test
       - run: just test-doc
       - name: Test Parley rendering invariants
