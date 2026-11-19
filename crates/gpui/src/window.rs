@@ -3807,6 +3807,20 @@ impl Window {
         sorted_indices
     }
 
+    pub(crate) fn element_states_cursor(&self) -> usize {
+        self.next_frame.accessed_element_states.len()
+    }
+
+    pub(crate) fn element_states_since(&self, cursor: usize) -> Vec<(GlobalElementId, TypeId)> {
+        self.next_frame.accessed_element_states[cursor..].to_vec()
+    }
+
+    pub(crate) fn retain_element_states(&mut self, states: &[(GlobalElementId, TypeId)]) {
+        self.next_frame
+            .accessed_element_states
+            .extend_from_slice(states);
+    }
+
     pub(crate) fn prepaint_index(&self) -> PrepaintStateIndex {
         PrepaintStateIndex {
             hitboxes_index: self.next_frame.hitboxes.len(),
