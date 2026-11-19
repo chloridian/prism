@@ -378,8 +378,7 @@ impl<E: ParentElement + Styled + IntoElement + 'static> Element for ContextMenu<
 
         // A finger has no right button, so a long press opens the menu. This
         // listener goes in before the children paint, so an input inside the
-        // trigger claims its long press first. Rich-text selection is handled
-        // by the window layer, which runs later; yield over its text geometry.
+        // trigger claims its long press first.
         window.on_mouse_event({
             let shared_state = shared_state.clone();
             let builder = builder.clone();
@@ -389,7 +388,6 @@ impl<E: ParentElement + Styled + IntoElement + 'static> Element for ContextMenu<
                     && event.phase == TouchPhase::Started
                     && !window.default_prevented()
                     && hitbox.is_hovered(window)
-                    && !gpui_base::TextSelection::is_selectable_at(event.start_position, window, cx)
                 {
                     window.prevent_default();
                     open_menu(&shared_state, &builder, event.start_position, window, cx);
