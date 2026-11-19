@@ -1,3 +1,5 @@
+#![cfg(feature = "inspector")]
+
 #[cfg_attr(not(rust_analyzer), gpui_macros::derive_inspector_reflection)]
 trait Transform: Clone {
     /// Doubles the value
