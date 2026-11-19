@@ -1747,7 +1747,7 @@ mod tests {
     use std::rc::Rc;
 
     #[cfg(target_os = "linux")]
-    use gpui::TestAppContext;
+    use gpui::TestApp;
     use gpui::{FontFeatures, FontStyle, FontWeight, px};
 
     #[cfg(target_os = "linux")]
@@ -1763,29 +1763,21 @@ mod tests {
                     background_color: None,
                     underline: None,
                     strikethrough: None,
+                    letter_spacing: None,
                 }],
-                None,
             )
             .width
     }
 
-    // Linux exposes its native text engine without creating a desktop window.
-    // macOS platform creation requires the main thread, and Windows headless
-    // mode uses NoopTextSystem rather than native shaping.
     #[cfg(target_os = "linux")]
-    fn shaping_test_context() -> TestAppContext {
-        let platform = gpui_platform::current_platform(true);
-        TestAppContext::build_with_text_system(
-            gpui::TestDispatcher::new(0),
-            None,
-            platform.text_system(),
-        )
+    fn shaping_test_context() -> TestApp {
+        TestApp::with_text_system(gpui_platform::current_platform(true).text_system())
     }
 
     #[cfg(target_os = "linux")]
     #[test]
     fn production_wrap_keeps_shaped_cjk_latin_boundary_during_edits() {
-        let cx = shaping_test_context();
+        let mut cx = shaping_test_context();
         cx.update(|cx| {
             let font = test_font();
             let font_size = px(14.);
@@ -1821,7 +1813,7 @@ mod tests {
     #[cfg(target_os = "linux")]
     #[test]
     fn production_wrap_preserves_words_and_complete_graphemes() {
-        let cx = shaping_test_context();
+        let mut cx = shaping_test_context();
         cx.update(|cx| {
             let font = test_font();
             let font_size = px(14.);
