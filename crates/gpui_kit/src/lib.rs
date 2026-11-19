@@ -18,7 +18,7 @@
 //! layers:
 //!
 //! ```no_run
-//! use gpui_kit::{component::label::Label, *};
+//! use gpui_kit::{component::label::Label, gpui, *};
 //!
 //! actions!(hello, [Quit]);
 //!
