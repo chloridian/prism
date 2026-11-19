@@ -48,15 +48,17 @@ pub(crate) fn init(cx: &mut App) {
         });
     });
 
-    cx.register_inspector_element(|window, cx| {
-        let div_inspector = cx.new(|cx| DivInspector::new(window, cx));
-        move |id, state: &DivInspectorState, window: &mut Window, cx: &mut App| {
+    cx.register_inspector_element(
+        |id, state: &DivInspectorState, window: &mut Window, cx: &mut App| {
+            let div_inspector = window.use_keyed_state("div-inspector", cx, |window, cx| {
+                DivInspector::new(window, cx)
+            });
             div_inspector.update(cx, |this, cx| {
                 this.update_inspected_element(id, state.clone(), window, cx);
                 this.render(window, cx).into_any_element()
             })
-        }
-    });
+        },
+    );
 
     cx.set_inspector_renderer(Box::new(render_inspector));
 }
