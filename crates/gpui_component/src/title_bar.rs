@@ -784,32 +784,36 @@ mod tests {
         }
     }
 
-    struct TallBar;
+    struct BorderedBar(f32);
 
-    impl Render for TallBar {
+    impl Render for BorderedBar {
         fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
             TitleBar::new()
-                .h(px(64.))
-                .child(div().h_full().debug_selector(|| "content".to_string()))
+                .h(px(40.))
+                .border_b(px(self.0))
+                .child(div().h_full())
         }
     }
 
+    #[cfg(target_os = "windows")]
     #[gpui::test]
-    fn the_bar_content_follows_the_configured_height(cx: &mut TestAppContext) {
+    fn caption_buttons_stop_one_pixel_above_the_bottom_border(cx: &mut TestAppContext) {
         cx.update(crate::init);
-        let view = cx.new(|_| TallBar);
-        let window = cx.update(|cx| {
-            cx.open_window(Default::default(), |window, cx| {
-                cx.new(|cx| crate::Root::new(view.clone(), window, cx))
-            })
-            .unwrap()
-        });
-        let mut cx = VisualTestContext::from_window(window.into(), cx);
-        cx.update(|window, cx| window.draw(cx).clear(cx));
+        for (border, height) in [(0., 39.), (1., 38.), (2., 37.)] {
+            let view = cx.new(|_| BorderedBar(border));
+            let window = cx.update(|cx| {
+                cx.open_window(Default::default(), |window, cx| {
+                    cx.new(|cx| crate::Root::new(view.clone(), window, cx))
+                })
+                .unwrap()
+            });
+            let mut cx = VisualTestContext::from_window(window.into(), cx);
+            cx.update(|window, cx| window.draw(cx).clear(cx));
 
-        let content = cx.debug_bounds("content").expect("the content is drawn");
-        assert!(content.size.height > TITLE_BAR_HEIGHT);
-        assert!(content.size.height <= px(64.));
+            let close = cx.debug_bounds("close").expect("the close button is drawn");
+            assert_eq!(close.top(), px(0.), "border {border}");
+            assert_eq!(close.size.height, px(height), "border {border}");
+        }
     }
 
     #[test]
