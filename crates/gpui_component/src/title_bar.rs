@@ -784,8 +784,10 @@ mod tests {
         }
     }
 
+    #[cfg(target_os = "windows")]
     struct BorderedBar(f32);
 
+    #[cfg(target_os = "windows")]
     impl Render for BorderedBar {
         fn render(&mut self, _: &mut Window, _: &mut Context<Self>) -> impl IntoElement {
             TitleBar::new()
