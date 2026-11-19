@@ -32,9 +32,7 @@ use gpui::{
 };
 #[cfg(any(feature = "wayland", feature = "x11"))]
 use gpui::{Pixels, Point, px};
-#[cfg(any(feature = "wayland", feature = "x11"))]
 use gpui_parley::ParleyTextSystem;
-#[cfg(any(feature = "wayland", feature = "x11"))]
 use gpui_render::SwashGlyphRasterizer;
 
 #[cfg(any(feature = "wayland", feature = "x11"))]
@@ -134,7 +132,6 @@ impl LinuxCommon {
         let (main_sender, main_receiver) = PriorityQueueCalloopReceiver::new();
         let (wake_sender, wake_receiver) = calloop::channel::channel();
 
-        #[cfg(any(feature = "wayland", feature = "x11"))]
         let text_system: Arc<dyn PlatformTextSystem> = Arc::new(
             ParleyTextSystem::new(SwashGlyphRasterizer::default())
                 .with_system_fallback_family("IBM Plex Sans")
@@ -149,9 +146,6 @@ impl LinuxCommon {
                 ])
                 .with_system_fonts(),
         );
-
-        #[cfg(not(any(feature = "wayland", feature = "x11")))]
-        let text_system = Arc::new(gpui::NoopTextSystem::new());
 
         let callbacks = PlatformHandlers::default();
 
