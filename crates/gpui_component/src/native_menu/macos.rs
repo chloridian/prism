@@ -97,7 +97,7 @@ fn run_menu(
     let view: &NSView = unsafe { &*(view_ptr as *const NSView) };
 
     let target = MenuTarget::new();
-    let mut actions: Vec<&Box<dyn Action>> = Vec::new();
+    let mut actions: Vec<&dyn Action> = Vec::new();
     let ns_menu = build_menu(items, asset_source, &target, mtm, &mut actions);
 
     // `position` is window-relative, logical pixels, origin top-left (GPUI).
@@ -124,7 +124,7 @@ fn build_menu<'a>(
     asset_source: &AssetRegistry,
     target: &MenuTarget,
     mtm: MainThreadMarker,
-    actions: &mut Vec<&'a Box<dyn Action>>,
+    actions: &mut Vec<&'a dyn Action>,
 ) -> Retained<NSMenu> {
     let menu = NSMenu::new(mtm);
     // Items are configured explicitly, so disable AppKit's automatic enabling.
@@ -159,7 +159,7 @@ fn build_menu<'a>(
                     if let Some(action) = action {
                         if !*disabled {
                             ns_item.setTag(actions.len() as isize);
-                            actions.push(action);
+                            actions.push(action.as_ref());
                             ns_item.setTarget(Some(target as &AnyObject));
                             ns_item.setAction(Some(sel!(menuItemClicked:)));
                         }
