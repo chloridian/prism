@@ -335,6 +335,7 @@ features = [
 ]
 
 [workspace.lints.rust]
+linker_messages = "allow"
 unexpected_cfgs = { level = "allow" }
 
 [workspace.lints.clippy]
