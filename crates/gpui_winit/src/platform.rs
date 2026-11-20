@@ -26,7 +26,7 @@ use winit::event_loop::{ActiveEventLoop, EventLoop};
 use crate::{
     app::App,
     clipboard, credentials,
-    dispatcher::{MAIN_TASK_BUDGET, Wake, WinitDispatcher, execute_runnable},
+    dispatcher::{LoopEvent, MAIN_TASK_BUDGET, WinitDispatcher, execute_runnable},
     display::WinitDisplay,
     keyboard::{WindowsKeyboardLayout, WindowsKeyboardMapper},
     renderer::RendererContext,
@@ -196,7 +196,7 @@ impl Platform for WinitPlatform {
 
     fn run(&self, on_finish_launching: Box<dyn 'static + FnOnce()>) {
         system::initialize_com();
-        let event_loop = match EventLoop::<Wake>::with_user_event().build() {
+        let event_loop = match EventLoop::<LoopEvent>::with_user_event().build() {
             Ok(event_loop) => event_loop,
             Err(error) => {
                 log::error!("failed to create the event loop: {error}");
@@ -270,10 +270,18 @@ impl Platform for WinitPlatform {
     ) -> Result<Box<dyn PlatformWindow>> {
         let renderer_context = self.shared.renderer_context.borrow().clone();
         let cursor = self.shared.cursor.clone();
+        let dispatcher = self.shared.dispatcher.clone();
         let inner = self
             .shared
             .with_event_loop(|event_loop| {
-                WindowInner::open(event_loop, handle, options, renderer_context, cursor)
+                WindowInner::open(
+                    event_loop,
+                    handle,
+                    options,
+                    renderer_context,
+                    cursor,
+                    dispatcher,
+                )
             })
             .context("windows can only be opened while the event loop is running")??;
         self.shared
