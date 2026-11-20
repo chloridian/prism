@@ -30,7 +30,7 @@ wasm-threads = ["dep:wasm_thread", "flume/spin"]
 [dependencies]
 async-task.workspace = true
 backtrace.workspace = true
-chrono.workspace = true
+time.workspace = true
 flume.workspace = true
 futures.workspace = true
 parking_lot.workspace = true

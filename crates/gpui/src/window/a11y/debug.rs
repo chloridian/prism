@@ -86,7 +86,15 @@ impl A11yDebug {
         self.last_active_descendant = active_descendant;
         self.frame_number += 1;
         self.last_frame = Some(CapturedFrame {
-            rendered_at: chrono::Local::now().to_rfc3339_opts(chrono::SecondsFormat::Millis, false),
+            rendered_at: {
+                let now = time::OffsetDateTime::now_local()
+                    .unwrap_or_else(|_| time::OffsetDateTime::now_utc());
+                let format = time::format_description::parse_borrowed::<2>(
+                    "[year]-[month]-[day]T[hour]:[minute]:[second].[subsecond digits:3][offset_hour sign:mandatory]:[offset_minute]",
+                )
+                .expect("valid RFC 3339 millis format");
+                now.format(&format).expect("format timestamp")
+            },
             frame_number: self.frame_number,
             window_title: window_title.cloned(),
             node_count: update.nodes.len(),

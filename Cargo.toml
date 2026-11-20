@@ -90,7 +90,7 @@ parking_lot = "0.12.1"
 phf = { version = "0.13.1", features = ["macros"] }
 postage = { version = "0.5", features = ["futures-traits"] }
 proptest = { version = "1.10", features = ["attr-macro"] }
-chrono = { version = "0.4", features = ["serde"] }
+time = { version = "0.3.55", features = ["formatting", "local-offset", "parsing", "serde"] }
 profiling = "1"
 rand = "0.9.4"
 regex = "1.5"
