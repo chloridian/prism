@@ -24,9 +24,9 @@ Prism is Radia's fork of gpui-ce (`gpui-ce/gpui-ce`). Radia is a Second Life vie
 
 ## Commits and pull requests
 
-- Commit with one Conventional Commit subject line, `<type>(<scope>): <subject>`, and no body. The scope is the crate name minus `gpui_` (`gpui`, `wgpu`, `windows`, `macos`). Drop the scope only for repository-wide changes.
+- Commit with one Conventional Commit header and no body: `<type>: <subject>` or `<type>(<scope>): <subject>`. Scopes are optional; include one only when it adds useful context. For crate-level scopes, use the crate name without the `gpui_` prefix (`gpui`, `wgpu`, `windows`, `macos`).
 - Name branches with a type prefix and the change (`refactor/wgpu-only-renderer`).
-- Title pull requests with an imperative sentence in sentence case, without a type prefix. Start the body with the problem in plain prose, then give the solution in a sentence or two. End with a `Verification:` paragraph listing only checks that ran.
+- Title pull requests with a Conventional Commit subject line. Use the title as the squash-merge commit subject. For merge commits, use `merge: <subject>` or `merge(<scope>): <subject>`, including a scope only when it adds useful context. Start the body with the problem in plain prose, then give the solution in a sentence or two. End with a `Verification:` paragraph listing only checks that ran.
 - Leave releases to upstream. No tags, no `just publish` or other release recipes, no crates.io publishing.
 
 ## Checks
