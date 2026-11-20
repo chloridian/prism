@@ -6,6 +6,9 @@ license = "Apache-2.0"
 publish = true
 description = "macOS CoreMedia/CoreVideo bindings for gpui-ce (vendored from Zed)."
 
+[lints]
+workspace = true
+
 [lib]
 name = "media"
 path = "src/media.rs"

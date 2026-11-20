@@ -18,9 +18,6 @@ test-support = ["gpui/test-support", "gpui_wgpu/test-support"]
 font-kit = []
 screen-capture = ["gpui/screen-capture", "dep:core-video"]
 
-[dependencies]
-gpui.workspace = true
-
 [target.'cfg(target_os = "macos")'.dependencies]
 accesskit.workspace = true
 accesskit_macos.workspace = true
@@ -40,6 +37,7 @@ etagere.workspace = true
 font-kit = { version = "0.14.1-zed", package = "zed-font-kit" }
 foreign-types.workspace = true
 futures.workspace = true
+gpui.workspace = true
 gpui_parley = { workspace = true, features = ["system-fonts"] }
 gpui_render = { workspace = true, features = ["swash"] }
 gpui_util.workspace = true

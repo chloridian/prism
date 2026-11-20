@@ -37,12 +37,9 @@ resolver = "3"
 
 [workspace.package]
 edition = "2024"
-authors = ["Nathan Sobo <nathan@zed.dev>"]
 description = "A community fork of Zed's GPU-accelerated UI framework"
 publish = true
 license = "Apache-2.0"
-homepage = "https://gpui-ce.github.io/"
-readme = "README.md"
 
 [workspace.dependencies]
 accesskit = { version = "0.24.0", features = ["enumn"] }
@@ -118,7 +115,6 @@ web-time = "1.1.0"
 skrifa = "0.44.0"
 block = "0.1"
 block2 = "0.6"
-cbindgen = { version = "0.28.0", default-features = false }
 core-foundation = "=0.10.0"
 core-foundation-sys = "0.8.6"
 core-graphics = "0.24"
@@ -184,7 +180,6 @@ ashpd = { version = "0.14", default-features = false, features = [
 ] }
 libc = "0.2"
 smol = "2.0"
-util = { path = "crates/gpui_zed_util", version = "0.4.0", package = "gpui_ce_zed_util" }
 wgpu = "30.0.1"
 wgsl-rs = { version = "0.1.0-beta.6", default-features = false, features = [
   "validation",
@@ -251,14 +246,12 @@ gpui_platform = { path = "./crates/gpui_platform/", version = "0.4.0", package =
 gpui_linux = { path = "./crates/gpui_linux/", version = "0.4.0", package = "gpui_ce_linux", default-features = false }
 gpui_macos = { path = "./crates/gpui_macos/", version = "0.4.0", package = "gpui_ce_macos" }
 gpui_winit = { path = "./crates/gpui_winit/", version = "0.4.0", package = "gpui_ce_winit" }
-gpui_web = { path = "./crates/gpui_web/", version = "0.4.0", package = "gpui_ce_web" }
 gpui_parley = { path = "./crates/gpui_ce_parley/", version = "0.4.0", package = "gpui_ce_parley", default-features = false }
 
 gpui_wgpu = { path = "./crates/gpui_wgpu/", version = "0.4.0", package = "gpui_ce_wgpu" }
 
 gpui_macros = { path = "./crates/gpui_macros/", version = "0.4.0", package = "gpui_ce_macros" }
 gpui_shared_string = { path = "./crates/gpui_shared_string/", version = "0.4.0", package = "gpui_ce_shared_string" }
-gpui_tokio = { path = "./crates/gpui_tokio/", version = "0.4.0", package = "gpui_ce_tokio" }
 
 gpui-base = { path = "./crates/gpui_base/", version = "0.10.0" }
 gpui-component = { path = "./crates/gpui_component/", version = "0.10.0" }

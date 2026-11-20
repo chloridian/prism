@@ -7,6 +7,9 @@ publish = true
 description = "Blessed hash collections used by gpui-ce (vendored from Zed)."
 repository = "https://github.com/gpui-ce/gpui-ce"
 
+[lints]
+workspace = true
+
 [lib]
 name = "collections"
 path = "src/collections.rs"

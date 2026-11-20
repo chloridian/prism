@@ -6,6 +6,9 @@ license = "Apache-2.0"
 publish = true
 description = "Async task scheduler/executor for gpui-ce (vendored from Zed)."
 
+[lints]
+workspace = true
+
 [lib]
 name = "scheduler"
 path = "src/scheduler.rs"

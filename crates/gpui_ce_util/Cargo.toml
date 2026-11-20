@@ -7,6 +7,9 @@ publish = true
 description = "Utility structs and functions used by gpui-ce (vendored from Zed's gpui_util)."
 repository = "https://github.com/gpui-ce/gpui-ce"
 
+[lints]
+workspace = true
+
 [lib]
 name = "gpui_util"
 path = "src/lib.rs"
