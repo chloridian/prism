@@ -1,6 +1,6 @@
 use std::{rc::Rc, sync::Arc};
 
-use crate::{ActiveTheme, Sizable, Size};
+use crate::{ActiveTheme, Sizable, Size, Theme};
 use gpui::{
     AnyElement, App, AppContext, Context, Entity, Global, Hsla, IntoElement, Pixels, Radians,
     Render, RenderOnce, SharedString, StyleRefinement, Styled, Svg, Transformation, Window,
@@ -277,7 +277,9 @@ impl Sizable for Icon {
 impl RenderOnce for Icon {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let text_size = window.text_style().font_size.to_pixels(window.rem_size());
-        let fallback_stroke_width = cx.theme().icon_stroke_width;
+        let fallback_stroke_width = cx
+            .try_global::<Theme>()
+            .and_then(|theme| theme.icon_stroke_width);
         self.resolved(cx)
             .into_svg(text_size, window.text_style().color, fallback_stroke_width)
     }
