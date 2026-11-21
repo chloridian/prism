@@ -593,25 +593,23 @@ impl WindowInner {
             Instant::now(),
             DoubleClick::system(),
         );
-        self.dispatch(PlatformInput::MouseDown(MouseDownEvent {
+        is_consumed(self.dispatch(PlatformInput::MouseDown(MouseDownEvent {
             button,
             position,
             modifiers: self.modifiers.get(),
             click_count,
             first_mouse: false,
-        }))
-        .is_some_and(|result| !result.propagate)
+        })))
     }
 
     /// Dispatches a release and reports whether the application consumed it.
     fn release(&self, button: MouseButton, position: Point<Pixels>) -> bool {
-        self.dispatch(PlatformInput::MouseUp(MouseUpEvent {
+        is_consumed(self.dispatch(PlatformInput::MouseUp(MouseUpEvent {
             button,
             position,
             modifiers: self.modifiers.get(),
             click_count: self.click_state.borrow().current_count(),
-        }))
-        .is_some_and(|result| !result.propagate)
+        })))
     }
 
     pub(crate) fn logical_client_position(&self, point: POINT) -> Point<Pixels> {
@@ -1132,5 +1130,35 @@ fn wheel_setting(
         DEFAULT
     } else {
         value as f32
+    }
+}
+
+fn is_consumed(result: Option<DispatchEventResult>) -> bool {
+    result.is_some_and(|result| !result.propagate || result.default_prevented)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn non_client_mouse_event_is_consumed_when_default_prevented() {
+        assert!(!is_consumed(None));
+        assert!(!is_consumed(Some(DispatchEventResult {
+            propagate: true,
+            default_prevented: false,
+        })));
+        assert!(is_consumed(Some(DispatchEventResult {
+            propagate: true,
+            default_prevented: true,
+        })));
+        assert!(is_consumed(Some(DispatchEventResult {
+            propagate: false,
+            default_prevented: false,
+        })));
+        assert!(is_consumed(Some(DispatchEventResult {
+            propagate: false,
+            default_prevented: true,
+        })));
     }
 }
