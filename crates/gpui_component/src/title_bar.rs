@@ -442,7 +442,6 @@ impl RenderOnce for WindowControls {
             .items_center()
             .flex_shrink_0()
             .h_full()
-            .when(cfg!(target_os = "windows"), |this| this.pb(px(1.)))
             .children(controls.into_iter().enumerate().flat_map(|(ix, control)| {
                 let gap = (cfg!(target_os = "windows") && ix > 0).then(caption_gap);
                 gap.into_iter()
@@ -799,9 +798,9 @@ mod tests {
 
     #[cfg(target_os = "windows")]
     #[gpui::test]
-    fn caption_buttons_stop_one_pixel_above_the_bottom_border(cx: &mut TestAppContext) {
+    fn caption_buttons_sit_above_the_bottom_border(cx: &mut TestAppContext) {
         cx.update(crate::init);
-        for (border, height) in [(0., 39.), (1., 38.), (2., 37.)] {
+        for (border, height) in [(0., 40.), (1., 39.), (2., 38.)] {
             let view = cx.new(|_| BorderedBar(border));
             let window = cx.update(|cx| {
                 cx.open_window(Default::default(), |window, cx| {
