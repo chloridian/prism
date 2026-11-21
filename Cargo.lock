@@ -3307,6 +3307,7 @@ name = "gpui_ce_macros"
 version = "0.4.0"
 dependencies = [
  "heck",
+ "proc-macro-crate",
  "proc-macro2",
  "quote",
  "syn 2.0.119",
