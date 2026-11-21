@@ -74,7 +74,7 @@ palette.workspace = true
 phf.workspace = true
 postage.workspace = true
 proptest = { workspace = true, optional = true }
-chrono.workspace = true
+time.workspace = true
 profiling.workspace = true
 rand.workspace = true
 raw-window-handle.workspace = true

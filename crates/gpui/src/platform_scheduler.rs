@@ -1,6 +1,5 @@
 use crate::{PlatformDispatcher, RunnableMeta};
 use async_task::Runnable;
-use chrono::{DateTime, Utc};
 use futures::channel::oneshot;
 use scheduler::Instant;
 use scheduler::{
@@ -19,6 +18,7 @@ use std::{
     },
     time::Duration,
 };
+use time::OffsetDateTime;
 
 /// A production implementation of [`Scheduler`] that wraps a [`PlatformDispatcher`].
 ///
@@ -180,8 +180,8 @@ struct PlatformClock {
 }
 
 impl Clock for PlatformClock {
-    fn utc_now(&self) -> DateTime<Utc> {
-        Utc::now()
+    fn utc_now(&self) -> OffsetDateTime {
+        OffsetDateTime::now_utc()
     }
 
     fn now(&self) -> Instant {
