@@ -29,17 +29,24 @@ use windows::Win32::{
 };
 use winit::event_loop::EventLoopProxy;
 
+use crate::frame::NonClientEvent;
+
 /// How long the main thread may run queued tasks before it yields to window events.
 pub(crate) const MAIN_TASK_BUDGET: Duration = Duration::from_millis(10);
 
-/// The event posted to the winit loop to drain the main-thread queue.
+/// User events posted to the winit loop.
 #[derive(Debug)]
-pub(crate) struct Wake;
+pub(crate) enum LoopEvent {
+    /// Drain the main-thread task queue.
+    Wake,
+    /// Deliver a non-client mouse message inside an active event-loop callback.
+    NonClient(NonClientEvent),
+}
 
 pub(crate) struct WinitDispatcher {
     main_sender: PriorityQueueSender<RunnableVariant>,
     main_thread_id: ThreadId,
-    proxy: OnceLock<EventLoopProxy<Wake>>,
+    proxy: OnceLock<EventLoopProxy<LoopEvent>>,
     wake_posted: AtomicBool,
 }
 
@@ -56,7 +63,7 @@ impl WinitDispatcher {
     }
 
     /// Connects the dispatcher to the event loop. Tasks queued before this call run on the first wake.
-    pub(crate) fn attach(&self, proxy: EventLoopProxy<Wake>) {
+    pub(crate) fn attach(&self, proxy: EventLoopProxy<LoopEvent>) {
         if self.proxy.set(proxy).is_ok() {
             self.wake_posted.store(false, Ordering::Release);
             self.post_wake();
@@ -78,9 +85,17 @@ impl WinitDispatcher {
         self.wake_posted.store(true, Ordering::Release);
     }
 
+    pub(crate) fn send_non_client(&self, event: NonClientEvent) {
+        if let Some(proxy) = self.proxy.get()
+            && proxy.send_event(LoopEvent::NonClient(event)).is_err()
+        {
+            log::debug!("event loop closed before non-client event was delivered");
+        }
+    }
+
     fn post_wake(&self) {
         if let Some(proxy) = self.proxy.get()
-            && proxy.send_event(Wake).is_err()
+            && proxy.send_event(LoopEvent::Wake).is_err()
         {
             log::debug!("event loop closed before the main thread was woken");
         }

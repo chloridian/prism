@@ -10,9 +10,10 @@
 use std::{
     cell::Cell,
     rc::{Rc, Weak},
+    sync::Arc,
 };
 
-use gpui::{MouseButton, WindowControlArea};
+use gpui::{MouseButton, Pixels, Point, WindowControlArea};
 use gpui_util::ResultExt as _;
 use windows::Win32::{
     Foundation::{HWND, LPARAM, LRESULT, POINT, RECT, WPARAM},
@@ -20,25 +21,69 @@ use windows::Win32::{
     UI::{
         Controls::HOVER_DEFAULT,
         HiDpi::{AdjustWindowRectExForDpi, GetDpiForWindow, GetSystemMetricsForDpi},
-        Input::KeyboardAndMouse::{TME_LEAVE, TME_NONCLIENT, TRACKMOUSEEVENT, TrackMouseEvent},
+        Input::KeyboardAndMouse::{
+            GetAsyncKeyState, TME_LEAVE, TME_NONCLIENT, TRACKMOUSEEVENT, TrackMouseEvent,
+            VK_LBUTTON, VK_RBUTTON,
+        },
         Shell::{DefSubclassProc, RemoveWindowSubclass, SetWindowSubclass},
         WindowsAndMessaging::{
-            DefWindowProcW, GWL_EXSTYLE, GWL_STYLE, GetClientRect, GetWindowLongW, GetWindowRect,
-            HTCAPTION, HTCLOSE, HTMAXBUTTON, HTMINBUTTON, HTNOWHERE, HTTOP, HTTOPLEFT, HTTOPRIGHT,
-            IsZoomed, MA_ACTIVATE, MINMAXINFO, NCCALCSIZE_PARAMS, PostMessageW, SM_CXPADDEDBORDER,
-            SM_CXSIZEFRAME, SM_CYSIZEFRAME, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOCOPYBITS,
-            SWP_NOMOVE, SWP_NOOWNERZORDER, SWP_NOREPOSITION, SWP_NOSENDCHANGING, SWP_NOSIZE,
-            SWP_NOZORDER, SetWindowPos, WINDOW_EX_STYLE, WINDOW_STYLE, WM_CLOSE, WM_DPICHANGED,
-            WM_GETMINMAXINFO, WM_MOUSEACTIVATE, WM_NCCALCSIZE, WM_NCHITTEST, WM_NCLBUTTONDBLCLK,
-            WM_NCLBUTTONDOWN, WM_NCLBUTTONUP, WM_NCMBUTTONDOWN, WM_NCMBUTTONUP, WM_NCMOUSELEAVE,
-            WM_NCMOUSEMOVE, WM_NCRBUTTONDOWN, WM_NCRBUTTONUP,
+            DefWindowProcW, GWL_EXSTYLE, GWL_STYLE, GetClientRect, GetSystemMetrics,
+            GetWindowLongW, GetWindowRect, HTCAPTION, HTCLOSE, HTMAXBUTTON, HTMINBUTTON, HTNOWHERE,
+            HTTOP, HTTOPLEFT, HTTOPRIGHT, IsZoomed, MA_ACTIVATE, MINMAXINFO, NCCALCSIZE_PARAMS,
+            PostMessageW, SM_CXPADDEDBORDER, SM_CXSIZEFRAME, SM_CYSIZEFRAME, SM_SWAPBUTTON,
+            SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOCOPYBITS, SWP_NOMOVE, SWP_NOOWNERZORDER,
+            SWP_NOREPOSITION, SWP_NOSENDCHANGING, SWP_NOSIZE, SWP_NOZORDER, SetWindowPos,
+            WINDOW_EX_STYLE, WINDOW_STYLE, WM_CLOSE, WM_DPICHANGED, WM_GETMINMAXINFO,
+            WM_MOUSEACTIVATE, WM_NCCALCSIZE, WM_NCHITTEST, WM_NCLBUTTONDBLCLK, WM_NCLBUTTONDOWN,
+            WM_NCLBUTTONUP, WM_NCMBUTTONDOWN, WM_NCMBUTTONUP, WM_NCMOUSELEAVE, WM_NCMOUSEMOVE,
+            WM_NCRBUTTONDOWN, WM_NCRBUTTONUP,
         },
     },
 };
+use winit::window::WindowId;
 
-use crate::window::WindowInner;
+use crate::{dispatcher::WinitDispatcher, window::WindowInner};
 
 const SUBCLASS_ID: usize = 1;
+
+/// Non-client mouse events deferred from `subclass_proc` into winit's `user_event` callback
+/// so GPUI handlers run with an active event loop.
+#[derive(Debug)]
+pub(crate) enum NonClientEvent {
+    MouseMove {
+        window_id: WindowId,
+        position: Point<Pixels>,
+    },
+    MouseLeave {
+        window_id: WindowId,
+    },
+    MouseDown {
+        window_id: WindowId,
+        button: MouseButton,
+        position: Point<Pixels>,
+        hit_test: u32,
+        screen_lparam: isize,
+        double_click: bool,
+    },
+    MouseUp {
+        window_id: WindowId,
+        button: MouseButton,
+        position: Point<Pixels>,
+        hit_test: u32,
+        screen_lparam: isize,
+    },
+}
+
+impl NonClientEvent {
+    pub(crate) fn window_id(&self) -> WindowId {
+        match *self {
+            Self::MouseMove { window_id, .. }
+            | Self::MouseLeave { window_id }
+            | Self::MouseDown { window_id, .. }
+            | Self::MouseUp { window_id, .. } => window_id,
+        }
+    }
+}
 
 /// How a window's frame is drawn and what the user may do with it.
 #[derive(Clone, Copy)]
@@ -53,6 +98,7 @@ pub(crate) struct FrameStyle {
 
 struct State {
     window: Weak<WindowInner>,
+    dispatcher: Arc<WinitDispatcher>,
     style: FrameStyle,
     pressed_button: Cell<Option<u32>>,
     tracking_leave: Cell<bool>,
@@ -65,9 +111,15 @@ pub(crate) struct Frame {
 }
 
 impl Frame {
-    pub(crate) fn install(hwnd: HWND, window: Weak<WindowInner>, style: FrameStyle) -> Self {
+    pub(crate) fn install(
+        hwnd: HWND,
+        window: Weak<WindowInner>,
+        dispatcher: Arc<WinitDispatcher>,
+        style: FrameStyle,
+    ) -> Self {
         let state = Box::into_raw(Box::new(State {
             window,
+            dispatcher,
             style,
             pressed_button: Cell::new(None),
             tracking_leave: Cell::new(false),
@@ -85,6 +137,12 @@ impl Frame {
             resize_client(hwnd, client);
         }
         Self { hwnd, state }
+    }
+
+    pub(crate) fn handle_event(&self, window: &WindowInner, event: NonClientEvent) {
+        // SAFETY: `state` stays allocated until `drop`, and this runs on the main thread.
+        let state = unsafe { &*self.state };
+        state.handle_deferred(window, self.hwnd, event);
     }
 
     /// Resizes the client area of a window with a custom title bar to `size` in pixels. Returns
@@ -150,14 +208,25 @@ impl State {
             WM_NCMOUSEMOVE => self.mouse_move(window, hwnd, lparam),
             WM_NCMOUSELEAVE => {
                 self.tracking_leave.set(false);
-                window.cursor_left();
+                self.dispatcher.send_non_client(NonClientEvent::MouseLeave {
+                    window_id: window.id(),
+                });
                 Some(0)
             }
-            WM_NCLBUTTONDOWN | WM_NCLBUTTONDBLCLK => {
-                self.mouse_down(window, hwnd, MouseButton::Left, wparam, lparam)
+            WM_NCLBUTTONDOWN | WM_NCLBUTTONDBLCLK => self.mouse_down(
+                window,
+                hwnd,
+                MouseButton::Left,
+                wparam,
+                lparam,
+                msg == WM_NCLBUTTONDBLCLK,
+            ),
+            WM_NCRBUTTONDOWN => {
+                self.mouse_down(window, hwnd, MouseButton::Right, wparam, lparam, false)
             }
-            WM_NCRBUTTONDOWN => self.mouse_down(window, hwnd, MouseButton::Right, wparam, lparam),
-            WM_NCMBUTTONDOWN => self.mouse_down(window, hwnd, MouseButton::Middle, wparam, lparam),
+            WM_NCMBUTTONDOWN => {
+                self.mouse_down(window, hwnd, MouseButton::Middle, wparam, lparam, false)
+            }
             WM_NCLBUTTONUP => self.mouse_up(window, hwnd, MouseButton::Left, wparam, lparam),
             WM_NCRBUTTONUP => self.mouse_up(window, hwnd, MouseButton::Right, wparam, lparam),
             WM_NCMBUTTONUP => self.mouse_up(window, hwnd, MouseButton::Middle, wparam, lparam),
@@ -298,9 +367,12 @@ impl State {
                 .log_err();
             }
         }
-        window
-            .nc_mouse_move(window.logical_client_position(client_point(hwnd, lparam)))
-            .then_some(0)
+        let position = window.logical_client_position(client_point(hwnd, lparam));
+        self.dispatcher.send_non_client(NonClientEvent::MouseMove {
+            window_id: window.id(),
+            position,
+        });
+        None
     }
 
     fn mouse_down(
@@ -310,23 +382,22 @@ impl State {
         button: MouseButton,
         wparam: WPARAM,
         lparam: LPARAM,
+        double_click: bool,
     ) -> Option<isize> {
-        let position = window.logical_client_position(client_point(hwnd, lparam));
-        if window.nc_mouse_down(button, position) {
-            return Some(0);
-        }
-
-        // The caption buttons act on release, so the default procedure must not see the press.
-        if button != MouseButton::Left {
+        let hit_test = wparam.0 as u32;
+        if !is_caption_hit_test(hit_test) {
             return None;
         }
-        match wparam.0 as u32 {
-            code @ (HTMINBUTTON | HTMAXBUTTON | HTCLOSE) => {
-                self.pressed_button.set(Some(code));
-                Some(0)
-            }
-            _ => None,
-        }
+        let position = window.logical_client_position(client_point(hwnd, lparam));
+        self.dispatcher.send_non_client(NonClientEvent::MouseDown {
+            window_id: window.id(),
+            button,
+            position,
+            hit_test,
+            screen_lparam: lparam.0,
+            double_click,
+        });
+        Some(0)
     }
 
     fn mouse_up(
@@ -337,36 +408,130 @@ impl State {
         wparam: WPARAM,
         lparam: LPARAM,
     ) -> Option<isize> {
-        let position = window.logical_client_position(client_point(hwnd, lparam));
-        if window.nc_mouse_up(button, position) {
-            return Some(0);
-        }
-
-        let pressed = self.pressed_button.take();
-        if button != MouseButton::Left {
+        let hit_test = wparam.0 as u32;
+        if !is_caption_hit_test(hit_test) {
             return None;
         }
-        match (wparam.0 as u32, pressed?) {
-            (HTMINBUTTON, HTMINBUTTON) => {
-                if self.style.minimizable {
-                    window.minimize();
+        let position = window.logical_client_position(client_point(hwnd, lparam));
+        self.dispatcher.send_non_client(NonClientEvent::MouseUp {
+            window_id: window.id(),
+            button,
+            position,
+            hit_test,
+            screen_lparam: lparam.0,
+        });
+        Some(0)
+    }
+
+    fn handle_deferred(&self, window: &WindowInner, hwnd: HWND, event: NonClientEvent) {
+        match event {
+            NonClientEvent::MouseMove { position, .. } => {
+                window.nc_mouse_move(position);
+            }
+            NonClientEvent::MouseLeave { .. } => {
+                window.cursor_left();
+            }
+            NonClientEvent::MouseDown {
+                button,
+                position,
+                hit_test,
+                screen_lparam,
+                double_click,
+                ..
+            } => {
+                if window.nc_mouse_down(button, position) {
+                    return;
                 }
-                Some(0)
-            }
-            (HTMAXBUTTON, HTMAXBUTTON) => {
-                if self.style.resizable {
-                    window.toggle_maximized();
+                if button != MouseButton::Left {
+                    return;
                 }
-                Some(0)
+                match hit_test {
+                    code @ (HTMINBUTTON | HTMAXBUTTON | HTCLOSE) => {
+                        self.pressed_button.set(Some(code));
+                    }
+                    HTCAPTION if double_click => {
+                        // SAFETY: `hwnd` is live for the duration of `window`.
+                        unsafe {
+                            DefWindowProcW(
+                                hwnd,
+                                WM_NCLBUTTONDBLCLK,
+                                WPARAM(HTCAPTION as usize),
+                                LPARAM(screen_lparam),
+                            );
+                        }
+                    }
+                    HTCAPTION if primary_mouse_button_down() => {
+                        // SAFETY: `hwnd` is live for the duration of `window`.
+                        unsafe {
+                            DefWindowProcW(
+                                hwnd,
+                                WM_NCLBUTTONDOWN,
+                                WPARAM(HTCAPTION as usize),
+                                LPARAM(screen_lparam),
+                            );
+                        }
+                    }
+                    _ => {}
+                }
             }
-            (HTCLOSE, HTCLOSE) => {
-                // SAFETY: `hwnd` is the live window this message was sent to.
-                unsafe { PostMessageW(Some(hwnd), WM_CLOSE, WPARAM::default(), LPARAM::default()) }
-                    .log_err();
-                Some(0)
+            NonClientEvent::MouseUp {
+                button,
+                position,
+                hit_test,
+                screen_lparam,
+                ..
+            } => {
+                if window.nc_mouse_up(button, position) {
+                    return;
+                }
+                let pressed = self.pressed_button.take();
+                match (button, hit_test, pressed) {
+                    (MouseButton::Left, HTMINBUTTON, Some(HTMINBUTTON))
+                        if self.style.minimizable =>
+                    {
+                        window.minimize();
+                    }
+                    (MouseButton::Left, HTMAXBUTTON, Some(HTMAXBUTTON)) if self.style.resizable => {
+                        window.toggle_maximized();
+                    }
+                    (MouseButton::Left, HTCLOSE, Some(HTCLOSE)) => {
+                        // SAFETY: `hwnd` is live for the duration of `window`.
+                        unsafe {
+                            PostMessageW(Some(hwnd), WM_CLOSE, WPARAM::default(), LPARAM::default())
+                        }
+                        .log_err();
+                    }
+                    (MouseButton::Right, HTCAPTION, _) => {
+                        // SAFETY: `hwnd` is live for the duration of `window`.
+                        unsafe {
+                            DefWindowProcW(
+                                hwnd,
+                                WM_NCRBUTTONUP,
+                                WPARAM(HTCAPTION as usize),
+                                LPARAM(screen_lparam),
+                            );
+                        }
+                    }
+                    _ => {}
+                }
             }
-            _ => None,
         }
+    }
+}
+
+fn is_caption_hit_test(code: u32) -> bool {
+    matches!(code, HTCAPTION | HTMINBUTTON | HTMAXBUTTON | HTCLOSE)
+}
+
+fn primary_mouse_button_down() -> bool {
+    // SAFETY: plain system metric and key state queries.
+    unsafe {
+        let vk = if GetSystemMetrics(SM_SWAPBUTTON) != 0 {
+            VK_RBUTTON
+        } else {
+            VK_LBUTTON
+        };
+        GetAsyncKeyState(i32::from(vk.0)) < 0
     }
 }
 

@@ -41,7 +41,6 @@ x11 = [
   "x11rb",
   "xkbcommon/x11",
   "xim",
-  "x11-clipboard",
   "filedescriptor",
   "open",
 ]
@@ -126,7 +125,5 @@ xim = { version = "0.4.0-zed", package = "zed-xim", features = [
   "x11rb-xcb",
   "x11rb-client",
 ], optional = true }
-x11-clipboard = { version = "0.9.3", optional = true }
-
 [package.metadata.cargo-shear]
-ignored = ["bitflags", "scap", "x11-clipboard"]
+ignored = ["bitflags", "scap"]

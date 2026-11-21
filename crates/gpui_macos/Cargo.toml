@@ -16,10 +16,7 @@ path = "src/gpui_macos.rs"
 bench-support = ["gpui/bench-support"]
 test-support = ["gpui/test-support", "gpui_wgpu/test-support"]
 font-kit = []
-screen-capture = ["gpui/screen-capture", "dep:core-video"]
-
-[dependencies]
-gpui.workspace = true
+screen-capture = ["gpui/screen-capture", "dep:core-video", "dep:media", "dep:objc2-core-media", "dep:objc2-screen-capture-kit"]
 
 [target.'cfg(target_os = "macos")'.dependencies]
 accesskit.workspace = true
@@ -40,6 +37,7 @@ etagere.workspace = true
 font-kit = { version = "0.14.1-zed", package = "zed-font-kit" }
 foreign-types.workspace = true
 futures.workspace = true
+gpui.workspace = true
 gpui_parley = { workspace = true, features = ["system-fonts"] }
 gpui_render = { workspace = true, features = ["swash"] }
 gpui_util.workspace = true
@@ -49,14 +47,14 @@ itertools.workspace = true
 libc.workspace = true
 log.workspace = true
 mach2.workspace = true
-media.workspace = true
+media = { workspace = true, optional = true }
 metal.workspace = true
 objc2.workspace = true
 objc2-app-kit.workspace = true
 objc2-foundation.workspace = true
 objc2-quartz-core.workspace = true
-objc2-core-media.workspace = true
-objc2-screen-capture-kit.workspace = true
+objc2-core-media = { workspace = true, optional = true }
+objc2-screen-capture-kit = { workspace = true, optional = true }
 objc2-user-notifications.workspace = true
 palette.workspace = true
 parking_lot.workspace = true

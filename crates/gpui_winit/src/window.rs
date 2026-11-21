@@ -47,8 +47,9 @@ use winit::{
 use crate::{
     accessibility::Accessibility,
     capture::{Capture, Grab},
+    dispatcher::WinitDispatcher,
     display::{WinitDisplay, logical_point},
-    frame::{Frame, FrameStyle},
+    frame::{Frame, FrameStyle, NonClientEvent},
     input::{self, ClickState, DoubleClick},
     renderer::{Renderer, RendererContext, WindowHandles},
     system,
@@ -124,6 +125,7 @@ impl WindowInner {
         params: WindowParams,
         renderer_context: RendererContext,
         cursor: Rc<CursorState>,
+        dispatcher: Arc<WinitDispatcher>,
     ) -> Result<Rc<Self>> {
         if let WindowKind::AnchoredPopup(_) = params.kind {
             return Err(gpui::popup::PopupNotSupportedError.into());
@@ -219,6 +221,7 @@ impl WindowInner {
         let frame = Frame::install(
             hwnd,
             Rc::downgrade(&inner),
+            dispatcher,
             FrameStyle {
                 custom_title_bar,
                 movable: params.is_movable,
@@ -639,6 +642,12 @@ impl WindowInner {
     pub(crate) fn nc_mouse_down(&self, button: MouseButton, position: Point<Pixels>) -> bool {
         self.mouse_position.set(position);
         self.press(button, position)
+    }
+
+    pub(crate) fn handle_non_client(&self, event: NonClientEvent) {
+        if let Some(frame) = self.frame.get() {
+            frame.handle_event(self, event);
+        }
     }
 
     pub(crate) fn nc_mouse_up(&self, button: MouseButton, position: Point<Pixels>) -> bool {

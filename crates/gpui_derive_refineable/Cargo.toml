@@ -6,6 +6,9 @@ license = "Apache-2.0"
 publish = true
 description = "Derive macro for gpui-ce's Refineable (vendored from Zed)."
 
+[lints]
+workspace = true
+
 [lib]
 name = "derive_refineable"
 path = "src/derive_refineable.rs"

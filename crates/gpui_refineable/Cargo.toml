@@ -6,6 +6,9 @@ license = "Apache-2.0"
 publish = true
 description = "Refineable trait + cascade for gpui-ce (vendored from Zed)."
 
+[lints]
+workspace = true
+
 [lib]
 name = "refineable"
 path = "src/refineable.rs"

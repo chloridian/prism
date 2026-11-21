@@ -9,7 +9,7 @@ use winit::{
     window::WindowId,
 };
 
-use crate::{dispatcher::Wake, platform::Shared};
+use crate::{dispatcher::LoopEvent, platform::Shared};
 
 pub(crate) struct App {
     shared: Rc<Shared>,
@@ -25,7 +25,7 @@ impl App {
     }
 }
 
-impl ApplicationHandler<Wake> for App {
+impl ApplicationHandler<LoopEvent> for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         let _scope = self.shared.enter(event_loop);
         if let Some(on_finish_launching) = self.on_finish_launching.take() {
@@ -34,9 +34,22 @@ impl ApplicationHandler<Wake> for App {
         }
     }
 
-    fn user_event(&mut self, event_loop: &ActiveEventLoop, _event: Wake) {
+    fn user_event(&mut self, event_loop: &ActiveEventLoop, event: LoopEvent) {
         let _scope = self.shared.enter(event_loop);
-        self.shared.run_main_tasks();
+        match event {
+            LoopEvent::Wake => self.shared.run_main_tasks(),
+            LoopEvent::NonClient(event) => {
+                if let Some(window) = self
+                    .shared
+                    .windows
+                    .borrow()
+                    .get(&event.window_id())
+                    .cloned()
+                {
+                    window.handle_non_client(event);
+                }
+            }
+        }
     }
 
     fn device_event(
