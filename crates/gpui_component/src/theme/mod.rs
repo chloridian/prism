@@ -229,6 +229,9 @@ pub struct Theme {
     /// Application-wide caret blink behavior.
     #[serde(skip)]
     pub cursor_blink: gpui_base::input::CursorBlink,
+    /// Optional stroke width override for icons.
+    #[serde(default)]
+    pub icon_stroke_width: Option<f32>,
 }
 
 impl Default for Theme {
@@ -813,6 +816,7 @@ impl From<&ThemeColor> for Theme {
             sheet: SheetSettings::default(),
             motion: MotionTokens::default(),
             cursor_blink: gpui_base::input::CursorBlink::default(),
+            icon_stroke_width: None,
         }
     }
 }

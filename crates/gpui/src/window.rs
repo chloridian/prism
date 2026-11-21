@@ -5085,9 +5085,26 @@ impl Window {
         &mut self,
         bounds: Bounds<Pixels>,
         path: SharedString,
-        mut data: Option<&[u8]>,
+        data: Option<&[u8]>,
         transformation: TransformationMatrix,
         color: Hsla,
+        cx: &App,
+    ) -> Result<()> {
+        self.paint_svg_with_stroke_width(bounds, path, data, transformation, color, None, cx)
+    }
+
+    /// Paint a monochrome SVG with an optional stroke-width override into the scene for the next
+    /// frame at the current stacking context.
+    ///
+    /// This method should only be called as part of the paint phase of element drawing.
+    pub fn paint_svg_with_stroke_width(
+        &mut self,
+        bounds: Bounds<Pixels>,
+        path: SharedString,
+        data: Option<&[u8]>,
+        transformation: TransformationMatrix,
+        color: Hsla,
+        stroke_width: Option<f32>,
         cx: &App,
     ) -> Result<()> {
         self.invalidator.debug_assert_paint();
@@ -5099,6 +5116,7 @@ impl Window {
             size: bounds.size.map(|pixels| {
                 DevicePixels::from((pixels.0 * SMOOTH_SVG_SCALE_FACTOR).ceil() as i32)
             }),
+            stroke_width: RenderSvgParams::sanitize_stroke_width(stroke_width),
         };
 
         let Some(tile) =

@@ -27,6 +27,9 @@ pub struct Svg {
     /// Set the path to the SVG file for this element.
     #[setters(generate, strip_option, into)]
     external_path: Option<SharedString>,
+    /// Override the stroke width of the SVG element.
+    #[setters(generate, strip_option)]
+    stroke_width: Option<f32>,
     data: Option<Arc<[u8]>>,
     data_path: Option<SharedString>,
 }
@@ -39,6 +42,7 @@ pub fn svg() -> Svg {
         transformation: None,
         path: None,
         external_path: None,
+        stroke_width: None,
         data: None,
         data_path: None,
     }
@@ -139,12 +143,13 @@ impl Element for Svg {
                 if let Some((data, path)) = self.data.as_ref().zip(self.data_path.as_ref()) {
                     if let Some(color) = style.text.color {
                         window
-                            .paint_svg(
+                            .paint_svg_with_stroke_width(
                                 bounds,
                                 path.clone(),
                                 Some(&**data),
                                 transformation,
                                 color,
+                                self.stroke_width,
                                 cx,
                             )
                             .log_err();
@@ -160,18 +165,27 @@ impl Element for Svg {
                     };
 
                     window
-                        .paint_svg(
+                        .paint_svg_with_stroke_width(
                             bounds,
                             path.clone(),
                             Some(&bytes),
                             transformation,
                             color,
+                            self.stroke_width,
                             cx,
                         )
                         .log_err();
                 } else if let Some((path, color)) = self.path.as_ref().zip(style.text.color) {
                     window
-                        .paint_svg(bounds, path.clone(), None, transformation, color, cx)
+                        .paint_svg_with_stroke_width(
+                            bounds,
+                            path.clone(),
+                            None,
+                            transformation,
+                            color,
+                            self.stroke_width,
+                            cx,
+                        )
                         .log_err();
                 }
             },

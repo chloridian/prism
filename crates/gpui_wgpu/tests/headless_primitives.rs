@@ -102,6 +102,7 @@ fn every_primitive_kind_renders() {
                 width: DevicePixels(8),
                 height: DevicePixels(8),
             },
+            stroke_width: None,
         }),
         vec![255; 64],
     );

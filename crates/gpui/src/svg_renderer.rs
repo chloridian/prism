@@ -7,6 +7,7 @@ use resvg::tiny_skia::Pixmap;
 use skrifa::{FontRef, MetadataProvider};
 use smallvec::SmallVec;
 use std::{
+    borrow::Cow,
     hash::Hash,
     sync::{Arc, LazyLock, OnceLock},
 };
@@ -81,11 +82,22 @@ fn select_emoji_font(
 /// When rendering SVGs, we render them at twice the size to get a higher-quality result.
 pub const SMOOTH_SVG_SCALE_FACTOR: f32 = 2.;
 
-#[derive(Clone, PartialEq, Hash, Eq)]
+#[derive(Clone, Debug, PartialEq, Hash, Eq)]
 #[expect(missing_docs)]
 pub struct RenderSvgParams {
     pub path: SharedString,
     pub size: Size<DevicePixels>,
+    pub stroke_width: Option<u32>,
+}
+
+impl RenderSvgParams {
+    /// Converts a stroke width override into a cache-key representation,
+    /// discarding non-finite and non-positive values.
+    pub fn sanitize_stroke_width(stroke_width: Option<f32>) -> Option<u32> {
+        stroke_width
+            .filter(|width| width.is_finite() && *width > 0.0)
+            .map(f32::to_bits)
+    }
 }
 
 #[derive(Clone)]
@@ -238,8 +250,13 @@ impl SvgRenderer {
     ) -> Result<Option<(Size<DevicePixels>, Vec<u8>)>> {
         anyhow::ensure!(!params.size.is_zero(), "can't render at a zero size");
 
-        let render_pixmap = |bytes| {
-            let pixmap = self.render_pixmap(bytes, SvgSize::Size(params.size))?;
+        let stroke_width = params.stroke_width.map(f32::from_bits);
+        let render_pixmap = |bytes: &[u8]| {
+            let bytes = match stroke_width {
+                Some(width) => apply_stroke_width(bytes, width),
+                None => Cow::Borrowed(bytes),
+            };
+            let pixmap = self.render_pixmap(&bytes, SvgSize::Size(params.size))?;
 
             // Convert the pixmap's pixels into an alpha mask.
             let size = Size::new(
@@ -267,6 +284,34 @@ impl SvgRenderer {
     fn render_pixmap(&self, bytes: &[u8], size: SvgSize) -> Result<Pixmap, usvg::Error> {
         let tree = usvg::Tree::from_data(bytes, &self.usvg_options)?;
         rasterize_tree(&tree, size)
+    }
+}
+
+fn apply_stroke_width(bytes: &[u8], width: f32) -> Cow<'_, [u8]> {
+    static STROKE_WIDTH_ATTR_REGEX: LazyLock<regex::Regex> =
+        LazyLock::new(|| regex::Regex::new(r#"stroke-width\s*=\s*(?:"[^"]*"|'[^']*')"#).unwrap());
+
+    let Ok(svg) = std::str::from_utf8(bytes) else {
+        return Cow::Borrowed(bytes);
+    };
+
+    let replacement = format!(r#"stroke-width="{width}""#);
+    let replaced = STROKE_WIDTH_ATTR_REGEX.replace_all(svg, replacement.as_str());
+    match replaced {
+        Cow::Owned(updated) => Cow::Owned(updated.into_bytes()),
+        Cow::Borrowed(_) => {
+            if let Some(svg_start) = svg.find("<svg") {
+                let insert_at = svg_start + "<svg".len();
+                let mut updated = String::with_capacity(svg.len() + replacement.len() + 1);
+                updated.push_str(&svg[..insert_at]);
+                updated.push(' ');
+                updated.push_str(&replacement);
+                updated.push_str(&svg[insert_at..]);
+                Cow::Owned(updated.into_bytes())
+            } else {
+                Cow::Borrowed(bytes)
+            }
+        }
     }
 }
 
@@ -519,5 +564,53 @@ mod tests {
             "Monospace should map to Lilex, got {:?}",
             face.families
         );
+    }
+
+    #[test]
+    fn stroke_width_override_updates_cache_key_and_renders() -> Result<()> {
+        assert_eq!(RenderSvgParams::sanitize_stroke_width(None), None);
+        assert_eq!(RenderSvgParams::sanitize_stroke_width(Some(0.0)), None);
+        assert_eq!(RenderSvgParams::sanitize_stroke_width(Some(-1.5)), None);
+        assert_eq!(RenderSvgParams::sanitize_stroke_width(Some(f32::NAN)), None);
+        assert_eq!(
+            RenderSvgParams::sanitize_stroke_width(Some(f32::INFINITY)),
+            None
+        );
+        assert_eq!(
+            RenderSvgParams::sanitize_stroke_width(Some(1.5)),
+            Some(1.5_f32.to_bits())
+        );
+
+        let renderer = SvgRenderer::new(Arc::new(AssetRegistry::default()));
+        let svg = br#"<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 12h16"/></svg>"#;
+        let size = Size::new(DevicePixels(48), DevicePixels(48));
+
+        let thin_params = RenderSvgParams {
+            path: "test/line.svg".into(),
+            size,
+            stroke_width: RenderSvgParams::sanitize_stroke_width(Some(1.0)),
+        };
+        let thick_params = RenderSvgParams {
+            path: "test/line.svg".into(),
+            size,
+            stroke_width: RenderSvgParams::sanitize_stroke_width(Some(4.0)),
+        };
+        assert_ne!(thin_params, thick_params);
+
+        let (_, thin_mask) = renderer
+            .render_alpha_mask(&thin_params, Some(svg))?
+            .expect("thin svg should render");
+        let (_, thick_mask) = renderer
+            .render_alpha_mask(&thick_params, Some(svg))?
+            .expect("thick svg should render");
+
+        let thin_coverage: usize = thin_mask.iter().filter(|&&alpha| alpha > 0).count();
+        let thick_coverage: usize = thick_mask.iter().filter(|&&alpha| alpha > 0).count();
+        assert!(thin_coverage > 0);
+        assert!(
+            thick_coverage > thin_coverage,
+            "expected thicker stroke ({thick_coverage}) to cover more pixels than thinner stroke ({thin_coverage})"
+        );
+        Ok(())
     }
 }
