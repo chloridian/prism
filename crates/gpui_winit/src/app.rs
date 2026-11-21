@@ -39,13 +39,13 @@ impl ApplicationHandler<LoopEvent> for App {
         match event {
             LoopEvent::Wake => self.shared.run_main_tasks(),
             LoopEvent::NonClient(event) => {
-                if let Some(window) = self
+                let window = self
                     .shared
                     .windows
                     .borrow()
                     .get(&event.window_id())
-                    .cloned()
-                {
+                    .cloned();
+                if let Some(window) = window {
                     window.handle_non_client(event);
                 }
             }
