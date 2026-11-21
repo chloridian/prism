@@ -1,6 +1,6 @@
 use std::{rc::Rc, sync::Arc};
 
-use crate::{ActiveTheme, Sizable, Size};
+use crate::{ActiveTheme, Sizable, Size, Theme};
 use gpui::{
     AnyElement, App, AppContext, Context, Entity, Global, Hsla, IntoElement, Pixels, Radians,
     Render, RenderOnce, SharedString, StyleRefinement, Styled, Svg, Transformation, Window,
@@ -118,6 +118,7 @@ pub struct Icon {
     text_color: Option<Hsla>,
     size: Option<Size>,
     transformation: Option<Transformation>,
+    stroke_width: Option<f32>,
 }
 
 impl Default for Icon {
@@ -128,6 +129,7 @@ impl Default for Icon {
             text_color: None,
             size: None,
             transformation: None,
+            stroke_width: None,
         }
     }
 }
@@ -203,6 +205,12 @@ impl Icon {
         self
     }
 
+    /// Override the stroke width of this icon.
+    pub fn stroke_width(mut self, width: f32) -> Self {
+        self.stroke_width = Some(width);
+        self
+    }
+
     fn resolved(mut self, cx: &App) -> Self {
         if let IconSource::Path(path) = self.source {
             self.source = IconSource::Path(resolve_icon_path(path, cx));
@@ -210,8 +218,14 @@ impl Icon {
         self
     }
 
-    fn into_svg(self, text_size: Pixels, fallback_color: Hsla) -> Svg {
+    fn into_svg(
+        self,
+        text_size: Pixels,
+        fallback_color: Hsla,
+        fallback_stroke_width: Option<f32>,
+    ) -> Svg {
         let text_color = self.text_color.unwrap_or(fallback_color);
+        let stroke_width = self.stroke_width.or(fallback_stroke_width);
         let has_base_size = self.style.size.width.is_some() || self.style.size.height.is_some();
 
         svg()
@@ -235,6 +249,9 @@ impl Icon {
             })
             .when_some(self.transformation, |this, transformation| {
                 this.with_transformation(transformation)
+            })
+            .when_some(stroke_width, |this, stroke_width| {
+                this.stroke_width(stroke_width)
             })
     }
 }
@@ -260,8 +277,11 @@ impl Sizable for Icon {
 impl RenderOnce for Icon {
     fn render(self, window: &mut Window, cx: &mut App) -> impl IntoElement {
         let text_size = window.text_style().font_size.to_pixels(window.rem_size());
+        let fallback_stroke_width = cx
+            .try_global::<Theme>()
+            .and_then(|theme| theme.icon_stroke_width);
         self.resolved(cx)
-            .into_svg(text_size, window.text_style().color)
+            .into_svg(text_size, window.text_style().color, fallback_stroke_width)
     }
 }
 
@@ -274,9 +294,10 @@ impl From<Icon> for AnyElement {
 impl Render for Icon {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let text_size = window.text_style().font_size.to_pixels(window.rem_size());
+        let fallback_stroke_width = cx.theme().icon_stroke_width;
         self.clone()
             .resolved(cx)
-            .into_svg(text_size, cx.theme().foreground)
+            .into_svg(text_size, cx.theme().foreground, fallback_stroke_width)
     }
 }
 
@@ -310,7 +331,7 @@ mod tests {
         assert_eq!(cloned.size, icon.size);
         assert_eq!(cloned.text_color, icon.text_color);
 
-        let mut svg = cloned.into_svg(px(12.), gpui::blue());
+        let mut svg = cloned.into_svg(px(12.), gpui::blue(), None);
         assert_eq!(svg.style().text.color, Some(gpui::red()));
         assert_eq!(svg.style().size.width, Some(gpui::rems(1.5).into()));
 
