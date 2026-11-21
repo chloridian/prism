@@ -5257,14 +5257,29 @@ impl Window {
         bounds: Bounds<Pixels>,
         source: impl Into<crate::SurfaceSource>,
     ) {
+        self.paint_surface_with_corner_radii(bounds, Corners::default(), source);
+    }
+
+    /// Paint a surface with rounded corners into the scene for the next frame at the current z-index.
+    ///
+    /// This method should only be called as part of the paint phase of element drawing.
+    pub fn paint_surface_with_corner_radii(
+        &mut self,
+        bounds: Bounds<Pixels>,
+        corner_radii: Corners<Pixels>,
+        source: impl Into<crate::SurfaceSource>,
+    ) {
         self.invalidator.debug_assert_paint();
 
+        let scale_factor = self.scale_factor();
         let bounds = self.snap_bounds(bounds);
         let content_mask = self.snapped_content_mask();
+        let corner_radii = corner_radii.scale(scale_factor);
         self.next_frame.scene.insert_primitive(PaintSurface {
             order: 0,
             bounds,
             content_mask,
+            corner_radii,
             source: source.into(),
         });
     }
