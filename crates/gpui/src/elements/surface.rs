@@ -179,11 +179,14 @@ impl Element for Surface {
         _: &mut App,
     ) {
         let new_bounds = self.object_fit.get_bounds(_bounds, self.source.size());
-        // TODO: Add support for corner_radii.
         let mut style = Style::default();
         style.refine(&self.style);
         _window.with_element_opacity(style.opacity, |window| {
-            window.paint_surface(new_bounds, self.source.clone());
+            let corner_radii = style
+                .corner_radii
+                .to_pixels(window.rem_size())
+                .clamp_radii_for_quad_size(new_bounds.size);
+            window.paint_surface_with_corner_radii(new_bounds, corner_radii, self.source.clone());
         });
     }
 }

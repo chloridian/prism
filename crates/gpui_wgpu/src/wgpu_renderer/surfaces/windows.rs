@@ -325,7 +325,7 @@ mod application_texture_tests {
     use std::sync::Arc;
 
     use gpui::{
-        Bounds, ContentMask, DevicePixels, PaintSurface, Point, ScaledPixels, Scene, Size,
+        Bounds, ContentMask, Corners, DevicePixels, PaintSurface, Point, ScaledPixels, Scene, Size,
         SurfaceSource,
     };
 
@@ -395,6 +395,7 @@ mod application_texture_tests {
                     bounds: bounds(4.0),
                     ..Default::default()
                 },
+                corner_radii: Corners::default(),
                 source,
             });
         }
