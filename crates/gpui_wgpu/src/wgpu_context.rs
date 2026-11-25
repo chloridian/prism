@@ -247,11 +247,18 @@ pub struct WgpuContext {
     pub device: Arc<wgpu::Device>,
     pub queue: Arc<wgpu::Queue>,
     backend: WgpuBackend,
+    adapter_memory: Option<AdapterMemory>,
     dual_source_blending: bool,
     color_texture_format: wgpu::TextureFormat,
     renderer_tier: RendererTier,
     device_lost: Arc<AtomicBool>,
     uncaptured_error: Arc<Mutex<Option<String>>>,
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct AdapterMemory {
+    pub local_bytes: u64,
+    pub budget_bytes: Option<u64>,
 }
 
 /// The resource transport selected for a device.
@@ -319,6 +326,7 @@ pub struct WgpuContextHandle {
     queue: Arc<wgpu::Queue>,
     texture_format: wgpu::TextureFormat,
     adapter_info: wgpu::AdapterInfo,
+    adapter_memory: Option<AdapterMemory>,
     backend: WgpuBackend,
     features: wgpu::Features,
     limits: wgpu::Limits,
@@ -331,6 +339,7 @@ impl WgpuContextHandle {
         queue: Arc<wgpu::Queue>,
         texture_format: wgpu::TextureFormat,
         adapter_info: wgpu::AdapterInfo,
+        adapter_memory: Option<AdapterMemory>,
         backend: WgpuBackend,
         device_lost: Arc<AtomicBool>,
     ) -> Self {
@@ -341,6 +350,7 @@ impl WgpuContextHandle {
             queue,
             texture_format,
             adapter_info,
+            adapter_memory,
             backend,
             features,
             limits,
@@ -371,6 +381,10 @@ impl WgpuContextHandle {
     /// Returns information about the selected adapter.
     pub fn adapter_info(&self) -> &wgpu::AdapterInfo {
         &self.adapter_info
+    }
+
+    pub fn adapter_memory(&self) -> Option<AdapterMemory> {
+        self.adapter_memory
     }
 
     /// Returns the backend selected for this window.
@@ -546,6 +560,7 @@ impl WgpuContext {
             Arc::clone(&self.queue),
             texture_format,
             self.adapter.get_info(),
+            self.adapter_memory,
             self.backend,
             Arc::clone(&self.device_lost),
         )
@@ -685,7 +700,13 @@ impl WgpuContext {
     ) -> anyhow::Result<Self> {
         let (device_lost, uncaptured_error) = install_device_callbacks(&device.device);
         let info = adapter.get_info();
-        log::info!("Selected GPU adapter: {:?} ({:?})", info.name, info.backend);
+        let adapter_memory = query_adapter_memory(&adapter);
+        log::info!(
+            "Selected GPU adapter: {:?} ({:?}), memory: {:?}",
+            info.name,
+            info.backend,
+            adapter_memory,
+        );
         #[cfg(target_family = "wasm")]
         let backend = match info.backend {
             wgpu::Backend::BrowserWebGpu => WgpuBackend::BrowserWebGpu,
@@ -701,6 +722,7 @@ impl WgpuContext {
             instance,
             adapter,
             backend,
+            adapter_memory,
             device: Arc::new(device.device),
             queue: Arc::new(device.queue),
             dual_source_blending: device.dual_source_blending,
@@ -1122,6 +1144,86 @@ fn parse_pci_id(id: &str) -> anyhow::Result<u32> {
     );
 
     u32::from_str_radix(id, 16).context("parsing PCI ID as hex")
+}
+
+fn query_adapter_memory(adapter: &wgpu::Adapter) -> Option<AdapterMemory> {
+    #[cfg(target_os = "windows")]
+    if let Some(memory) = query_dx12_memory(adapter) {
+        return Some(memory);
+    }
+
+    #[cfg(all(not(target_family = "wasm"), not(target_vendor = "apple")))]
+    if let Some(memory) = query_vulkan_memory(adapter) {
+        return Some(memory);
+    }
+
+    #[cfg(target_vendor = "apple")]
+    if let Some(memory) = query_metal_memory(adapter) {
+        return Some(memory);
+    }
+
+    let _ = adapter;
+    None
+}
+
+#[cfg(target_os = "windows")]
+fn query_dx12_memory(adapter: &wgpu::Adapter) -> Option<AdapterMemory> {
+    use windows::Win32::Graphics::Dxgi::{
+        DXGI_MEMORY_SEGMENT_GROUP_LOCAL, DXGI_QUERY_VIDEO_MEMORY_INFO,
+    };
+
+    let hal_adapter = unsafe { adapter.as_hal::<wgpu::hal::api::Dx12>() }?;
+    let raw = hal_adapter.as_raw();
+    let desc = unsafe { raw.GetDesc2() }.ok()?;
+    let local_bytes = desc.DedicatedVideoMemory as u64;
+    if local_bytes == 0 {
+        return None;
+    }
+    let mut info = DXGI_QUERY_VIDEO_MEMORY_INFO::default();
+    let budget_bytes =
+        unsafe { raw.QueryVideoMemoryInfo(0, DXGI_MEMORY_SEGMENT_GROUP_LOCAL, &mut info) }
+            .ok()
+            .and_then(|()| (info.Budget > 0).then_some(info.Budget));
+    Some(AdapterMemory {
+        local_bytes,
+        budget_bytes,
+    })
+}
+
+#[cfg(all(not(target_family = "wasm"), not(target_vendor = "apple")))]
+fn query_vulkan_memory(adapter: &wgpu::Adapter) -> Option<AdapterMemory> {
+    const DEVICE_LOCAL_BIT: u32 = 1;
+
+    let hal_adapter = unsafe { adapter.as_hal::<wgpu::hal::api::Vulkan>() }?;
+    let props = unsafe {
+        hal_adapter
+            .shared_instance()
+            .raw_instance()
+            .get_physical_device_memory_properties(hal_adapter.raw_physical_device())
+    };
+    let count = (props.memory_heap_count as usize).min(props.memory_heaps.len());
+    let local_bytes = props.memory_heaps[..count]
+        .iter()
+        .filter(|heap| heap.flags.as_raw() & DEVICE_LOCAL_BIT != 0)
+        .map(|heap| heap.size)
+        .max()
+        .unwrap_or(0);
+    (local_bytes > 0).then_some(AdapterMemory {
+        local_bytes,
+        budget_bytes: None,
+    })
+}
+
+#[cfg(target_vendor = "apple")]
+fn query_metal_memory(adapter: &wgpu::Adapter) -> Option<AdapterMemory> {
+    use objc2_metal::MTLDevice as _;
+
+    let hal_adapter = unsafe { adapter.as_hal::<wgpu::hal::api::Metal>() }?;
+    let local_bytes = hal_adapter.raw_device().recommendedMaxWorkingSetSize();
+    (local_bytes > 0).then_some(AdapterMemory {
+        local_bytes,
+        budget_bytes: None,
+    })
 }
 
 #[cfg(all(test, not(target_family = "wasm")))]

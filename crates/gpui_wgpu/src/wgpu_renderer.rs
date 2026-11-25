@@ -233,6 +233,7 @@ impl WgpuRenderer {
                 resources.queue.clone(),
                 self.target.format(),
                 self.adapter_info.clone(),
+                None,
                 match self.adapter_info.backend {
                     wgpu::Backend::BrowserWebGpu => crate::WgpuBackend::BrowserWebGpu,
                     wgpu::Backend::Gl => crate::WgpuBackend::Gl,
