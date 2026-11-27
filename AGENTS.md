@@ -10,7 +10,7 @@ Prism is Radia's fork of gpui-ce (`gpui-ce/gpui-ce`). Radia is a Second Life vie
 
 - Contribute to `gpui-ce/gpui-ce` (pull requests, issues, discussions, comments) only when the owner asks for that specific contribution, and only with changes that help gpui-ce too.
 - Build an upstream contribution on a branch from upstream `main` with only that change and no agent files. Follow [AI_POLICY.md](AI_POLICY.md). The owner writes all prose, the pull request discloses LLM help, and tests cover every change.
-- Pass `--repo hymenaei/Prism` to every `gh pr` command. `gh` sends a fork's pull requests to the parent repository by default.
+- Pass `--repo chloridian/prism` to every `gh pr` command. `gh` sends a fork's pull requests to the parent repository by default.
 
 ## Diverging from upstream
 
